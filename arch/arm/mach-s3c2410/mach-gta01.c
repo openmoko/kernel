@@ -75,6 +75,10 @@
 #include <asm/plat-s3c24xx/neo1973.h>
 #include <linux/jbt6k74.h>
 
+#include <linux/ts_filter_mean.h>
+#include <linux/ts_filter_median.h>
+
+
 static struct map_desc gta01_iodesc[] __initdata = {
 	{
 		.virtual	= 0xe0000000,

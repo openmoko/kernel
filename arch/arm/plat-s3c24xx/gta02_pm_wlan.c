@@ -22,6 +22,7 @@
 #include <asm/plat-s3c24xx/neo1973.h>
 
 #include <mach/gta02.h>
+#include <mach/gta02-pm-wlan.h>
 #include <mach/regs-gpio.h>
 #include <mach/regs-gpioj.h>
 
@@ -46,7 +47,7 @@ static void __gta02_wlan_power(int on)
 	s3c2410_gpio_setpin(GTA02_GPIO_nWLAN_RESET, 1);
 }
 
-static void gta02_wlan_power(int on)
+void gta02_wlan_power(int on)
 {
 	static DEFINE_MUTEX(lock);
 	static int is_on = -1; /* initial state is unknown */

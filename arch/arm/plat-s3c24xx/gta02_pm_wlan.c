@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/mutex.h>
 #include <linux/platform_device.h>
 
 #include <mach/hardware.h>
@@ -27,7 +28,7 @@
 #include <linux/delay.h>
 
 
-static void gta02_wlan_power(int on)
+static void __gta02_wlan_power(int on)
 {
 	if (!on) {
 		s3c2410_gpio_setpin(GTA02_CHIP_PWD, 1);
@@ -43,7 +44,19 @@ static void gta02_wlan_power(int on)
 	s3c2410_gpio_setpin(GTA02_CHIP_PWD, 0);
 	msleep(100);
 	s3c2410_gpio_setpin(GTA02_GPIO_nWLAN_RESET, 1);
+}
 
+static void gta02_wlan_power(int on)
+{
+	static DEFINE_MUTEX(lock);
+	static int is_on = -1; /* initial state is unknown */
+
+	on = !!on; /* normalize */
+	mutex_lock(&lock);
+	if (on != is_on)
+		__gta02_wlan_power(on);
+	is_on = on;
+	mutex_unlock(&lock);
 }
 
 static ssize_t gta02_wlan_read(struct device *dev,

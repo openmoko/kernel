@@ -193,6 +193,13 @@ config PCF50606_ADC
 	 Say yes here if you want to include support for ADC in the
 	 NXP PCF50606 chip.
 
+config PCF50606_GPO
+	tristate "Support for NXP PCF50606 GPO"
+	depends on MFD_PCF50606
+	help
+	 Say yes here if you want to include support GPO for pins on
+	 the PCF50606 chip.
+
 source "drivers/mfd/glamo/Kconfig"
 
 endmenu

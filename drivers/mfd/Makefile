@@ -40,4 +40,5 @@ obj-$(CONFIG_PCF50633_GPIO)	+= pcf50633-gpio.o
 
 obj-$(CONFIG_MFD_PCF50606)	+= pcf50606-core.o
 obj-$(CONFIG_PCF50606_ADC)	+= pcf50606-adc.o
+obj-$(CONFIG_PCF50606_GPO)	+= pcf50606-gpo.o
 

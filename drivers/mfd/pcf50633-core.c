@@ -1,3 +1,25 @@
+/* Philips PCF50633 Power Management Unit (PMU) driver
+ *
+ * (C) 2006-2008 by Openmoko, Inc.
+ * Author: Harald Welte <laforge@openmoko.org>
+ * All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+ * MA 02111-1307 USA
+ *
+ */
 #include <linux/i2c.h>
 #include <linux/irq.h>
 #include <linux/device.h>
@@ -26,7 +48,7 @@ int pcf50633_read_block(struct pcf50633 *pcf , u8 reg,
 
 	return ret;
 }
-EXPORT_SYMBOL(pcf50633_read_block);
+EXPORT_SYMBOL_GPL(pcf50633_read_block);
 
 /* Write a block of upto 32 regs  */
 int pcf50633_write_block(struct pcf50633 *pcf , u8 reg,
@@ -41,7 +63,7 @@ int pcf50633_write_block(struct pcf50633 *pcf , u8 reg,
 
 	return ret;
 }
-EXPORT_SYMBOL(pcf50633_write_block);
+EXPORT_SYMBOL_GPL(pcf50633_write_block);
 
 u8 pcf50633_reg_read(struct pcf50633 *pcf, u8 reg)
 {
@@ -53,7 +75,7 @@ u8 pcf50633_reg_read(struct pcf50633 *pcf, u8 reg)
 
 	return ret;
 }
-EXPORT_SYMBOL(pcf50633_reg_read);
+EXPORT_SYMBOL_GPL(pcf50633_reg_read);
 
 int pcf50633_reg_write(struct pcf50633 *pcf, u8 reg, u8 val)
 {
@@ -64,7 +86,7 @@ int pcf50633_reg_write(struct pcf50633 *pcf, u8 reg, u8 val)
 
 	return ret;
 }
-EXPORT_SYMBOL(pcf50633_reg_write);
+EXPORT_SYMBOL_GPL(pcf50633_reg_write);
 
 int pcf50633_reg_set_bit_mask(struct pcf50633 *pcf, u8 reg, u8 mask, u8 val)
 {
@@ -84,7 +106,7 @@ int pcf50633_reg_set_bit_mask(struct pcf50633 *pcf, u8 reg, u8 mask, u8 val)
 
 	return ret;
 }
-EXPORT_SYMBOL(pcf50633_reg_set_bit_mask);
+EXPORT_SYMBOL_GPL(pcf50633_reg_set_bit_mask);
 
 int pcf50633_reg_clear_bits(struct pcf50633 *pcf, u8 reg, u8 val)
 {
@@ -101,7 +123,7 @@ int pcf50633_reg_clear_bits(struct pcf50633 *pcf, u8 reg, u8 val)
 
 	return ret;
 }
-EXPORT_SYMBOL(pcf50633_reg_clear_bits);
+EXPORT_SYMBOL_GPL(pcf50633_reg_clear_bits);
 
 /* sysfs attributes */
 static ssize_t show_dump_regs(struct device *dev, struct device_attribute *attr,
@@ -204,7 +226,7 @@ int pcf50633_irq_mask(struct pcf50633 *pcf, int irq)
 
 	return pcf50633_irq_mask_set(pcf, irq, 1);
 }
-EXPORT_SYMBOL(pcf50633_irq_mask);
+EXPORT_SYMBOL_GPL(pcf50633_irq_mask);
 
 int pcf50633_irq_unmask(struct pcf50633 *pcf, int irq)
 {
@@ -212,7 +234,7 @@ int pcf50633_irq_unmask(struct pcf50633 *pcf, int irq)
 
 	return pcf50633_irq_mask_set(pcf, irq, 0);
 }
-EXPORT_SYMBOL(pcf50633_irq_unmask);
+EXPORT_SYMBOL_GPL(pcf50633_irq_unmask);
 
 int pcf50633_irq_mask_get(struct pcf50633 *pcf, int irq)
 {
@@ -223,7 +245,7 @@ int pcf50633_irq_mask_get(struct pcf50633 *pcf, int irq)
 
 	return pcf->mask_regs[reg] & bits;
 }
-EXPORT_SYMBOL(pcf50633_irq_mask_get);
+EXPORT_SYMBOL_GPL(pcf50633_irq_mask_get);
 
 static void pcf50633_irq_call_handler(struct pcf50633 *pcf,
 					int irq)
@@ -504,8 +526,6 @@ static int pcf50633_probe(struct i2c_client *client,
 						&pcf->mbc.pdev);
 	pcf50633_client_dev_register(pcf, "pcf50633-adc",
 						&pcf->adc.pdev);
-	pcf50633_client_dev_register(pcf, "pcf50633-gpio",
-						&pcf->gpio.pdev);
 	for (i = 0; i < PCF50633_NUM_REGULATORS; i++) {
 		struct platform_device *pdev;
 

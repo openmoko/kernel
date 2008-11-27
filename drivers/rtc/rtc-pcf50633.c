@@ -1,3 +1,28 @@
+/* Philips PCF50633 RTC Driver
+ *
+ * (C) 2006-2008 by Openmoko, Inc.
+ * Author: Balaji Rao <balajirrao@openmoko.org>
+ * All rights reserved.
+ *
+ * Broken down from monstrous PCF50633 driver mainly by
+ * Harald Welte, Andy Green and Werner Almesberger
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+ * MA 02111-1307 USA
+ */
+
 #include <linux/rtc.h>
 #include <linux/platform_device.h>
 #include <linux/bcd.h>
@@ -182,9 +207,6 @@ static int pcf50633_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 
 	rtc2pcf_time(&pcf_tm, &alrm->time);
 
-	printk("wkday is %x\n", alrm->time.tm_wday);
-	printk("wkday is %x\n", pcf_tm.time[PCF50633_TI_WKDAY]);
-
 	alarm_masked = pcf50633_irq_mask_get(pcf, PCF50633_IRQ_ALARM);
 
 	/* disable alarm interrupt */
@@ -211,10 +233,13 @@ static struct rtc_class_ops pcf50633_rtc_ops = {
 
 static void pcf50633_rtc_irq(struct pcf50633 *pcf, int irq, void *unused)
 {
-	switch(irq) {
-		case PCF50633_IRQ_ALARM:
-			rtc_update_irq(pcf->rtc.rtc_dev, 1, RTC_AF | RTC_IRQF);
-			break;
+	switch (irq) {
+	case PCF50633_IRQ_ALARM:
+		rtc_update_irq(pcf->rtc.rtc_dev, 1, RTC_AF | RTC_IRQF);
+		break;
+	case PCF50633_IRQ_SECOND:
+		rtc_update_irq(pcf->rtc.rtc_dev, 1, RTC_PF | RTC_IRQF);
+		break;
 	}
 }
 
@@ -222,12 +247,12 @@ static int pcf50633_rtc_probe(struct platform_device *pdev)
 {
 	struct rtc_device *rtc;
 	struct pcf50633 *pcf;
-	
+
 	rtc = rtc_device_register("pcf50633", &pdev->dev,
 					&pcf50633_rtc_ops, THIS_MODULE);
 	if (IS_ERR(rtc))
 		return -ENODEV;
-	
+
 	pcf = platform_get_drvdata(pdev);
 
 	/* Set up IRQ handlers */
@@ -235,6 +260,7 @@ static int pcf50633_rtc_probe(struct platform_device *pdev)
 	pcf->irq_handler[PCF50633_IRQ_SECOND].handler = pcf50633_rtc_irq;
 
 	pcf->rtc.rtc_dev = rtc;
+
 	return 0;
 }
 

@@ -1,21 +1,30 @@
+/* Philips PCF50633 Main Battery Charger Driver
+ *
+ * (C) 2006-2008 by Openmoko, Inc.
+ * Author: Balaji Rao <balajirrao@openmoko.org>
+ * All rights reserved.
+ *
+ * Broken down from monstrous PCF50633 driver mainly by
+ * Harald Welte, Andy Green and Werner Almesberger
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+ * MA 02111-1307 USA
+ */
+
 #include <linux/mfd/pcf50633/core.h>
 #include <linux/mfd/pcf50633/mbc.h>
-
-
-/*
-#if CONFIG_INPUT_PCF50633_PMU =
-extern static void pcf50633_input_irq(struct pcf50633 *, int, void *);
-
-static void pcf50633_input_report(struct pcf50633 *pcf, int key)
-{
-	pcf50633_input_irq(pcf, key, NULL);
-}
-#else
-static void pcf50633_input_report(struct pcf50633 *pcf, int key)
-{
-}
-#endif
-*/
 
 void pcf50633_mbc_usb_curlim_set(struct pcf50633 *pcf, int ma)
 {
@@ -40,7 +49,7 @@ void pcf50633_mbc_usb_curlim_set(struct pcf50633 *pcf, int ma)
 
 	power_supply_changed(&pcf->mbc.usb);
 }
-EXPORT_SYMBOL(pcf50633_mbc_usb_curlim_set);
+EXPORT_SYMBOL_GPL(pcf50633_mbc_usb_curlim_set);
 
 static const char *chgmode_names[] = {
 	[PCF50633_MBCS2_MBC_PLAY]		= "play-only",

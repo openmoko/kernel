@@ -186,6 +186,13 @@ config MFD_PCF50606
 	  facilities, and registers devices for the various functions
 	  so that function-specific drivers can bind to them.
 
+config PCF50606_ADC
+	tristate "Support for NXP PCF50606 ADC"
+	depends on MFD_PCF50606
+	help
+	 Say yes here if you want to include support for ADC in the
+	 NXP PCF50606 chip.
+
 source "drivers/mfd/glamo/Kconfig"
 
 endmenu

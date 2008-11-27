@@ -500,7 +500,7 @@ static int pcf50633_probe(struct i2c_client *client,
 	}
 
 	variant = pcf50633_reg_read(pcf, 1);
-	if (version < 0) {
+	if (variant < 0) {
 		dev_err(pcf->dev, "Unable to probe pcf50633\n");
 		kfree(pcf);
 		return -ENODEV;

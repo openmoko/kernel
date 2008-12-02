@@ -24,6 +24,7 @@
 
 #include <mach/map.h>
 #include <plat/cpu.h>
+#include <plat/pm.h>
 
 #define eint_offset(irq)	((irq) - IRQ_EINT(0))
 #define eint_irq_to_bit(irq)	(1 << eint_offset(irq))
@@ -122,6 +123,7 @@ static struct irq_chip s3c_irq_eint = {
 	.mask_ack	= s3c_irq_eint_maskack,
 	.ack		= s3c_irq_eint_ack,
 	.set_type	= s3c_irq_eint_set_type,
+	.set_wake	= s3c_irqext_wake,
 };
 
 /* s3c_irq_demux_eint

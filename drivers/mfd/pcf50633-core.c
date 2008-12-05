@@ -28,12 +28,8 @@
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
+
 #include <linux/mfd/pcf50633/core.h>
-#include <linux/mfd/pcf50633/adc.h>
-#include <linux/mfd/pcf50633/rtc.h>
-#include <linux/mfd/pcf50633/mbc.h>
-#include <linux/mfd/pcf50633/input.h>
-#include <linux/mfd/pcf50633/pmic.h>
 
 /* Read a block of upto 32 regs  */
 int pcf50633_read_block(struct pcf50633 *pcf , u8 reg,
@@ -302,7 +298,7 @@ static void pcf50633_irq_worker(struct work_struct *work)
 	/* Some revisions of the chip don't have a 8s standby mode on
 	 * ONKEY1S press. We try to manually do it in such cases. */
 
-	if (pcf_int[0] & PCF50633_INT1_SECOND && pcf->onkey1s_held) {
+	if ((pcf_int[0] & PCF50633_INT1_SECOND) && pcf->onkey1s_held) {
 		dev_info(pcf->dev, "ONKEY1S held for %d secs\n",
 							pcf->onkey1s_held);
 		if (pcf->onkey1s_held++ == PCF50633_ONKEY1S_TIMEOUT)
@@ -319,11 +315,11 @@ static void pcf50633_irq_worker(struct work_struct *work)
 						PCF50633_INT1_SECOND);
 
 		/* Unmask IRQ_ONKEYR */
-		pcf50633_reg_clear_bits(pcf, PCF50633_REG_INT1M,
-						PCF50633_INT1_SECOND);
+		pcf50633_reg_clear_bits(pcf, PCF50633_REG_INT2M,
+						PCF50633_INT2_ONKEYR);
 	}
 
-	if (pcf_int[1] & PCF50633_INT2_ONKEYR & pcf->onkey1s_held) {
+	if ((pcf_int[1] & PCF50633_INT2_ONKEYR) && pcf->onkey1s_held) {
 		pcf->onkey1s_held = 0;
 
 		/* Mask SECOND and ONKEYR interrupts */
@@ -350,22 +346,22 @@ static void pcf50633_irq_worker(struct work_struct *work)
 			pcf->resume_reason[i] = pcf_int[i] &
 						pcf->pdata->resumers[i];
 
-		/* Make sure we don't pass on any input events to
+		/* Make sure we don't pass on any ONKEY events to
 		 * userspace now */
-		pcf_int[1] = 0;
+		pcf_int[1] &= ~ (PCF50633_INT2_ONKEYR | PCF50633_INT2_ONKEYF);
 	}
 
 	/* Unset masked interrupts */
-	for (i = 0; i < 5; i++)
+	for (i = 0; i < ARRAY_SIZE(pcf_int); i++) {
 		pcf_int[i] &= ~pcf->mask_regs[i];
-
-	for (i = 0; i < ARRAY_SIZE(pcf_int); i++)
 		for (j = 0; j < 8 ; j++)
 			if (pcf_int[i] & (1 << j))
 				pcf50633_irq_call_handler(pcf, (i * 8) + j);
+	}
 
 	put_device(pcf->dev);
 
+	enable_irq(pcf->irq);
 	return;
 reschedule:
 	schedule_work(&pcf->irq_work);
@@ -380,6 +376,8 @@ static irqreturn_t pcf50633_irq(int irq, void *data)
 	struct pcf50633 *pcf = data;
 
 	get_device(pcf->dev);
+
+	disable_irq(pcf->irq);
 	schedule_work(&pcf->irq_work);
 
 	return IRQ_HANDLED;
@@ -426,7 +424,8 @@ static int pcf50633_suspend(struct device *dev, pm_message_t state)
 	cancel_work_sync(&pcf->irq_work);
 
 	/* Save the masks */
-	ret = pcf50633_read_block(pcf, PCF50633_REG_INT1M, 5,
+	ret = pcf50633_read_block(pcf, PCF50633_REG_INT1M,
+				ARRAY_SIZE(pcf->suspend_irq_masks),
 					pcf->suspend_irq_masks);
 	if (ret < 0)
 		dev_err(pcf->dev, "error saving irq masks\n");
@@ -434,10 +433,10 @@ static int pcf50633_suspend(struct device *dev, pm_message_t state)
 	/* Set interrupt masks. So that only those sources we want to wake
 	 * us up can
 	 */
-	for (i = 0; i < 5; i++)
+	for (i = 0; i < ARRAY_SIZE(res); i++)
 		res[i] = ~pcf->pdata->resumers[i];
 
-	pcf50633_write_block(pcf, PCF50633_REG_INT1M, 5, &res[0]);
+	pcf50633_write_block(pcf, PCF50633_REG_INT1M, ARRAY_SIZE(res), &res[0]);
 
 	pcf->is_suspended = 1;
 
@@ -451,13 +450,17 @@ static int pcf50633_resume(struct device *dev)
 	pcf = dev_get_drvdata(dev);
 
 	/* Write the saved mask registers */
-	pcf50633_write_block(pcf, PCF50633_REG_INT1M, 5,
+	pcf50633_write_block(pcf, PCF50633_REG_INT1M,
+				ARRAY_SIZE(pcf->suspend_irq_masks),
 					pcf->suspend_irq_masks);
 
-	/* Clear any pending interrupts and set resume reason if any */
-	pcf50633_irq_worker(&pcf->irq_work);
+	get_device(pcf->dev);
 
-	enable_irq(pcf->irq);
+	/*
+	 * Clear any pending interrupts and set resume reason if any.
+	 * This will leave with enable_irq()
+	 */
+	pcf50633_irq_worker(&pcf->irq_work);
 
 	return 0;
 }
@@ -547,7 +550,7 @@ static int pcf50633_probe(struct i2c_client *client,
 
 	if (client->irq) {
 		ret = request_irq(client->irq, pcf50633_irq,
-				IRQF_TRIGGER_FALLING, "pcf50633", pcf);
+				IRQF_TRIGGER_LOW, "pcf50633", pcf);
 
 		if (ret) {
 			dev_err(pcf->dev, "Failed to request IRQ %d\n", ret);

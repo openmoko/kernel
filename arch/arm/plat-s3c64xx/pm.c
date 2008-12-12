@@ -23,6 +23,7 @@
 #include <plat/regs-sys.h>
 #include <plat/regs-gpio.h>
 #include <plat/regs-clock.h>
+#include <plat/regs-modem.h>
 #include <plat/regs-syscon-power.h>
 #include <plat/regs-gpio-memport.h>
 
@@ -82,6 +83,7 @@ static struct sleep_save misc_save[] = {
 	SAVE_ITEM(S3C64XX_AHB_CON1),
 	SAVE_ITEM(S3C64XX_AHB_CON2),
 	
+	SAVE_ITEM(S3C64XX_MODEM_MIFPCON),
 	SAVE_ITEM(S3C64XX_SPCON),
 
 	SAVE_ITEM(S3C64XX_MEM0CONSTOP),

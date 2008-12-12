@@ -39,8 +39,12 @@
 #include <asm/mach-types.h>
 
 #include <plat/regs-serial.h>
+#include <plat/regs-modem.h>
+#include <plat/regs-gpio.h>
+#include <plat/regs-sys.h>
 #include <plat/iic.h>
 #include <plat/fb.h>
+#include <plat/pm.h>
 
 #include <plat/s3c6410.h>
 #include <plat/clock.h>
@@ -155,13 +159,29 @@ static struct i2c_board_info i2c_devs1[] __initdata = {
 
 static void __init smdk6410_map_io(void)
 {
+	u32 tmp;
+
 	s3c64xx_init_io(smdk6410_iodesc, ARRAY_SIZE(smdk6410_iodesc));
 	s3c24xx_init_clocks(12000000);
 	s3c24xx_init_uarts(smdk6410_uartcfgs, ARRAY_SIZE(smdk6410_uartcfgs));
+
+	/* set the LCD type */
+
+	tmp = __raw_readl(S3C64XX_SPCON);
+	tmp &= ~S3C64XX_SPCON_LCD_SEL_MASK;
+	tmp |= S3C64XX_SPCON_LCD_SEL_RGB;
+	__raw_writel(tmp, S3C64XX_SPCON);
+
+	/* remove the lcd bypass */
+	tmp = __raw_readl(S3C64XX_MODEM_MIFPCON);
+	tmp &= ~MIFPCON_LCD_BYPASS;
+	__raw_writel(tmp, S3C64XX_MODEM_MIFPCON);
 }
 
 static void __init smdk6410_machine_init(void)
 {
+	s3c_pm_init();
+
 	s3c_i2c0_set_platdata(NULL);
 	s3c_i2c1_set_platdata(NULL);
 	s3c_fb_set_platdata(&smdk6410_lcd_pdata);

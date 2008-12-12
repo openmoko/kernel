@@ -39,8 +39,10 @@
 #include <asm/mach-types.h>
 
 #include <plat/regs-serial.h>
+#include <plat/regs-gpio.h>
 #include <plat/iic.h>
 #include <plat/fb.h>
+#include <plat/pm.h>
 
 #include <plat/s3c6410.h>
 #include <plat/clock.h>
@@ -162,6 +164,8 @@ static void __init smdk6410_map_io(void)
 
 static void __init smdk6410_machine_init(void)
 {
+	s3c_pm_init();
+
 	s3c_i2c0_set_platdata(NULL);
 	s3c_i2c1_set_platdata(NULL);
 	s3c_fb_set_platdata(&smdk6410_lcd_pdata);

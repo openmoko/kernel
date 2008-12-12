@@ -14,6 +14,7 @@
 
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
+#include <linux/gpio.h>
 #include <linux/irq.h>
 #include <linux/io.h>
 
@@ -21,6 +22,7 @@
 
 #include <plat/regs-irqtype.h>
 #include <plat/regs-gpio.h>
+#include <plat/gpio-cfg.h>
 
 #include <mach/map.h>
 #include <plat/cpu.h>

@@ -86,7 +86,8 @@ static ssize_t const_store(struct const_obj *obj, struct const_attribute *attr,
  * filter functions
  */
 
-static struct ts_filter *ts_filter_linear_create(void *conf, int count_coords)
+static struct ts_filter *ts_filter_linear_create(struct platform_device *pdev,
+						 void *conf, int count_coords)
 {
 	struct ts_filter_linear *tsfl;
 	int i;
@@ -118,8 +119,8 @@ static struct ts_filter *ts_filter_linear_create(void *conf, int count_coords)
 	tsfl->c_obj.tsfl = tsfl; /* kernel frees tsfl in const_release */
 
 	/* TODO: /sys/ts-calibration is not OK */
-	ret = kobject_init_and_add(&tsfl->c_obj.kobj, &tsfl->const_ktype, NULL,
-				   "ts-calibration");
+	ret = kobject_init_and_add(&tsfl->c_obj.kobj, &tsfl->const_ktype,
+				   &pdev->dev.kobj, "calibration");
 	if (ret) {
 		kobject_put(&tsfl->c_obj.kobj);
 		return NULL;
@@ -130,8 +131,8 @@ static struct ts_filter *ts_filter_linear_create(void *conf, int count_coords)
 	return &tsfl->tsf;
 }
 
-
-static void ts_filter_linear_destroy(struct ts_filter *tsf)
+static void ts_filter_linear_destroy(struct platform_device *pdev,
+				     struct ts_filter *tsf)
 {
 	struct ts_filter_linear *tsfl = (struct ts_filter_linear *)tsf;
 

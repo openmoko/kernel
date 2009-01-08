@@ -4,6 +4,7 @@
  * Copyright (C) 2007 Nokia Corporation
  *
  * Written by Mathias Nyman <mathias.nyman@nokia.com>
+ * 	      Matt Hsu 	    <matt_hsu@openmoko.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +25,8 @@
 #include <linux/init.h>
 #include <linux/i2c.h>
 #include <linux/mutex.h>
+
+#include <linux/lp5521.h>
 
 #define LP5521_DRIVER_NAME		"lp5521"
 
@@ -502,10 +505,31 @@ static int lp5521_set_mode(struct lp5521_chip *chip, char *mode)
 /*--------------------------------------------------------------*/
 static struct i2c_driver lp5521_driver;
 
+#ifdef CONFIG_PM
+static int lp5521_suspend(struct device *dev, pm_message_t state)
+{
+	/* FIXME: Not implemented
+	 * Here we could upload firmware to perform
+	 * any scenarios we want and save registers.
+	 */
+	return 0;
+}
+
+static int lp5521_resume(struct device *dev)
+{
+	/* FIXME: Not implemented */
+	return 0;
+}
+#else
+#define lp5521_suspend NULL
+#define lp5521_resume NULL
+#endif
+
 static int lp5521_probe(struct i2c_client *client)
 {
 	struct lp5521_chip *chip;
 	int ret = 0;
+	struct lp5521_platform_data *pdata = client->dev.platform_data;
 
 	chip = kzalloc(sizeof(*chip), GFP_KERNEL);
 	if (!chip)
@@ -516,6 +540,9 @@ static int lp5521_probe(struct i2c_client *client)
 	i2c_set_clientdata(client, chip);
 
 	mutex_init(&chip->lock);
+
+	/* enter start-up mode */
+	(pdata->ext_enable)(1);
 
 	ret = lp5521_configure(client);
 	if (ret < 0) {
@@ -540,6 +567,10 @@ fail1:
 	return ret;
 }
 
+static struct i2c_device_id lp5521_id_table[] = {
+	{LP5521_DRIVER_NAME, },
+};
+
 static int lp5521_remove(struct i2c_client *client)
 {
 	struct lp5521_chip *chip = i2c_get_clientdata(client);
@@ -553,6 +584,8 @@ static int lp5521_remove(struct i2c_client *client)
 static struct i2c_driver lp5521_driver = {
 	.driver = {
 		.name	= LP5521_DRIVER_NAME,
+		.suspend = lp5521_suspend,
+		.resume	= lp5521_resume,
 	},
 	.probe		= lp5521_probe,
 	.remove		= __exit_p(lp5521_remove),

@@ -24,7 +24,7 @@
  *
  */
 
-#include <linux/ts_filter_linear.h>
+#include "ts_filter_linear.h"
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/string.h>

@@ -1,7 +1,7 @@
 #ifndef __TS_FILTER_LINEAR_H__
 #define __TS_FILTER_LINEAR_H__
 
-#include <linux/ts_filter.h>
+#include "ts_filter.h"
 #include <linux/kobject.h>
 
 /*

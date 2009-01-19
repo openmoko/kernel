@@ -9,6 +9,7 @@
 config PLAT_S3C64XX
 	bool
 	depends on ARCH_S3C64XX
+	default y
 	select CPU_V6
 	select PLAT_S3C
 	select ARM_VIC

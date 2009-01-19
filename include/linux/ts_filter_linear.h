@@ -5,7 +5,7 @@
 #include <linux/kobject.h>
 
 /*
- * touchscreen linear filter.
+ * Touchscreen linear filter.
  *
  * Copyright (C) 2008 by Openmoko, Inc.
  * Author: Nelson Castillo <arhuaco@freaks-unidos.net>

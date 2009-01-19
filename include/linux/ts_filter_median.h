@@ -4,7 +4,7 @@
 #include <linux/ts_filter.h>
 
 /*
- * touchscreen filter
+ * Touchscreen filter.
  *
  * median
  *

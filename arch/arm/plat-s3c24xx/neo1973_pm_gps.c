@@ -29,12 +29,10 @@
 
 /* For GTA02 */
 #include <mach/gta02.h>
-
-#include <linux/regulator/consumer.h>
+#include <linux/pcf50633.h>
 
 struct neo1973_pm_gps_data {
 	int power_was_on;
-	struct regulator *regulator;
 };
 
 static struct neo1973_pm_gps_data neo1973_gps;
@@ -275,11 +273,15 @@ static int gps_power_1v5_get(void)
 static void gps_pwron_set(int on)
 {
 
+	neo1973_gps.power_was_on = !!on;
+
 	if (machine_is_neo1973_gta01())
 		neo1973_gpb_setpin(GTA01_GPIO_GPS_PWRON, on);
 
 	if (machine_is_neo1973_gta02()) {
 		if (on) {
+			pcf50633_voltage_set(pcf50633_global,
+				PCF50633_REGULATOR_LDO5, 3000);
 			/* return UART pins to being UART pins */
 			s3c2410_gpio_cfgpin(S3C2410_GPH4, S3C2410_GPH4_TXD1);
 			/* remove pulldown now it won't be floating any more */
@@ -294,13 +296,9 @@ static void gps_pwron_set(int on)
 			/* don't let RX from unpowered GPS float */
 			s3c2410_gpio_pullup(S3C2410_GPH5, 1);
 		}
-		if (on && !neo1973_gps.power_was_on)
-			regulator_enable(neo1973_gps.regulator);
-		else if (!on && neo1973_gps.power_was_on)
-			regulator_disable(neo1973_gps.regulator);
+		pcf50633_onoff_set(pcf50633_global,
+			PCF50633_REGULATOR_LDO5, on);
 	}
-
-	neo1973_gps.power_was_on = !!on;
 }
 
 static int gps_pwron_get(void)
@@ -309,7 +307,8 @@ static int gps_pwron_get(void)
 		return !!s3c2410_gpio_getpin(GTA01_GPIO_GPS_PWRON);
 
 	if (machine_is_neo1973_gta02())
-		return regulator_is_enabled(neo1973_gps.regulator);
+		return !!pcf50633_onoff_get(pcf50633_global,
+						       PCF50633_REGULATOR_LDO5);
 	return -1;
 }
 
@@ -631,8 +630,10 @@ static int __init gta01_pm_gps_probe(struct platform_device *pdev)
 		case GTA02v4_SYSTEM_REV:
 		case GTA02v5_SYSTEM_REV:
 		case GTA02v6_SYSTEM_REV:
-			neo1973_gps.regulator = regulator_get(
-							&pdev->dev, "RF_3V");
+			pcf50633_voltage_set(pcf50633_global,
+				PCF50633_REGULATOR_LDO5, 3000);
+			pcf50633_onoff_set(pcf50633_global,
+				PCF50633_REGULATOR_LDO5, 0);
 			dev_info(&pdev->dev, "FIC Neo1973 GPS Power Managerment:"
 				 "starting\n");
 			break;
@@ -658,7 +659,7 @@ static int gta01_pm_gps_remove(struct platform_device *pdev)
 	}
 
 	if (machine_is_neo1973_gta02()) {
-		regulator_put(neo1973_gps.regulator);
+		pcf50633_onoff_set(pcf50633_global, PCF50633_REGULATOR_LDO5, 0);
 		sysfs_remove_group(&pdev->dev.kobj, &gta02_gps_attr_group);
 	}
 	return 0;

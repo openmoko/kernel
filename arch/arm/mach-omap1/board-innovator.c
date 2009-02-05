@@ -24,21 +24,22 @@
 #include <linux/mtd/partitions.h>
 #include <linux/input.h>
 
-#include <asm/hardware.h>
+#include <mach/hardware.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/flash.h>
 #include <asm/mach/map.h>
 
-#include <asm/arch/mux.h>
-#include <asm/arch/fpga.h>
-#include <asm/arch/gpio.h>
-#include <asm/arch/tc.h>
-#include <asm/arch/usb.h>
-#include <asm/arch/keypad.h>
-#include <asm/arch/common.h>
-#include <asm/arch/mcbsp.h>
-#include <asm/arch/omap-alsa.h>
+#include <mach/mux.h>
+#include <mach/fpga.h>
+#include <mach/gpio.h>
+#include <mach/tc.h>
+#include <mach/usb.h>
+#include <mach/keypad.h>
+#include <mach/common.h>
+#include <mach/mcbsp.h>
+#include <mach/omap-alsa.h>
+#include <mach/mmc.h>
 
 static int innovator_keymap[] = {
 	KEY(0, 0, KEY_F1),
@@ -134,12 +135,12 @@ static struct omap_mcbsp_reg_cfg mcbsp_regs = {
 static struct omap_alsa_codec_config alsa_config = {
 	.name			= "OMAP Innovator AIC23",
 	.mcbsp_regs_alsa	= &mcbsp_regs,
-	.codec_configure_dev	= NULL, // aic23_configure,
-	.codec_set_samplerate	= NULL, // aic23_set_samplerate,
-	.codec_clock_setup	= NULL, // aic23_clock_setup,
-	.codec_clock_on		= NULL, // aic23_clock_on,
-	.codec_clock_off	= NULL, // aic23_clock_off,
-	.get_default_samplerate	= NULL, // aic23_get_default_samplerate,
+	.codec_configure_dev	= NULL, /* aic23_configure, */
+	.codec_set_samplerate	= NULL, /* aic23_set_samplerate, */
+	.codec_clock_setup	= NULL, /* aic23_clock_setup, */
+	.codec_clock_on		= NULL, /* aic23_clock_on, */
+	.codec_clock_off	= NULL, /* aic23_clock_off, */
+	.get_default_samplerate	= NULL, /* aic23_get_default_samplerate, */
 };
 
 static struct platform_device innovator_mcbsp1_device = {
@@ -202,7 +203,7 @@ static struct resource innovator1510_smc91x_resources[] = {
 	[1] = {
 		.start	= OMAP1510_INT_ETHER,
 		.end	= OMAP1510_INT_ETHER,
-		.flags	= IORESOURCE_IRQ,
+		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE,
 	},
 };
 
@@ -269,7 +270,7 @@ static struct resource innovator1610_smc91x_resources[] = {
 	[1] = {
 		.start	= OMAP_GPIO_IRQ(0),
 		.end	= OMAP_GPIO_IRQ(0),
-		.flags	= IORESOURCE_IRQ,
+		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_LOWEDGE,
 	},
 };
 
@@ -301,7 +302,7 @@ static void __init innovator_init_smc91x(void)
 			   OMAP1510_FPGA_RST);
 		udelay(750);
 	} else {
-		if ((omap_request_gpio(0)) < 0) {
+		if (gpio_request(0, "SMC91x irq") < 0) {
 			printk("Error requesting gpio 0 for smc91x irq\n");
 			return;
 		}
@@ -345,11 +346,11 @@ static struct omap_usb_config h2_usb_config __initdata = {
 	.otg		= 2,
 
 #ifdef	CONFIG_USB_GADGET_OMAP
-	.hmc_mode	= 19,	// 0:host(off) 1:dev|otg 2:disabled
-	// .hmc_mode	= 21,	// 0:host(off) 1:dev(loopback) 2:host(loopback)
+	.hmc_mode	= 19,	/* 0:host(off) 1:dev|otg 2:disabled */
+	/* .hmc_mode	= 21,*/	/* 0:host(off) 1:dev(loopback) 2:host(loopback) */
 #elif	defined(CONFIG_USB_OHCI_HCD) || defined(CONFIG_USB_OHCI_HCD_MODULE)
 	/* NONSTANDARD CABLE NEEDED (B-to-Mini-B) */
-	.hmc_mode	= 20,	// 1:dev|otg(off) 1:host 2:disabled
+	.hmc_mode	= 20,	/* 1:dev|otg(off) 1:host 2:disabled */
 #endif
 
 	.pins[1]	= 3,
@@ -360,15 +361,48 @@ static struct omap_lcd_config innovator1610_lcd_config __initdata = {
 };
 #endif
 
-static struct omap_mmc_config innovator_mmc_config __initdata = {
-	.mmc [0] = {
-		.enabled 	= 1,
-		.wire4		= 1,
-		.wp_pin		= OMAP_MPUIO(3),
-		.power_pin	= -1,	/* FPGA F3 UIO42 */
-		.switch_pin	= -1,	/* FPGA F4 UIO43 */
+#if defined(CONFIG_MMC_OMAP) || defined(CONFIG_MMC_OMAP_MODULE)
+
+static int mmc_set_power(struct device *dev, int slot, int power_on,
+				int vdd)
+{
+	if (power_on)
+		fpga_write(fpga_read(OMAP1510_FPGA_POWER) | (1 << 3),
+				OMAP1510_FPGA_POWER);
+	else
+		fpga_write(fpga_read(OMAP1510_FPGA_POWER) & ~(1 << 3),
+				OMAP1510_FPGA_POWER);
+
+	return 0;
+}
+
+/*
+ * Innovator could use the following functions tested:
+ * - mmc_get_wp that uses OMAP_MPUIO(3)
+ * - mmc_get_cover_state that uses FPGA F4 UIO43
+ */
+static struct omap_mmc_platform_data mmc1_data = {
+	.nr_slots                       = 1,
+	.slots[0]       = {
+		.set_power		= mmc_set_power,
+		.wires			= 4,
+		.name                   = "mmcblk",
 	},
 };
+
+static struct omap_mmc_platform_data *mmc_data[OMAP16XX_NR_MMC];
+
+void __init innovator_mmc_init(void)
+{
+	mmc_data[0] = &mmc1_data;
+	omap1_init_mmc(mmc_data, OMAP15XX_NR_MMC);
+}
+
+#else
+static inline void innovator_mmc_init(void)
+{
+}
+#endif
 
 static struct omap_uart_config innovator_uart_config __initdata = {
 	.enabled_uarts = ((1 << 0) | (1 << 1) | (1 << 2)),
@@ -377,7 +411,6 @@ static struct omap_uart_config innovator_uart_config __initdata = {
 static struct omap_board_config_kernel innovator_config[] = {
 	{ OMAP_TAG_USB,         NULL },
 	{ OMAP_TAG_LCD,		NULL },
-	{ OMAP_TAG_MMC,		&innovator_mmc_config },
 	{ OMAP_TAG_UART,	&innovator_uart_config },
 };
 
@@ -411,6 +444,8 @@ static void __init innovator_init(void)
 	omap_board_config = innovator_config;
 	omap_board_config_size = ARRAY_SIZE(innovator_config);
 	omap_serial_init();
+	omap_register_i2c_bus(1, 100, NULL, 0);
+	innovator_mmc_init();
 }
 
 static void __init innovator_map_io(void)

@@ -52,7 +52,7 @@ sys_call_table:
 	.quad sys_setpgid
 	.quad alpha_ni_syscall			/* 40 */
 	.quad sys_dup
-	.quad sys_pipe
+	.quad sys_alpha_pipe
 	.quad osf_set_program_attributes
 	.quad alpha_ni_syscall
 	.quad sys_open				/* 45 */
@@ -495,7 +495,7 @@ sys_call_table:
 	.quad sys_epoll_pwait
 	.quad sys_utimensat			/* 475 */
 	.quad sys_signalfd
-	.quad sys_timerfd
+	.quad sys_ni_syscall
 	.quad sys_eventfd
 
 	.size sys_call_table, . - sys_call_table

@@ -522,10 +522,47 @@ static ssize_t gamma_write(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
+static ssize_t reset_write(struct device *dev, struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	struct jbt_info *jbt = dev_get_drvdata(dev);
+	struct jbt6k74_platform_data *jbt6k74_pdata = jbt->spi_dev->dev.platform_data;
+	int rc;
+
+	dev_info(dev, "**** jbt6k74 reset\n");
+
+	/* hard reset the jbt6k74 */
+
+	(jbt6k74_pdata->reset)(0, 0);
+	mdelay(1);
+	(jbt6k74_pdata->reset)(0, 1);
+	mdelay(120);
+
+	rc = jbt_reg_write_nodata(jbt, 0x01);
+	if (rc < 0)
+		dev_err(dev, "cannot soft reset\n");
+
+	mdelay(120);
+
+	jbt->state = JBT_STATE_DEEP_STANDBY;
+
+	switch (jbt->last_state) {
+	case JBT_STATE_QVGA_NORMAL:
+		jbt6k74_enter_state(jbt, JBT_STATE_QVGA_NORMAL);
+		break;
+	default:
+		jbt6k74_enter_state(jbt, JBT_STATE_NORMAL);
+		break;
+	}
+
+	return count;
+}
+
 static DEVICE_ATTR(gamma_fine1, 0644, gamma_read, gamma_write);
 static DEVICE_ATTR(gamma_fine2, 0644, gamma_read, gamma_write);
 static DEVICE_ATTR(gamma_inclination, 0644, gamma_read, gamma_write);
 static DEVICE_ATTR(gamma_blue_offset, 0644, gamma_read, gamma_write);
+static DEVICE_ATTR(reset, 0600, NULL, reset_write);
 
 static struct attribute *jbt_sysfs_entries[] = {
 	&dev_attr_state.attr,
@@ -533,6 +570,7 @@ static struct attribute *jbt_sysfs_entries[] = {
 	&dev_attr_gamma_fine2.attr,
 	&dev_attr_gamma_inclination.attr,
 	&dev_attr_gamma_blue_offset.attr,
+	&dev_attr_reset.attr,
 	NULL,
 };
 
@@ -589,6 +627,7 @@ static int __devinit jbt_probe(struct spi_device *spi)
 {
 	int rc;
 	struct jbt_info *jbt;
+	struct jbt6k74_platform_data *jbt6k74_pdata = spi->dev.platform_data;
 
 	/* the controller doesn't have a MISO pin; we can't do detection */
 
@@ -612,6 +651,19 @@ static int __devinit jbt_probe(struct spi_device *spi)
 
 	dev_set_drvdata(&spi->dev, jbt);
 
+	/* hard reset the jbt6k74 */
+
+	(jbt6k74_pdata->reset)(0, 0);
+	mdelay(1);
+	(jbt6k74_pdata->reset)(0, 1);
+	mdelay(120);
+
+	rc = jbt_reg_write_nodata(jbt, 0x01);
+	if (rc < 0)
+		dev_err(&spi->dev, "cannot soft reset\n");
+
+	mdelay(120);
+
 	rc = jbt6k74_enter_state(jbt, JBT_STATE_NORMAL);
 	if (rc < 0) {
 		dev_err(&spi->dev, "cannot enter NORMAL state\n");
@@ -630,6 +682,8 @@ static int __devinit jbt_probe(struct spi_device *spi)
 		dev_err(&spi->dev, "cannot register notifier\n");
 		goto err_sysfs;
 	}
+
+	(jbt6k74_pdata->probe_completed)(&spi->dev);
 
 	return 0;
 
@@ -663,13 +717,6 @@ static int __devexit jbt_remove(struct spi_device *spi)
 static int jbt_suspend(struct spi_device *spi, pm_message_t state)
 {
 	struct jbt_info *jbt = dev_get_drvdata(&spi->dev);
-	struct jbt6k74_platform_data *jbt6k74_pdata = spi->dev.platform_data;
-
-	dev_info(&spi->dev, "**** jbt6k74 suspend start\n");
-
-	/* platform can register resume dependencies here, if any */
-	if (jbt6k74_pdata->suspending)
-		(jbt6k74_pdata->suspending)(0, spi);
 
 	/* Save mode for resume */
 	jbt->last_state = jbt->state;
@@ -688,22 +735,25 @@ int jbt6k74_resume(struct spi_device *spi)
 {
 	struct jbt_info *jbt = dev_get_drvdata(&spi->dev);
 	struct jbt6k74_platform_data *jbt6k74_pdata = spi->dev.platform_data;
+	int rc;
 
 	dev_info(&spi->dev, "**** jbt6k74 resume start\n");
-	if (jbt6k74_pdata->all_dependencies_resumed)
-		if (!(jbt6k74_pdata->all_dependencies_resumed)(0))
-			return 0;
 
-	/* we can get called twice with all dependencies resumed if our core
-	 * resume callback is last of all.  Protect against doing anything twice
-	 */
-	if (jbt->have_resumed) {
-		dev_info(&spi->dev, "**** jbt6k74 already resumed\n");
-		return 0;
-	}
+	/* hard reset the jbt6k74 */
 
-	jbt->have_resumed |= 1;
+	(jbt6k74_pdata->reset)(0, 0);
+	mdelay(1);
+	(jbt6k74_pdata->reset)(0, 1);
+	mdelay(120);
 
+	rc = jbt_reg_write_nodata(jbt, 0x01);
+	if (rc < 0)
+		dev_err(&spi->dev, "cannot soft reset\n");
+
+	mdelay(120);
+
+	jbt->state = JBT_STATE_DEEP_STANDBY;
+	
 	switch (jbt->last_state) {
 	case JBT_STATE_QVGA_NORMAL:
 		jbt6k74_enter_state(jbt, JBT_STATE_QVGA_NORMAL);
@@ -724,7 +774,7 @@ EXPORT_SYMBOL_GPL(jbt6k74_resume);
 
 #else
 #define jbt_suspend	NULL
-#define jbt_resume	NULL
+#define jbt6k74_resume	NULL
 #endif
 
 static struct spi_driver jbt6k74_driver = {

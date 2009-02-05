@@ -31,9 +31,6 @@ struct csr1212_keyval;
 struct hpsb_host;
 struct ieee1394_device_id;
 
-/* '1' '3' '9' '4' in ASCII */
-#define IEEE1394_BUSID_MAGIC	__constant_cpu_to_be32(0x31333934)
-
 /* This is the start of a Node entry structure. It should be a stable API
  * for which to gather info from the Node Manager about devices attached
  * to the bus.  */
@@ -97,7 +94,7 @@ struct node_entry {
 	struct hpsb_host *host;		/* Host this node is attached to */
 	nodeid_t nodeid;		/* NodeID */
 	struct bus_options busopt;	/* Bus Options */
-	int needs_probe;
+	bool needs_probe;
 	unsigned int generation;	/* Synced with hpsb generation */
 
 	/* The following is read from the config rom */
@@ -110,7 +107,7 @@ struct node_entry {
 	struct device node_dev;
 
 	/* Means this node is not attached anymore */
-	int in_limbo;
+	bool in_limbo;
 
 	struct csr1212_csr *csr;
 };

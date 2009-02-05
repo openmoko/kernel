@@ -35,8 +35,8 @@
 #include <linux/list.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
-#include <linux/version.h>
 #include <linux/clk.h>
+#include <linux/gpio.h>
 
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
@@ -49,15 +49,13 @@
 #include <asm/irq.h>
 #include <asm/system.h>
 #include <asm/unaligned.h>
-#include <asm/arch/irqs.h>
+#include <mach/irqs.h>
 
-#include <asm/arch/hardware.h>
-#include <asm/arch/regs-gpio.h>
+#include <mach/hardware.h>
 
-#include <asm/plat-s3c24xx/regs-udc.h>
-#include <asm/plat-s3c24xx/udc.h>
+#include <plat/regs-udc.h>
+#include <plat/udc.h>
 
-#include <asm/mach-types.h>
 
 #include "s3c2410_udc.h"
 
@@ -136,6 +134,8 @@ static int dprintk(int level, const char *fmt, ...)
 	return 0;
 }
 #endif
+
+#ifdef CONFIG_USB_GADGET_DEBUG_FS
 static int s3c2410_udc_debugfs_seq_show(struct seq_file *m, void *p)
 {
 	u32 addr_reg,pwr_reg,ep_int_reg,usb_int_reg;
@@ -199,6 +199,7 @@ static const struct file_operations s3c2410_udc_debugfs_fops = {
 	.release	= single_release,
 	.owner		= THIS_MODULE,
 };
+#endif
 
 /* io macros */
 
@@ -891,12 +892,12 @@ handle_ep_again:
 	}
 }
 
-#include <asm/arch/regs-irq.h>
+#include <mach/regs-irq.h>
 
 /*
  *	s3c2410_udc_irq - interrupt handler
  */
-static irqreturn_t s3c2410_udc_irq(int irq, void *_dev)
+static irqreturn_t s3c2410_udc_irq(int dummy, void *_dev)
 {
 	struct s3c2410_udc *dev = _dev;
 	int usb_status;
@@ -1019,7 +1020,7 @@ static irqreturn_t s3c2410_udc_irq(int irq, void *_dev)
 		}
 	}
 
-	dprintk(DEBUG_VERBOSE, "irq: %d s3c2410_udc_done.\n", irq);
+	dprintk(DEBUG_VERBOSE, "irq: %d s3c2410_udc_done.\n", IRQ_USBD);
 
 	/* Restore old index */
 	udc_write(idx, S3C2410_UDC_INDEX_REG);
@@ -1515,11 +1516,7 @@ static irqreturn_t s3c2410_udc_vbus_irq(int irq, void *_dev)
 
 	dprintk(DEBUG_NORMAL, "%s()\n", __func__);
 
-	/* some cpus cannot read from an line configured to IRQ! */
-	s3c2410_gpio_cfgpin(udc_info->vbus_pin, S3C2410_GPIO_INPUT);
-	value = s3c2410_gpio_getpin(udc_info->vbus_pin);
-	s3c2410_gpio_cfgpin(udc_info->vbus_pin, S3C2410_GPIO_SFN2);
-
+	value = gpio_get_value(udc_info->vbus_pin) ? 1 : 0;
 	if (udc_info->vbus_pin_inverted)
 		value = !value;
 
@@ -1656,7 +1653,7 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 		return -EBUSY;
 
 	if (!driver->bind || !driver->setup
-			|| driver->speed != USB_SPEED_FULL) {
+			|| driver->speed < USB_SPEED_FULL) {
 		printk(KERN_ERR "Invalid driver: bind %p setup %p speed %d\n",
 			driver->bind, driver->setup, driver->speed);
 		return -EINVAL;
@@ -1732,7 +1729,7 @@ static struct s3c2410_udc memory = {
 		.ep0		= &memory.ep[0].ep,
 		.name		= gadget_name,
 		.dev = {
-			.bus_id		= "gadget",
+			.init_name	= "gadget",
 		},
 	},
 
@@ -1807,7 +1804,7 @@ static int s3c2410_udc_probe(struct platform_device *pdev)
 	struct s3c2410_udc *udc = &memory;
 	struct device *dev = &pdev->dev;
 	int retval;
-	unsigned int irq;
+	int irq;
 
 	dev_dbg(dev, "%s()\n", __func__);
 
@@ -1866,7 +1863,7 @@ static int s3c2410_udc_probe(struct platform_device *pdev)
 
 	/* irq setup after old hardware state is cleaned up */
 	retval = request_irq(IRQ_USBD, s3c2410_udc_irq,
-			IRQF_DISABLED, gadget_name, udc);
+			     IRQF_DISABLED, gadget_name, udc);
 
 	if (retval != 0) {
 		dev_err(dev, "cannot get irq %i, err %d\n", IRQ_USBD, retval);
@@ -1877,17 +1874,28 @@ static int s3c2410_udc_probe(struct platform_device *pdev)
 	dev_dbg(dev, "got irq %i\n", IRQ_USBD);
 
 	if (udc_info && udc_info->vbus_pin > 0) {
-		irq = s3c2410_gpio_getirq(udc_info->vbus_pin);
+		retval = gpio_request(udc_info->vbus_pin, "udc vbus");
+		if (retval < 0) {
+			dev_err(dev, "cannot claim vbus pin\n");
+			goto err_int;
+		}
+
+		irq = gpio_to_irq(udc_info->vbus_pin);
+		if (irq < 0) {
+			dev_err(dev, "no irq for gpio vbus pin\n");
+			goto err_gpio_claim;
+		}
+
 		retval = request_irq(irq, s3c2410_udc_vbus_irq,
 				     IRQF_DISABLED | IRQF_TRIGGER_RISING
 				     | IRQF_TRIGGER_FALLING | IRQF_SHARED,
 				     gadget_name, udc);
 
 		if (retval != 0) {
-			dev_err(dev, "can't get vbus irq %i, err %d\n",
+			dev_err(dev, "can't get vbus irq %d, err %d\n",
 				irq, retval);
 			retval = -EBUSY;
-			goto err_int;
+			goto err_gpio_claim;
 		}
 
 		dev_dbg(dev, "got irq %i\n", irq);
@@ -1895,21 +1903,23 @@ static int s3c2410_udc_probe(struct platform_device *pdev)
 		udc->vbus = 1;
 	}
 
+#ifdef CONFIG_USB_GADGET_DEBUG_FS
 	if (s3c2410_udc_debugfs_root) {
 		udc->regs_info = debugfs_create_file("registers", S_IRUGO,
 				s3c2410_udc_debugfs_root,
 				udc, &s3c2410_udc_debugfs_fops);
-		if (IS_ERR(udc->regs_info)) {
-			dev_warn(dev, "debugfs file creation failed %ld\n",
-				 PTR_ERR(udc->regs_info));
-			udc->regs_info = NULL;
-		}
+		if (!udc->regs_info)
+			dev_warn(dev, "debugfs file creation failed\n");
 	}
+#endif
 
 	dev_dbg(dev, "probe ok\n");
 
 	return 0;
 
+err_gpio_claim:
+	if (udc_info && udc_info->vbus_pin > 0)
+		gpio_free(udc_info->vbus_pin);
 err_int:
 	free_irq(IRQ_USBD, udc);
 err_map:
@@ -1935,7 +1945,7 @@ static int s3c2410_udc_remove(struct platform_device *pdev)
 	debugfs_remove(udc->regs_info);
 
 	if (udc_info && udc_info->vbus_pin > 0) {
-		irq = s3c2410_gpio_getirq(udc_info->vbus_pin);
+		irq = gpio_to_irq(udc_info->vbus_pin);
 		free_irq(irq, udc);
 	}
 
@@ -2011,12 +2021,14 @@ static int __init udc_init(void)
 
 	dprintk(DEBUG_NORMAL, "%s: version %s\n", gadget_name, DRIVER_VERSION);
 
+#ifdef CONFIG_USB_GADGET_DEBUG_FS
 	s3c2410_udc_debugfs_root = debugfs_create_dir(gadget_name, NULL);
 	if (IS_ERR(s3c2410_udc_debugfs_root)) {
 		printk(KERN_ERR "%s: debugfs dir creation failed %ld\n",
 			gadget_name, PTR_ERR(s3c2410_udc_debugfs_root));
 		s3c2410_udc_debugfs_root = NULL;
 	}
+#endif
 
 	retval = platform_driver_register(&udc_driver_2410);
 	if (retval)
@@ -2050,3 +2062,5 @@ MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_VERSION(DRIVER_VERSION);
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:s3c2410-usbgadget");
+MODULE_ALIAS("platform:s3c2440-usbgadget");

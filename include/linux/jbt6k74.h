@@ -6,8 +6,7 @@
 struct jbt6k74_platform_data {
 	void (*reset)(int devindex, int level);
 	void (*resuming)(int devindex); /* called when LCM is resumed */
-	void (*suspending)(int devindex, struct spi_device *spi);
-	int (*all_dependencies_resumed)(int devindex);
+	void (*probe_completed)(struct device *dev);
 };
 
 #endif

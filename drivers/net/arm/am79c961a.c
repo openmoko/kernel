@@ -28,7 +28,7 @@
 #include <linux/bitops.h>
 #include <linux/platform_device.h>
 
-#include <asm/hardware.h>
+#include <mach/hardware.h>
 #include <asm/io.h>
 #include <asm/system.h>
 
@@ -532,7 +532,6 @@ am79c961_rx(struct net_device *dev, struct dev_priv *priv)
 			am_writeword(dev, hdraddr + 2, RMD_OWN);
 			skb->protocol = eth_type_trans(skb, dev);
 			netif_rx(skb);
-			dev->last_rx = jiffies;
 			priv->stats.rx_bytes += len;
 			priv->stats.rx_packets ++;
 		} else {
@@ -693,11 +692,15 @@ static int __init am79c961_probe(struct platform_device *pdev)
 	 * done by the ether bootp loader.
 	 */
 	dev->base_addr = res->start;
-	dev->irq = platform_get_irq(pdev, 0);
+	ret = platform_get_irq(pdev, 0);
+
+	if (ret < 0) {
+		ret = -ENODEV;
+		goto nodev;
+	}
+	dev->irq = ret;
 
 	ret = -ENODEV;
-	if (dev->irq < 0)
-		goto nodev;
 	if (!request_region(dev->base_addr, 0x18, dev->name))
 		goto nodev;
 
@@ -741,10 +744,8 @@ static int __init am79c961_probe(struct platform_device *pdev)
 
 	ret = register_netdev(dev);
 	if (ret == 0) {
-		DECLARE_MAC_BUF(mac);
-
-		printk(KERN_INFO "%s: ether address %s\n",
-		       dev->name, print_mac(mac, dev->dev_addr));
+		printk(KERN_INFO "%s: ether address %pM\n",
+		       dev->name, dev->dev_addr);
 		return 0;
 	}
 

@@ -31,11 +31,10 @@ struct lis302dl_info {
 	unsigned int flags;
 	unsigned int threshold;
 	unsigned int duration;
+	u32 overruns;
 	struct {
-		u8 cfg;
-		u8 threshold;
-		u8 duration;
-		int active;
+		unsigned int threshold; /* mg */
+		unsigned int duration;  /* ms */
 	} wakeup;
 	u_int8_t regs[0x40];
 };

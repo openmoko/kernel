@@ -7,6 +7,7 @@
 config CPU_S3C2440
 	bool
 	depends on ARCH_S3C2410
+	select CPU_ARM920T
 	select S3C2410_CLOCK
 	select S3C2410_PM if PM
 	select S3C2410_GPIO
@@ -28,14 +29,17 @@ config S3C2440_C_FIQ
 	select FIQ
 	help
 	  Support for S3C2440 FIQ support in C -- see
-	  ./arch/arm/macs3c2440/fiq_c_isr.c
+	  ./arch/arm/mach-s3c2440/fiq_c_isr.c
 
 menu "S3C2440 Machines"
 
 config MACH_ANUBIS
 	bool "Simtec Electronics ANUBIS"
 	select CPU_S3C2440
+	select S3C24XX_DCLK
 	select PM_SIMTEC if PM
+	select HAVE_PATA_PLATFORM
+	select S3C24XX_GPIO_EXTRA64
 	help
 	  Say Y here if you are using the Simtec Electronics ANUBIS
 	  development system
@@ -43,7 +47,9 @@ config MACH_ANUBIS
 config MACH_OSIRIS
 	bool "Simtec IM2440D20 (OSIRIS) module"
 	select CPU_S3C2440
+	select S3C24XX_DCLK
 	select PM_SIMTEC if PM
+	select S3C24XX_GPIO_EXTRA128
 	help
 	  Say Y here if you are using the Simtec IM2440D20 module, also
 	  known as the Osiris.
@@ -74,12 +80,11 @@ config SMDK2440_CPU2440
 	default y if ARCH_S3C2440
 	select CPU_S3C2440
 
-config MACH_HXD8
-	bool "FIC HXD8"
+config MACH_AT2440EVB
+	bool "Avantech AT2440EVB development board"
 	select CPU_S3C2440
-	select SENSORS_PCF50606
 	help
-	   Say Y here if you are using the FIC Neo1973 GSM Phone
+	  Say Y here if you are using the AT2440EVB development board
 
 config MACH_NEO1973_GTA02
 	bool "FIC Neo1973 GSM Phone (GTA02 Hardware)"
@@ -87,6 +92,9 @@ config MACH_NEO1973_GTA02
 	select SENSORS_PCF50633
 	select POWER_SUPPLY
 	select GTA02_HDQ
+	select MACH_NEO1973
+	select S3C2410_PWM
+	select S3C2410_CLOCK
 	help
 	   Say Y here if you are using the FIC Neo1973 GSM Phone
 
@@ -97,13 +105,6 @@ config NEO1973_GTA02_2440
 	help
 	   Say Y here if you are using an early hardware revision
 	   of the FIC/Openmoko Neo1973 GTA02 GSM Phone.
-
-config MACH_M800
-	bool "E-TEN glofiish M800/X800"
-	select CPU_S3C2442
-	help
-	   Say Y here if you are using the E-TEN glofiish M800/X800.
-
 
 endmenu
 

@@ -32,13 +32,11 @@
 # For System.map filter away:
 #   a - local absolute symbols
 #   U - undefined global symbols
+#   N - debugging symbols
 #   w - local weak symbols
 
 # readprofile starts reading symbols when _stext is found, and
 # continue until it finds a symbol which is not either of 'T', 't',
-# 'W' or 'w'. __crc_ are 'A' and placed in the middle
-# so we just ignore them to let readprofile continue to work.
-# (At least sparc64 has __crc_ in the middle).
+# 'W' or 'w'.
 
-$NM -n $1 | grep -v '\( [aUw] \)\|\(__crc_\)\|\( \$[adt]\)' > $2
-
+$NM -n $1 | grep -v '\( [aNUw] \)\|\( \$[adt]\)' > $2

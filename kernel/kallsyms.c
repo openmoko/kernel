@@ -30,33 +30,24 @@
 #define all_var 0
 #endif
 
-/* These will be re-linked against their real values during the second link stage */
-extern const unsigned long kallsyms_addresses[] __attribute__((weak));
-extern const u8 kallsyms_names[] __attribute__((weak));
+extern const unsigned long kallsyms_addresses[];
+extern const u8 kallsyms_names[];
 
 /* tell the compiler that the count isn't in the small data section if the arch
  * has one (eg: FRV)
  */
 extern const unsigned long kallsyms_num_syms
-__attribute__((weak, section(".rodata")));
+	__attribute__((__section__(".rodata")));
 
-extern const u8 kallsyms_token_table[] __attribute__((weak));
-extern const u16 kallsyms_token_index[] __attribute__((weak));
+extern const u8 kallsyms_token_table[];
+extern const u16 kallsyms_token_index[];
 
-extern const unsigned long kallsyms_markers[] __attribute__((weak));
+extern const unsigned long kallsyms_markers[];
 
 static inline int is_kernel_inittext(unsigned long addr)
 {
 	if (addr >= (unsigned long)_sinittext
 	    && addr <= (unsigned long)_einittext)
-		return 1;
-	return 0;
-}
-
-static inline int is_kernel_extratext(unsigned long addr)
-{
-	if (addr >= (unsigned long)_sextratext
-	    && addr <= (unsigned long)_eextratext)
 		return 1;
 	return 0;
 }
@@ -80,8 +71,7 @@ static int is_ksym_addr(unsigned long addr)
 	if (all_var)
 		return is_kernel(addr);
 
-	return is_kernel_text(addr) || is_kernel_inittext(addr) ||
-		is_kernel_extratext(addr);
+	return is_kernel_text(addr) || is_kernel_inittext(addr);
 }
 
 /* expand a compressed symbol data into the resulting uncompressed string,
@@ -177,15 +167,12 @@ static unsigned long get_symbol_pos(unsigned long addr,
 	unsigned long symbol_start = 0, symbol_end = 0;
 	unsigned long i, low, high, mid;
 
-	/* This kernel should never had been booted. */
-	BUG_ON(!kallsyms_addresses);
-
 	/* do a binary search on the sorted kallsyms_addresses array */
 	low = 0;
 	high = kallsyms_num_syms;
 
 	while (high - low > 1) {
-		mid = (low + high) / 2;
+		mid = low + (high - low) / 2;
 		if (kallsyms_addresses[mid] <= addr)
 			low = mid;
 		else
@@ -233,10 +220,11 @@ static unsigned long get_symbol_pos(unsigned long addr,
 int kallsyms_lookup_size_offset(unsigned long addr, unsigned long *symbolsize,
 				unsigned long *offset)
 {
+	char namebuf[KSYM_NAME_LEN];
 	if (is_ksym_addr(addr))
 		return !!get_symbol_pos(addr, symbolsize, offset);
 
-	return !!module_address_lookup(addr, symbolsize, offset, NULL);
+	return !!module_address_lookup(addr, symbolsize, offset, NULL, namebuf);
 }
 
 /*
@@ -251,8 +239,6 @@ const char *kallsyms_lookup(unsigned long addr,
 			    unsigned long *offset,
 			    char **modname, char *namebuf)
 {
-	const char *msym;
-
 	namebuf[KSYM_NAME_LEN - 1] = 0;
 	namebuf[0] = 0;
 
@@ -268,11 +254,8 @@ const char *kallsyms_lookup(unsigned long addr,
 	}
 
 	/* see if it's in a module */
-	msym = module_address_lookup(addr, symbolsize, offset, modname);
-	if (msym)
-		return strncpy(namebuf, msym, KSYM_NAME_LEN - 1);
-
-	return NULL;
+	return module_address_lookup(addr, symbolsize, offset, modname,
+				     namebuf);
 }
 
 int lookup_symbol_name(unsigned long addr, char *symname)
@@ -317,17 +300,24 @@ int sprint_symbol(char *buffer, unsigned long address)
 	char *modname;
 	const char *name;
 	unsigned long offset, size;
-	char namebuf[KSYM_NAME_LEN];
+	int len;
 
-	name = kallsyms_lookup(address, &size, &offset, &modname, namebuf);
+	name = kallsyms_lookup(address, &size, &offset, &modname, buffer);
 	if (!name)
 		return sprintf(buffer, "0x%lx", address);
 
+	if (name != buffer)
+		strcpy(buffer, name);
+	len = strlen(buffer);
+	buffer += len;
+
 	if (modname)
-		return sprintf(buffer, "%s+%#lx/%#lx [%s]", name, offset,
-				size, modname);
+		len += sprintf(buffer, "+%#lx/%#lx [%s]",
+						offset, size, modname);
 	else
-		return sprintf(buffer, "%s+%#lx/%#lx", name, offset, size);
+		len += sprintf(buffer, "+%#lx/%#lx", offset, size);
+
+	return len;
 }
 
 /* Look up a kernel symbol and print it to the kernel messages. */
@@ -484,11 +474,7 @@ static const struct file_operations kallsyms_operations = {
 
 static int __init kallsyms_init(void)
 {
-	struct proc_dir_entry *entry;
-
-	entry = create_proc_entry("kallsyms", 0444, NULL);
-	if (entry)
-		entry->proc_fops = &kallsyms_operations;
+	proc_create("kallsyms", 0444, NULL, &kallsyms_operations);
 	return 0;
 }
 __initcall(kallsyms_init);

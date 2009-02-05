@@ -34,12 +34,12 @@
 
 
 /* we must assign addresses for configurable endpoints (like net2280) */
-static __devinitdata unsigned epnum;
+static __initdata unsigned epnum;
 
 // #define MANY_ENDPOINTS
 #ifdef MANY_ENDPOINTS
 /* more than 15 configurable endpoints */
-static __devinitdata unsigned in_epnum;
+static __initdata unsigned in_epnum;
 #endif
 
 
@@ -59,7 +59,7 @@ static __devinitdata unsigned in_epnum;
  * NOTE:  each endpoint is unidirectional, as specified by its USB
  * descriptor; and isn't specific to a configuration or altsetting.
  */
-static int __devinit
+static int __init
 ep_matches (
 	struct usb_gadget		*gadget,
 	struct usb_ep			*ep,
@@ -159,8 +159,9 @@ ep_matches (
 	/* MATCH!! */
 
 	/* report address */
+	desc->bEndpointAddress &= USB_DIR_IN;
 	if (isdigit (ep->name [2])) {
-		u8	num = simple_strtol (&ep->name [2], NULL, 10);
+		u8	num = simple_strtoul (&ep->name [2], NULL, 10);
 		desc->bEndpointAddress |= num;
 #ifdef	MANY_ENDPOINTS
 	} else if (desc->bEndpointAddress & USB_DIR_IN) {
@@ -186,7 +187,7 @@ ep_matches (
 	return 1;
 }
 
-static struct usb_ep * __devinit
+static struct usb_ep * __init
 find_ep (struct usb_gadget *gadget, const char *name)
 {
 	struct usb_ep	*ep;
@@ -228,7 +229,7 @@ find_ep (struct usb_gadget *gadget, const char *name)
  *
  * On failure, this returns a null endpoint descriptor.
  */
-struct usb_ep * __devinit usb_ep_autoconfig (
+struct usb_ep * __init usb_ep_autoconfig (
 	struct usb_gadget		*gadget,
 	struct usb_endpoint_descriptor	*desc
 )
@@ -274,6 +275,18 @@ struct usb_ep * __devinit usb_ep_autoconfig (
 		ep = find_ep (gadget, "ep1-bulk");
 		if (ep && ep_matches (gadget, ep, desc))
 			return ep;
+	} else if (gadget_is_s3c64xx(gadget)) {
+		if (USB_ENDPOINT_XFER_INT == type) {
+			/* single buffering is enough */
+			ep = find_ep(gadget, "ep3-int");
+			if (ep && ep_matches(gadget, ep, desc))
+				return ep;
+		} else if (USB_ENDPOINT_XFER_BULK == type
+				&& (USB_DIR_IN & desc->bEndpointAddress)) {
+			ep = find_ep(gadget, "ep2-bulk");
+			if (ep && ep_matches(gadget, ep, desc))
+				return ep;
+		}
 	}
 
 	/* Second, look at endpoints until an unclaimed one looks usable */
@@ -295,7 +308,7 @@ struct usb_ep * __devinit usb_ep_autoconfig (
  * state such as ep->driver_data and the record of assigned endpoints
  * used by usb_ep_autoconfig().
  */
-void __devinit usb_ep_autoconfig_reset (struct usb_gadget *gadget)
+void __init usb_ep_autoconfig_reset (struct usb_gadget *gadget)
 {
 	struct usb_ep	*ep;
 

@@ -1,97 +1,114 @@
 /*
- * Battery driver for the Openmoko GTA01 device, using the pcf50606 chip.
+ * Dumb driver for gta01 battery
  *
- * This is nothing more than a write-thru interface to the real logic,
- * which is part of the pcf50606.c multifunction chip driver.
- *	Copyright Â© 2008  Mike Westerhof <mwester@dls.net>
- *
- *
- * Portions liberally borrowed from olpc_battery.c, copyright below:
- *	Copyright Â© 2006  David Woodhouse <dwmw2@infradead.org>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Copyright 2009 Openmoko, Inc
+ * Balaji Rao <balajirrao@openmoko.org>
  */
 
 #include <linux/module.h>
-#include <linux/err.h>
+#include <linux/param.h>
+#include <linux/delay.h>
+#include <linux/workqueue.h>
 #include <linux/platform_device.h>
 #include <linux/power_supply.h>
-#include <linux/jiffies.h>
-#include <linux/sched.h>
+#include <linux/gta01_battery.h>
 
-/*********************************************************************
- * This global is set by the pcf50606 driver to the correct callback
- *********************************************************************/
-
-extern int (*pmu_bat_get_property)(struct power_supply *,
-				   enum power_supply_property,
-				   union power_supply_propval *);
-
-
-/*********************************************************************
- *		Battery properties
- *********************************************************************/
-static int gta01_bat_get_property(struct power_supply *psy,
-				  enum power_supply_property psp,
-				  union power_supply_propval *val)
-{
-	if (pmu_bat_get_property)
-		return (pmu_bat_get_property)(psy, psp, val);
-	else
-		return -ENODEV;
-}
+struct gta01_battery {
+	struct power_supply psy;
+	struct gta01_bat_platform_data *pdata;
+};
 
 static enum power_supply_property gta01_bat_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
-	POWER_SUPPLY_PROP_PRESENT,
-	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
-	POWER_SUPPLY_PROP_TEMP,
-	POWER_SUPPLY_PROP_CAPACITY,
 };
 
-/*********************************************************************
- *		Initialisation
- *********************************************************************/
+static int gta01_bat_get_property(struct power_supply *psy,
+				       enum power_supply_property psp,
+				       union power_supply_propval *val)
+{
+	struct gta01_battery *bat = container_of(psy, struct gta01_battery, psy);
+	
+	switch(psp) {
+	case POWER_SUPPLY_PROP_STATUS:
+		if (bat->pdata->get_charging_status())
+			val->intval = POWER_SUPPLY_STATUS_CHARGING;
+		else
+			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		val->intval = bat->pdata->get_voltage();
+		break;
+	case POWER_SUPPLY_PROP_CURRENT_NOW:
+		val->intval = bat->pdata->get_current();
+		break;
+	default:
+		printk(KERN_ERR "Unknown property benig asked for\n");
+		return -EINVAL;
+	}
 
-static struct platform_device *bat_pdev;
+	return 0;
+}
 
-static struct power_supply gta01_bat = {
-	.properties = gta01_bat_props,
-	.num_properties = ARRAY_SIZE(gta01_bat_props),
-	.get_property = gta01_bat_get_property,
-	.use_for_apm = 0,  /* pcf50606 driver has its own apm driver */
+static void gta01_bat_ext_changed(struct power_supply *psy)
+{
+	struct gta01_battery *bat = container_of(psy, struct gta01_battery, psy);
+	power_supply_changed(&bat->psy);
+}
+
+static int gta01_battery_probe(struct platform_device *pdev)
+{
+	struct gta01_battery *gta01_bat;
+
+	gta01_bat = kzalloc(sizeof(*gta01_bat), GFP_KERNEL);
+	if (!gta01_bat)
+		return -ENOMEM;
+
+	gta01_bat->psy.name = "battery";
+	gta01_bat->psy.type = POWER_SUPPLY_TYPE_BATTERY;
+	gta01_bat->psy.properties = gta01_bat_props;
+	gta01_bat->psy.num_properties = ARRAY_SIZE(gta01_bat_props);
+	gta01_bat->psy.get_property = gta01_bat_get_property;
+	gta01_bat->psy.external_power_changed = gta01_bat_ext_changed;
+
+	gta01_bat->pdata = pdev->dev.platform_data;
+	power_supply_register(&pdev->dev, &gta01_bat->psy);
+
+	return 0;
+}
+
+static int gta01_battery_remove(struct platform_device *pdev)
+{
+	struct gta01_battery *bat = platform_get_drvdata(pdev);
+
+	power_supply_unregister(&bat->psy);
+	kfree(bat);
+
+	return 0;
+}
+
+static struct platform_driver gta01_battery_driver = {
+	.driver = {
+		.name = "gta01_battery",
+	},
+	.probe	  = gta01_battery_probe,
+	.remove   = gta01_battery_remove,
 };
 
-static int __init gta01_bat_init(void)
+static int __init gta01_battery_init(void)
 {
-	int ret;
-
-	bat_pdev = platform_device_register_simple("bat", 0, NULL, 0);
-	if (IS_ERR(bat_pdev))
-		return PTR_ERR(bat_pdev);
-
-	gta01_bat.name = bat_pdev->name;
-
-	ret = power_supply_register(&bat_pdev->dev, &gta01_bat);
-	if (ret)
-		platform_device_unregister(bat_pdev);
-
-	return ret;
+	return platform_driver_register(&gta01_battery_driver);
 }
 
-static void __exit gta01_bat_exit(void)
+static void __exit gta01_battery_exit(void)
 {
-	power_supply_unregister(&gta01_bat);
-	platform_device_unregister(bat_pdev);
+	platform_driver_unregister(&gta01_battery_driver);
 }
 
-module_init(gta01_bat_init);
-module_exit(gta01_bat_exit);
+module_init(gta01_battery_init);
+module_exit(gta01_battery_exit);
 
-MODULE_AUTHOR("Mike Westerhof <mwester@dls.net>");
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Battery driver for GTA01");
+MODULE_AUTHOR("Balaji Rao <balajirrao@openmoko.org>");
+MODULE_DESCRIPTION("gta01 battery driver");

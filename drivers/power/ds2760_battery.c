@@ -262,7 +262,7 @@ static void ds2760_battery_work(struct work_struct *work)
 		struct ds2760_device_info, monitor_work.work);
 	const int interval = HZ * 60;
 
-	dev_dbg(di->dev, "%s\n", __FUNCTION__);
+	dev_dbg(di->dev, "%s\n", __func__);
 
 	ds2760_battery_update_status(di);
 	queue_delayed_work(di->monitor_wqueue, &di->monitor_work, interval);
@@ -275,7 +275,7 @@ static void ds2760_battery_external_power_changed(struct power_supply *psy)
 {
 	struct ds2760_device_info *di = to_ds2760_device_info(psy);
 
-	dev_dbg(di->dev, "%s\n", __FUNCTION__);
+	dev_dbg(di->dev, "%s\n", __func__);
 
 	cancel_delayed_work(&di->monitor_work);
 	queue_delayed_work(di->monitor_wqueue, &di->monitor_work, HZ/10);
@@ -354,7 +354,7 @@ static int ds2760_battery_probe(struct platform_device *pdev)
 	pdata = pdev->dev.platform_data;
 	di->dev		= &pdev->dev;
 	di->w1_dev	     = pdev->dev.parent;
-	di->bat.name	   = pdev->dev.bus_id;
+	di->bat.name	   = dev_name(&pdev->dev);
 	di->bat.type	   = POWER_SUPPLY_TYPE_BATTERY;
 	di->bat.properties     = ds2760_battery_props;
 	di->bat.num_properties = ARRAY_SIZE(ds2760_battery_props);
@@ -371,7 +371,7 @@ static int ds2760_battery_probe(struct platform_device *pdev)
 	}
 
 	INIT_DELAYED_WORK(&di->monitor_work, ds2760_battery_work);
-	di->monitor_wqueue = create_singlethread_workqueue(pdev->dev.bus_id);
+	di->monitor_wqueue = create_singlethread_workqueue(dev_name(&pdev->dev));
 	if (!di->monitor_wqueue) {
 		retval = -ESRCH;
 		goto workqueue_failed;
@@ -432,6 +432,8 @@ static int ds2760_battery_resume(struct platform_device *pdev)
 #define ds2760_battery_resume NULL
 
 #endif /* CONFIG_PM */
+
+MODULE_ALIAS("platform:ds2760-battery");
 
 static struct platform_driver ds2760_battery_driver = {
 	.driver = {

@@ -4,6 +4,9 @@
  *  Copyright (C) 2004-2006 maintech GmbH, Thomas Kleffel <tk@maintech.de>
  *  Copyright (C) 2007 Harald Welte <laforge@gnumonks.org>
  *
+ * Current driver maintained by Ben Dooks and Simtec Electronics
+ *  Copyright (C) 2008 Simtec Electronics <ben-linux@fluff.org>
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -14,70 +17,28 @@
 #include <linux/clk.h>
 #include <linux/mmc/host.h>
 #include <linux/platform_device.h>
+#include <linux/cpufreq.h>
 #include <linux/irq.h>
-#include <linux/delay.h>
-#include <linux/spinlock.h>
+#include <linux/io.h>
+
+#include <asm/dma.h>
+
+#include <mach/regs-sdi.h>
+#include <mach/regs-gpio.h>
+
+#include <plat/mci.h>
 
 #include <asm/dma.h>
 #include <asm/dma-mapping.h>
 
 #include <asm/io.h>
-#include <asm/arch/regs-sdi.h>
-#include <asm/arch/regs-gpio.h>
-#include <asm/arch/mci.h>
-#include <asm/arch/dma.h>
+#include <mach/regs-gpio.h>
+#include <mach/mci.h>
+#include <mach/dma.h>
 
 #include "s3cmci.h"
 
 #define DRIVER_NAME "s3c-mci"
-
-static spinlock_t clock_lock;
-
-/*
- * Max SD clock rate (in Hz)
- *
- * you can override this on the kernel command line using
- *
- * s3cmci.sd_max_clk=10000000
- *
- * for example.
- */
-
-static int sd_max_clk = 25000000;
-module_param(sd_max_clk, int, 0644);
-
-/*
- * SD allow SD clock to run while idle
- *
- * you can override this on kernel commandline using
- *
- *  s3cmci.sd_idleclk=0
- *
- * for example.
- */
-
-static int sd_idleclk;	 /* disallow idle clock by default */
-module_param(sd_idleclk, int, 0644);
-
-/*
- * Slow SD clock rate
- *
- * you can override this on kernel commandline using
- *
- *  s3cmci.sd_slow_ratio=8
- *
- * for example.
- *
- * A platform callback is used to decide effective clock rate.  If not
- * defined, then the max is used, if defined and the callback returns
- * nonzero, the rate is divided by this factor.
- */
-
-static int sd_slow_ratio = 8;
-module_param(sd_slow_ratio, int, 0644);
-
-/* used to stash real idleclk state in suspend: we force it to run in there */
-static int suspend_sd_idleclk;
 
 enum dbg_channels {
 	dbg_err   = (1 << 0),
@@ -91,18 +52,21 @@ enum dbg_channels {
 	dbg_conf  = (1 << 8),
 };
 
-static const int dbgmap_err   = dbg_err | dbg_fail;
+static const int dbgmap_err   = dbg_fail;
 static const int dbgmap_info  = dbg_info | dbg_conf;
-static const int dbgmap_debug = dbg_debug;
+static const int dbgmap_debug = dbg_err | dbg_debug;
 
-#define dbg(host, channels, args...)		 \
-	do {					 \
-	if (dbgmap_err & channels) 		 \
-		dev_err(&host->pdev->dev, args); \
-	else if (dbgmap_info & channels)	 \
-		dev_info(&host->pdev->dev, args);\
-	else if (dbgmap_debug & channels)	 \
-		dev_dbg(&host->pdev->dev, args); \
+static int f_max = -1; /* override maximum frequency limit */
+static int persist; /* keep interface alive across suspend/resume */
+
+#define dbg(host, channels, args...)		  \
+	do {					  \
+	if (dbgmap_err & channels) 		  \
+		dev_err(&host->pdev->dev, args);  \
+	else if (dbgmap_info & channels)	  \
+		dev_info(&host->pdev->dev, args); \
+	else if (dbgmap_debug & channels)	  \
+		dev_dbg(&host->pdev->dev, args);  \
 	} while (0)
 
 #define RESSIZE(ressource) (((ressource)->end - (ressource)->start)+1)
@@ -116,7 +80,8 @@ static void s3cmci_send_request(struct mmc_host *mmc);
 static void s3cmci_reset(struct s3cmci_host *host);
 
 #ifdef CONFIG_MMC_DEBUG
-static inline void dbg_dumpregs(struct s3cmci_host *host, char *prefix)
+
+static void dbg_dumpregs(struct s3cmci_host *host, char *prefix)
 {
 	u32 con, pre, cmdarg, cmdcon, cmdsta, r0, r1, r2, r3, timer, bsize;
 	u32 datcon, datcnt, datsta, fsta, imask;
@@ -154,49 +119,60 @@ static inline void dbg_dumpregs(struct s3cmci_host *host, char *prefix)
 }
 
 static void prepare_dbgmsg(struct s3cmci_host *host, struct mmc_command *cmd,
-								int stop)
+			   int stop)
 {
 	snprintf(host->dbgmsg_cmd, 300,
-		"#%u%s op:CMD%d arg:0x%08x flags:0x08%x retries:%u",
-		host->ccnt, (stop?" (STOP)":""), cmd->opcode,
-		cmd->arg, cmd->flags, cmd->retries);
+		 "#%u%s op:%i arg:0x%08x flags:0x08%x retries:%u",
+		 host->ccnt, (stop ? " (STOP)" : ""),
+		 cmd->opcode, cmd->arg, cmd->flags, cmd->retries);
 
 	if (cmd->data) {
 		snprintf(host->dbgmsg_dat, 300,
-			"#%u bsize:%u blocks:%u bytes:%u",
-			host->dcnt, cmd->data->blksz,
-			cmd->data->blocks,
-			cmd->data->blocks * cmd->data->blksz);
+			 "#%u bsize:%u blocks:%u bytes:%u",
+			 host->dcnt, cmd->data->blksz,
+			 cmd->data->blocks,
+			 cmd->data->blocks * cmd->data->blksz);
 	} else {
 		host->dbgmsg_dat[0] = '\0';
 	}
 }
 
 static void dbg_dumpcmd(struct s3cmci_host *host, struct mmc_command *cmd,
-								int fail)
+			int fail)
 {
-	unsigned int dbglvl = fail?dbg_fail:dbg_debug;
+	unsigned int dbglvl = fail ? dbg_fail : dbg_debug;
 
 	if (!cmd)
 		return;
 
-	if (cmd->error == 0)
+	if (cmd->error == 0) {
 		dbg(host, dbglvl, "CMD[OK] %s R0:0x%08x\n",
 			host->dbgmsg_cmd, cmd->resp[0]);
-	else
-		dbg(host, dbglvl, "CMD[FAIL(%d)] %s Status:%s\n",
+	} else {
+		dbg(host, dbglvl, "CMD[ERR %i] %s Status:%s\n",
 			cmd->error, host->dbgmsg_cmd, host->status);
+	}
 
 	if (!cmd->data)
 		return;
 
-	if (cmd->data->error == 0)
+	if (cmd->data->error == 0) {
 		dbg(host, dbglvl, "DAT[OK] %s\n", host->dbgmsg_dat);
-	else
-		dbg(host, dbglvl, "DAT[FAIL(%d)] %s DCNT:0x%08x\n",
+	} else {
+		dbg(host, dbglvl, "DAT[ERR %i] %s DCNT:0x%08x\n",
 			cmd->data->error, host->dbgmsg_dat,
 			readl(host->base + S3C2410_SDIDCNT));
+	}
 }
+#else
+static void dbg_dumpcmd(struct s3cmci_host *host,
+			struct mmc_command *cmd, int fail) { }
+
+static void prepare_dbgmsg(struct s3cmci_host *host, struct mmc_command *cmd,
+			   int stop) { }
+
+static void dbg_dumpregs(struct s3cmci_host *host, char *prefix) { }
+
 #endif /* CONFIG_MMC_DEBUG */
 
 static inline u32 enable_imask(struct s3cmci_host *host, u32 imask)
@@ -229,7 +205,7 @@ static inline void clear_imask(struct s3cmci_host *host)
 }
 
 static inline int get_data_buffer(struct s3cmci_host *host,
-				  u32 *bytes, u8 **pointer)
+				  u32 *bytes, u32 **pointer)
 {
 	struct scatterlist *sg;
 
@@ -247,36 +223,49 @@ static inline int get_data_buffer(struct s3cmci_host *host,
 	sg = &host->mrq->data->sg[host->pio_sgptr];
 
 	*bytes = sg->length;
-	*pointer = page_address(sg_page(sg)) + sg->offset;
+	*pointer = sg_virt(sg);
 
 	host->pio_sgptr++;
 
 	dbg(host, dbg_sg, "new buffer (%i/%i)\n",
-	      host->pio_sgptr, host->mrq->data->sg_len);
+	    host->pio_sgptr, host->mrq->data->sg_len);
 
 	return 0;
 }
 
-#define FIFO_FILL(host) (readl(host->base + S3C2410_SDIFSTA) & 	\
-				S3C2410_SDIFSTA_COUNTMASK)
-#define FIFO_FREE(host) (63 - (readl(host->base + S3C2410_SDIFSTA) 	\
-				& S3C2410_SDIFSTA_COUNTMASK))
+static inline u32 fifo_count(struct s3cmci_host *host)
+{
+	u32 fifostat = readl(host->base + S3C2410_SDIFSTA);
 
-static inline void do_pio_read(struct s3cmci_host *host)
+	fifostat &= S3C2410_SDIFSTA_COUNTMASK;
+	return fifostat;
+}
+
+static inline u32 fifo_free(struct s3cmci_host *host)
+{
+	u32 fifostat = readl(host->base + S3C2410_SDIFSTA);
+
+	fifostat &= S3C2410_SDIFSTA_COUNTMASK;
+	return 63 - fifostat;
+}
+
+static void do_pio_read(struct s3cmci_host *host)
 {
 	int res;
-	int fifo;
+	u32 fifo;
+	u32 *ptr;
+	u32 fifo_words;
 	void __iomem *from_ptr;
 
 	/* write real prescaler to host, it might be set slow to fix */
-	writel(host->sdipre, host->base + S3C2410_SDIPRE);
+	writel(host->prescaler, host->base + S3C2410_SDIPRE);
 
 	from_ptr = host->base + host->sdidata;
 
-	while ((fifo = FIFO_FILL(host))) {
+	while ((fifo = fifo_count(host))) {
 		if (!host->pio_bytes) {
 			res = get_data_buffer(host, &host->pio_bytes,
-							&host->pio_ptr);
+					      &host->pio_ptr);
 			if (res) {
 				host->pio_active = XFER_NONE;
 				host->complete_what = COMPLETION_FINALIZE;
@@ -286,44 +275,55 @@ static inline void do_pio_read(struct s3cmci_host *host)
 				return;
 			}
 
-			dbg(host, dbg_pio, "pio_read(): new target: "
-			    "[%i]@[%p]\n", host->pio_bytes, host->pio_ptr);
+			dbg(host, dbg_pio,
+			    "pio_read(): new target: [%i]@[%p]\n",
+			    host->pio_bytes, host->pio_ptr);
 		}
 
-		dbg(host, dbg_pio, "pio_read(): fifo:[%02i] "
-		    "buffer:[%03i] dcnt:[%08X]\n", fifo, host->pio_bytes,
+		dbg(host, dbg_pio,
+		    "pio_read(): fifo:[%02i] buffer:[%03i] dcnt:[%08X]\n",
+		    fifo, host->pio_bytes,
 		    readl(host->base + S3C2410_SDIDCNT));
 
-		if (fifo > host->pio_bytes)
+		/* If we have reached the end of the block, we can
+		 * read a word and get 1 to 3 bytes.  If we in the
+		 * middle of the block, we have to read full words,
+		 * otherwise we will write garbage, so round down to
+		 * an even multiple of 4. */
+		if (fifo >= host->pio_bytes)
 			fifo = host->pio_bytes;
+		else {
+			fifo -= fifo & 3;
+			if (!fifo)
+				break;
+		}
 
 		host->pio_bytes -= fifo;
 		host->pio_count += fifo;
 
-		/* we might have an unaligned start of data */
-		while (((unsigned long)host->pio_ptr & 0x03) && fifo) {
-			*(host->pio_ptr++) = readb(host->base + host->sdidata_b);
-			fifo--;
-		}
+		fifo_words = fifo >> 2;
+		ptr = host->pio_ptr;
+		while (fifo_words--)
+			*ptr++ = readl(from_ptr);
+		host->pio_ptr = ptr;
 
-		/* and a major chunk of data in the middle */
-		for (; fifo >= 4; fifo -=4) {
-			*(u32 *) host->pio_ptr = readl(from_ptr);
-			host->pio_ptr+= 4;
-		}
+		if (fifo & 3) {
+			u32 n = fifo & 3;
+			u32 data = readl(from_ptr);
+			u8 *p = (u8 *)host->pio_ptr;
 
-		/* as well as some non-modulo-four trailer */
-		while (fifo) {
-			*(host->pio_ptr++) = readb(host->base + host->sdidata_b);
-			fifo--;
+			while (n--) {
+				*p++ = data;
+				data >>= 8;
+			}
 		}
 	}
 
 	if (!host->pio_bytes) {
 		res = get_data_buffer(host, &host->pio_bytes, &host->pio_ptr);
 		if (res) {
-			dbg(host, dbg_pio, "pio_read(): "
-			    "complete (no more buffers).\n");
+			dbg(host, dbg_pio,
+			    "pio_read(): complete (no more buffers).\n");
 			host->pio_active = XFER_NONE;
 			host->complete_what = COMPLETION_FINALIZE;
 
@@ -331,60 +331,57 @@ static inline void do_pio_read(struct s3cmci_host *host)
 		}
 	}
 
-	enable_imask(host, S3C2410_SDIIMSK_RXFIFOHALF
-						| S3C2410_SDIIMSK_RXFIFOLAST);
+	enable_imask(host,
+		     S3C2410_SDIIMSK_RXFIFOHALF | S3C2410_SDIIMSK_RXFIFOLAST);
 }
 
-static inline void do_pio_write(struct s3cmci_host *host)
+static void do_pio_write(struct s3cmci_host *host)
 {
-	int res;
-	int fifo;
-
 	void __iomem *to_ptr;
+	int res;
+	u32 fifo;
+	u32 *ptr;
 
 	to_ptr = host->base + host->sdidata;
 
-	while ((fifo = FIFO_FREE(host))) {
+	while ((fifo = fifo_free(host))) {
 		if (!host->pio_bytes) {
 			res = get_data_buffer(host, &host->pio_bytes,
 							&host->pio_ptr);
 			if (res) {
-				dbg(host, dbg_pio, "pio_write(): "
-					"complete (no more data).\n");
+				dbg(host, dbg_pio,
+				    "pio_write(): complete (no more data).\n");
 				host->pio_active = XFER_NONE;
 
 				return;
 			}
 
-			dbg(host, dbg_pio, "pio_write(): "
-				"new source: [%i]@[%p]\n",
-				host->pio_bytes, host->pio_ptr);
+			dbg(host, dbg_pio,
+			    "pio_write(): new source: [%i]@[%p]\n",
+			    host->pio_bytes, host->pio_ptr);
 
 		}
 
-		if (fifo > host->pio_bytes)
+		/* If we have reached the end of the block, we have to
+		 * write exactly the remaining number of bytes.  If we
+		 * in the middle of the block, we have to write full
+		 * words, so round down to an even multiple of 4. */
+		if (fifo >= host->pio_bytes)
 			fifo = host->pio_bytes;
+		else {
+			fifo -= fifo & 3;
+			if (!fifo)
+				break;
+		}
 
 		host->pio_bytes -= fifo;
 		host->pio_count += fifo;
 
-		/* we might have an unaligned start of data */
-		while (((unsigned long)host->pio_ptr & 0x03) && fifo) {
-			writeb(*(host->pio_ptr++), host->base + host->sdidata_b);
-			fifo--;
-		}
-
-		/* and a major chunk of data in the middle */
-		for (; fifo >= 4; fifo -=4) {
-			writel(*(u32 *) host->pio_ptr, to_ptr);
-			host->pio_ptr += 4;
-		}
-
-		/* as well as some non-modulo-four trailer */
-		while (fifo) {
-			writeb(*(host->pio_ptr++), host->base + host->sdidata_b);
-			fifo--;
-		}
+		fifo = (fifo + 3) >> 2;
+		ptr = host->pio_ptr;
+		while (fifo--)
+			writel(*ptr++, to_ptr);
+		host->pio_ptr = ptr;
 	}
 
 	enable_imask(host, S3C2410_SDIIMSK_TXFIFOHALF);
@@ -406,11 +403,12 @@ static void pio_tasklet(unsigned long data)
 		clear_imask(host);
 		if (host->pio_active != XFER_NONE) {
 			dbg(host, dbg_err, "unfinished %s "
-				"- pio_count:[%u] pio_bytes:[%u]\n",
-				(host->pio_active == XFER_READ)?"read":"write",
-				host->pio_count, host->pio_bytes);
+			    "- pio_count:[%u] pio_bytes:[%u]\n",
+			    (host->pio_active == XFER_READ) ? "read" : "write",
+			    host->pio_count, host->pio_bytes);
 
-			host->mrq->data->error = -EIO;
+			if (host->mrq->data)
+				host->mrq->data->error = -EINVAL;
 		}
 
 		finalize_request(host);
@@ -418,45 +416,11 @@ static void pio_tasklet(unsigned long data)
 		enable_irq(host->irq);
 }
 
-static void __s3cmci_enable_clock(struct s3cmci_host *host)
-{
-	u32 mci_con;
-	unsigned long flags;
-
-	/* enable the clock if clock rate is > 0 */
-	if (host->real_rate) {
-		spin_lock_irqsave(&clock_lock, flags);
-
-		mci_con = readl(host->base + S3C2410_SDICON);
-		mci_con |= S3C2410_SDICON_CLOCKTYPE;
-		writel(mci_con, host->base + S3C2410_SDICON);
-
-		spin_unlock_irqrestore(&clock_lock, flags);
-	}
-}
-
-static void __s3cmci_disable_clock(struct s3cmci_host *host)
-{
-	u32 mci_con;
-	unsigned long flags;
-
-	if (!sd_idleclk) {
-		spin_lock_irqsave(&clock_lock, flags);
-
-		mci_con = readl(host->base + S3C2410_SDICON);
-		mci_con &= ~S3C2410_SDICON_CLOCKTYPE;
-		writel(mci_con, host->base + S3C2410_SDICON);
-
-		spin_unlock_irqrestore(&clock_lock, flags);
-	}
-}
-
-
 /*
  * ISR for SDI Interface IRQ
  * Communication between driver and ISR works as follows:
  *   host->mrq 			points to current request
- *   host->complete_what	tells ISR when the request is considered done
+ *   host->complete_what	Indicates when the request is considered done
  *     COMPLETION_CMDSENT	  when the command was sent
  *     COMPLETION_RSPFIN          when a response was received
  *     COMPLETION_XFERFINISH	  when the data transfer is finished
@@ -481,27 +445,24 @@ static void __s3cmci_disable_clock(struct s3cmci_host *host)
 
 static irqreturn_t s3cmci_irq(int irq, void *dev_id)
 {
-	struct s3cmci_host *host;
+	struct s3cmci_host *host = dev_id;
 	struct mmc_command *cmd;
 	u32 mci_csta, mci_dsta, mci_fsta, mci_dcnt, mci_imsk;
 	u32 mci_cclear, mci_dclear;
 	unsigned long iflags;
-	int cardint = 0;
-
-	host = (struct s3cmci_host *)dev_id;
 
 	spin_lock_irqsave(&host->complete_lock, iflags);
 
-	mci_csta 	= readl(host->base + S3C2410_SDICMDSTAT);
-	mci_dsta 	= readl(host->base + S3C2410_SDIDSTA);
-	mci_dcnt 	= readl(host->base + S3C2410_SDIDCNT);
-	mci_fsta 	= readl(host->base + S3C2410_SDIFSTA);
-	mci_imsk	= readl(host->base + host->sdiimsk);
-	mci_cclear	= 0;
-	mci_dclear	= 0;
+	mci_csta = readl(host->base + S3C2410_SDICMDSTAT);
+	mci_dsta = readl(host->base + S3C2410_SDIDSTA);
+	mci_dcnt = readl(host->base + S3C2410_SDIDCNT);
+	mci_fsta = readl(host->base + S3C2410_SDIFSTA);
+	mci_imsk = readl(host->base + host->sdiimsk);
+	mci_cclear = 0;
+	mci_dclear = 0;
 
 	if ((host->complete_what == COMPLETION_NONE) ||
-			(host->complete_what == COMPLETION_FINALIZE)) {
+	    (host->complete_what == COMPLETION_FINALIZE)) {
 		host->status = "nothing to complete";
 		clear_imask(host);
 		goto irq_out;
@@ -513,7 +474,7 @@ static irqreturn_t s3cmci_irq(int irq, void *dev_id)
 		goto irq_out;
 	}
 
-	cmd = host->cmd_is_stop?host->mrq->stop:host->mrq->cmd;
+	cmd = host->cmd_is_stop ? host->mrq->stop : host->mrq->cmd;
 
 	if (!cmd) {
 		host->status = "no active cmd";
@@ -523,7 +484,7 @@ static irqreturn_t s3cmci_irq(int irq, void *dev_id)
 
 	if (!host->dodma) {
 		if ((host->pio_active == XFER_WRITE) &&
-				(mci_fsta & S3C2410_SDIFSTA_TFDET)) {
+		    (mci_fsta & S3C2410_SDIFSTA_TFDET)) {
 
 			disable_imask(host, S3C2410_SDIIMSK_TXFIFOHALF);
 			tasklet_schedule(&host->pio_tasklet);
@@ -531,10 +492,11 @@ static irqreturn_t s3cmci_irq(int irq, void *dev_id)
 		}
 
 		if ((host->pio_active == XFER_READ) &&
-				(mci_fsta & S3C2410_SDIFSTA_RFDET)) {
+		    (mci_fsta & S3C2410_SDIFSTA_RFDET)) {
 
-			disable_imask(host, S3C2410_SDIIMSK_RXFIFOHALF |
-						S3C2410_SDIIMSK_RXFIFOLAST);
+			disable_imask(host,
+				      S3C2410_SDIIMSK_RXFIFOHALF |
+				      S3C2410_SDIIMSK_RXFIFOLAST);
 
 			tasklet_schedule(&host->pio_tasklet);
 			host->status = "pio rx";
@@ -542,6 +504,7 @@ static irqreturn_t s3cmci_irq(int irq, void *dev_id)
 	}
 
 	if (mci_csta & S3C2410_SDICMDSTAT_CMDTIMEOUT) {
+		dbg(host, dbg_err, "CMDSTAT: error CMDTIMEOUT\n");
 		cmd->error = -ETIMEDOUT;
 		host->status = "error: command timeout";
 		goto fail_transfer;
@@ -559,12 +522,17 @@ static irqreturn_t s3cmci_irq(int irq, void *dev_id)
 	if (mci_csta & S3C2410_SDICMDSTAT_CRCFAIL) {
 		if (cmd->flags & MMC_RSP_CRC) {
 			if (host->mrq->cmd->flags & MMC_RSP_136) {
-				dbg(host, dbg_irq, "fixup for chip bug: "
-				    "ignore CRC fail with long rsp\n");
+				dbg(host, dbg_irq,
+				    "fixup: ignore CRC fail with long rsp\n");
 			} else {
-				cmd->error = -EILSEQ;
-				host->status = "error: bad command crc";
-				goto fail_transfer;
+				/* note, we used to fail the transfer
+				 * here, but it seems that this is just
+				 * the hardware getting it wrong.
+				 *
+				 * cmd->error = -EILSEQ;
+				 * host->status = "error: bad command crc";
+				 * goto fail_transfer;
+				*/
 			}
 		}
 
@@ -592,31 +560,36 @@ static irqreturn_t s3cmci_irq(int irq, void *dev_id)
 	/* Check for FIFO failure */
 	if (host->is2440) {
 		if (mci_fsta & S3C2440_SDIFSTA_FIFOFAIL) {
-			host->mrq->data->error = -EIO;
+			dbg(host, dbg_err, "FIFO failure\n");
+			host->mrq->data->error = -EILSEQ;
 			host->status = "error: 2440 fifo failure";
 			goto fail_transfer;
 		}
 	} else {
 		if (mci_dsta & S3C2410_SDIDSTA_FIFOFAIL) {
-			cmd->data->error = -EIO;
+			dbg(host, dbg_err, "FIFO failure\n");
+			cmd->data->error = -EILSEQ;
 			host->status = "error:  fifo failure";
 			goto fail_transfer;
 		}
 	}
 
 	if (mci_dsta & S3C2410_SDIDSTA_RXCRCFAIL) {
+		dbg(host, dbg_err, "bad data crc (outgoing)\n");
 		cmd->data->error = -EILSEQ;
 		host->status = "error: bad data crc (outgoing)";
 		goto fail_transfer;
 	}
 
 	if (mci_dsta & S3C2410_SDIDSTA_CRCFAIL) {
-		cmd->data->error = -EIO;
+		dbg(host, dbg_err, "bad data crc (incoming)\n");
+		cmd->data->error = -EILSEQ;
 		host->status = "error: bad data crc (incoming)";
 		goto fail_transfer;
 	}
 
 	if (mci_dsta & S3C2410_SDIDSTA_DATATIMEOUT) {
+		dbg(host, dbg_err, "data timeout\n");
 		cmd->data->error = -ETIMEDOUT;
 		host->status = "error: data timeout";
 		goto fail_transfer;
@@ -632,11 +605,6 @@ static irqreturn_t s3cmci_irq(int irq, void *dev_id)
 			host->complete_what = COMPLETION_RSPFIN;
 
 		mci_dclear |= S3C2410_SDIDSTA_XFERFINISH;
-	}
-
-	if (mci_dsta & S3C2410_SDIDSTA_SDIOIRQDETECT) {
-		cardint = 1;
-		mci_dclear |= S3C2410_SDIDSTA_SDIOIRQDETECT;
 	}
 
 clear_status_bits:
@@ -657,19 +625,12 @@ close_transfer:
 	goto irq_out;
 
 irq_out:
-	dbg(host, dbg_irq, "csta:0x%08x dsta:0x%08x "
-			   "fsta:0x%08x dcnt:0x%08x status:%s.\n",
-				mci_csta, mci_dsta, mci_fsta,
-				mci_dcnt, host->status);
+	dbg(host, dbg_irq,
+	    "csta:0x%08x dsta:0x%08x fsta:0x%08x dcnt:0x%08x status:%s.\n",
+	    mci_csta, mci_dsta, mci_fsta, mci_dcnt, host->status);
 
 	spin_unlock_irqrestore(&host->complete_lock, iflags);
-
-	/* We have to delay this as it calls back into the driver */
-	if (cardint)
-		mmc_signal_sdio_irq(host->mmc);
-
 	return IRQ_HANDLED;
-
 }
 
 /*
@@ -682,28 +643,27 @@ static irqreturn_t s3cmci_irq_cd(int irq, void *dev_id)
 
 	dbg(host, dbg_irq, "card detect\n");
 
-	mmc_detect_change(host->mmc, 500);
+	mmc_detect_change(host->mmc, msecs_to_jiffies(500));
 
 	return IRQ_HANDLED;
 }
 
-void s3cmci_dma_done_callback(struct s3c2410_dma_chan *dma_ch, void *buf_id,
-	int size, enum s3c2410_dma_buffresult result)
+static void s3cmci_dma_done_callback(struct s3c2410_dma_chan *dma_ch,
+				     void *buf_id, int size,
+				     enum s3c2410_dma_buffresult result)
 {
+	struct s3cmci_host *host = buf_id;
 	unsigned long iflags;
 	u32 mci_csta, mci_dsta, mci_fsta, mci_dcnt;
-	struct s3cmci_host *host = (struct s3cmci_host *)buf_id;
 
-	mci_csta 	= readl(host->base + S3C2410_SDICMDSTAT);
-	mci_dsta 	= readl(host->base + S3C2410_SDIDSTA);
-	mci_fsta 	= readl(host->base + S3C2410_SDIFSTA);
-	mci_dcnt 	= readl(host->base + S3C2410_SDIDCNT);
+	mci_csta = readl(host->base + S3C2410_SDICMDSTAT);
+	mci_dsta = readl(host->base + S3C2410_SDIDSTA);
+	mci_fsta = readl(host->base + S3C2410_SDIFSTA);
+	mci_dcnt = readl(host->base + S3C2410_SDIDCNT);
 
-	if ((!host->mrq) || (!host->mrq) || (!host->mrq->data))
-		return;
-
-	if (!host->dmatogo)
-		return;
+	BUG_ON(!host->mrq);
+	BUG_ON(!host->mrq->data);
+	BUG_ON(!host->dmatogo);
 
 	spin_lock_irqsave(&host->complete_lock, iflags);
 
@@ -735,9 +695,8 @@ out:
 	spin_unlock_irqrestore(&host->complete_lock, iflags);
 	return;
 
-
 fail_request:
-	host->mrq->data->error = -EIO;
+	host->mrq->data->error = -EINVAL;
 	host->complete_what = COMPLETION_FINALIZE;
 	writel(0, host->base + host->sdiimsk);
 	goto out;
@@ -747,7 +706,7 @@ fail_request:
 static void finalize_request(struct s3cmci_host *host)
 {
 	struct mmc_request *mrq = host->mrq;
-	struct mmc_command *cmd = host->cmd_is_stop?mrq->stop:mrq->cmd;
+	struct mmc_command *cmd = host->cmd_is_stop ? mrq->stop : mrq->cmd;
 	int debug_as_failure = 0;
 
 	if (host->complete_what != COMPLETION_FINALIZE)
@@ -757,22 +716,20 @@ static void finalize_request(struct s3cmci_host *host)
 		return;
 
 	if (cmd->data && (cmd->error == 0) &&
-		  (cmd->data->error == 0)) {
-
+	    (cmd->data->error == 0)) {
 		if (host->dodma && (!host->dma_complete)) {
 			dbg(host, dbg_dma, "DMA Missing!\n");
 			return;
 		}
 	}
 
-	/* Read response */
+	/* Read response from controller. */
 	cmd->resp[0] = readl(host->base + S3C2410_SDIRSP0);
 	cmd->resp[1] = readl(host->base + S3C2410_SDIRSP1);
 	cmd->resp[2] = readl(host->base + S3C2410_SDIRSP2);
 	cmd->resp[3] = readl(host->base + S3C2410_SDIRSP3);
 
-	/* reset clock speed, as it could still be set low for */
-	writel(host->sdipre, host->base + S3C2410_SDIPRE);
+	writel(host->prescaler, host->base + S3C2410_SDIPRE);
 
 	if (cmd->error)
 		debug_as_failure = 1;
@@ -780,9 +737,8 @@ static void finalize_request(struct s3cmci_host *host)
 	if (cmd->data && cmd->data->error)
 		debug_as_failure = 1;
 
-#ifdef CONFIG_MMC_DEBUG
 	dbg_dumpcmd(host, cmd, debug_as_failure);
-#endif
+
 	/* Cleanup controller */
 	writel(0, host->base + S3C2410_SDICMDARG);
 	writel(S3C2410_SDIDCON_STOP, host->base + S3C2410_SDIDCON);
@@ -802,22 +758,22 @@ static void finalize_request(struct s3cmci_host *host)
 	if (!mrq->data)
 		goto request_done;
 
-	/* Calulate the amout of bytes transfer, but only if there was
-	 * no error */
-	if (mrq->data->error == 0)
+	/* Calulate the amout of bytes transfer if there was no error */
+	if (mrq->data->error == 0) {
 		mrq->data->bytes_xfered =
 			(mrq->data->blocks * mrq->data->blksz);
-	else
+	} else {
 		mrq->data->bytes_xfered = 0;
+	}
 
 	/* If we had an error while transfering data we flush the
-	 * DMA channel and the fifo to clear out any garbage */
-	if (mrq->data->error) {
+	 * DMA channel and the fifo to clear out any garbage. */
+	if (mrq->data->error != 0) {
 		if (host->dodma)
 			s3c2410_dma_ctrl(host->dma, S3C2410_DMAOP_FLUSH);
 
 		if (host->is2440) {
-			/* Clear failure register and reset fifo */
+			/* Clear failure register and reset fifo. */
 			writel(S3C2440_SDIFSTA_FIFORESET |
 			       S3C2440_SDIFSTA_FIFOFAIL,
 			       host->base + S3C2410_SDIFSTA);
@@ -833,17 +789,16 @@ static void finalize_request(struct s3cmci_host *host)
 	}
 
 request_done:
-	__s3cmci_disable_clock(host);
 	host->complete_what = COMPLETION_NONE;
 	host->mrq = NULL;
 	mmc_request_done(host->mmc, mrq);
 }
 
-
-void s3cmci_dma_setup(struct s3cmci_host *host, enum s3c2410_dmasrc source)
+static void s3cmci_dma_setup(struct s3cmci_host *host,
+			     enum s3c2410_dmasrc source)
 {
-	static int setup_ok;
 	static enum s3c2410_dmasrc last_source = -1;
+	static int setup_ok;
 
 	if (last_source == source)
 		return;
@@ -851,7 +806,7 @@ void s3cmci_dma_setup(struct s3cmci_host *host, enum s3c2410_dmasrc source)
 	last_source = source;
 
 	s3c2410_dma_devconfig(host->dma, source, 3,
-		host->mem->start + host->sdidata);
+			      host->mem->start + host->sdidata);
 
 	if (!setup_ok) {
 		s3c2410_dma_config(host->dma, 4,
@@ -883,7 +838,7 @@ static void s3cmci_send_command(struct s3cmci_host *host,
 
 	writel(cmd->arg, host->base + S3C2410_SDICMDARG);
 
-	ccon = cmd->opcode & S3C2410_SDICMDCON_INDEX;
+	ccon  = cmd->opcode & S3C2410_SDICMDCON_INDEX;
 	ccon |= S3C2410_SDICMDCON_SENDERHOST | S3C2410_SDICMDCON_CMDSTART;
 
 	if (cmd->flags & MMC_RSP_PRESENT)
@@ -906,8 +861,18 @@ static int s3cmci_setup_data(struct s3cmci_host *host, struct mmc_data *data)
 		return 0;
 	}
 
+	if ((data->blksz & 3) != 0) {
+		/* We cannot deal with unaligned blocks with more than
+		 * one block being transfered. */
+
+		if (data->blocks > 1) {
+			pr_warning("%s: can't do non-word sized block transfers (blksz %d)\n", __func__, data->blksz);
+			return -EINVAL;
+		}
+	}
+
 	while (readl(host->base + S3C2410_SDIDSTA) &
-		(S3C2410_SDIDSTA_TXDATAON | S3C2410_SDIDSTA_RXDATAON)) {
+	       (S3C2410_SDIDSTA_TXDATAON | S3C2410_SDIDSTA_RXDATAON)) {
 
 		dbg(host, dbg_err,
 		    "mci_setup_data() transfer stillin progress.\n");
@@ -915,11 +880,8 @@ static int s3cmci_setup_data(struct s3cmci_host *host, struct mmc_data *data)
 		writel(S3C2410_SDIDCON_STOP, host->base + S3C2410_SDIDCON);
 		s3cmci_reset(host);
 
-		if (0 == (stoptries--)) {
-#ifdef CONFIG_MMC_DEBUG
+		if ((stoptries--) == 0) {
 			dbg_dumpregs(host, "DRF");
-#endif
-
 			return -EINVAL;
 		}
 	}
@@ -957,8 +919,8 @@ static int s3cmci_setup_data(struct s3cmci_host *host, struct mmc_data *data)
 	writel(data->blksz, host->base + S3C2410_SDIBSIZE);
 
 	/* add to IMASK register */
-	imsk =	S3C2410_SDIIMSK_FIFOFAIL | S3C2410_SDIIMSK_DATACRC |
-		S3C2410_SDIIMSK_DATATIMEOUT | S3C2410_SDIIMSK_DATAFINISH;
+	imsk = S3C2410_SDIIMSK_FIFOFAIL | S3C2410_SDIIMSK_DATACRC |
+	       S3C2410_SDIIMSK_DATATIMEOUT | S3C2410_SDIIMSK_DATAFINISH;
 
 	enable_imask(host, imsk);
 
@@ -977,24 +939,25 @@ static int s3cmci_setup_data(struct s3cmci_host *host, struct mmc_data *data)
 	return 0;
 }
 
+#define BOTH_DIR (MMC_DATA_WRITE | MMC_DATA_READ)
+
 static int s3cmci_prepare_pio(struct s3cmci_host *host, struct mmc_data *data)
 {
-	int rw = (data->flags & MMC_DATA_WRITE)?1:0;
+	int rw = (data->flags & MMC_DATA_WRITE) ? 1 : 0;
 
-	if (rw != ((data->flags & MMC_DATA_READ)?0:1))
-		return -EINVAL;
+	BUG_ON((data->flags & BOTH_DIR) == BOTH_DIR);
 
 	host->pio_sgptr = 0;
 	host->pio_bytes = 0;
 	host->pio_count = 0;
-	host->pio_active = rw?XFER_WRITE:XFER_READ;
+	host->pio_active = rw ? XFER_WRITE : XFER_READ;
 
 	if (rw) {
 		do_pio_write(host);
 		enable_imask(host, S3C2410_SDIIMSK_TXFIFOHALF);
 	} else {
 		enable_imask(host, S3C2410_SDIIMSK_RXFIFOHALF
-			| S3C2410_SDIIMSK_RXFIFOLAST);
+			     | S3C2410_SDIIMSK_RXFIFOLAST);
 	}
 
 	return 0;
@@ -1003,18 +966,15 @@ static int s3cmci_prepare_pio(struct s3cmci_host *host, struct mmc_data *data)
 static int s3cmci_prepare_dma(struct s3cmci_host *host, struct mmc_data *data)
 {
 	int dma_len, i;
+	int rw = (data->flags & MMC_DATA_WRITE) ? 1 : 0;
 
-	int rw = (data->flags & MMC_DATA_WRITE)?1:0;
+	BUG_ON((data->flags & BOTH_DIR) == BOTH_DIR);
 
-	if (rw != ((data->flags & MMC_DATA_READ)?0:1))
-		return -EINVAL;
-
-	s3cmci_dma_setup(host, rw?S3C2410_DMASRC_MEM:S3C2410_DMASRC_HW);
+	s3cmci_dma_setup(host, rw ? S3C2410_DMASRC_MEM : S3C2410_DMASRC_HW);
 	s3c2410_dma_ctrl(host->dma, S3C2410_DMAOP_FLUSH);
 
 	dma_len = dma_map_sg(mmc_dev(host->mmc), data->sg, data->sg_len,
-				(rw)?DMA_TO_DEVICE:DMA_FROM_DEVICE);
-
+			     (rw) ? DMA_TO_DEVICE : DMA_FROM_DEVICE);
 
 	if (dma_len == 0)
 		return -ENOMEM;
@@ -1030,8 +990,8 @@ static int s3cmci_prepare_dma(struct s3cmci_host *host, struct mmc_data *data)
 			sg_dma_len(&data->sg[i]));
 
 		res = s3c2410_dma_enqueue(host->dma, (void *) host,
-				sg_dma_address(&data->sg[i]),
-				sg_dma_len(&data->sg[i]));
+					  sg_dma_address(&data->sg[i]),
+					  sg_dma_len(&data->sg[i]));
 
 		if (res) {
 			s3c2410_dma_ctrl(host->dma, S3C2410_DMAOP_FLUSH);
@@ -1048,33 +1008,31 @@ static void s3cmci_send_request(struct mmc_host *mmc)
 {
 	struct s3cmci_host *host = mmc_priv(mmc);
 	struct mmc_request *mrq = host->mrq;
-	struct mmc_command *cmd = host->cmd_is_stop?mrq->stop:mrq->cmd;
-	int pre;
+	struct mmc_command *cmd = host->cmd_is_stop ? mrq->stop : mrq->cmd;
 
 	host->ccnt++;
-#ifdef CONFIG_MMC_DEBUG
 	prepare_dbgmsg(host, cmd, host->cmd_is_stop);
-#endif
-	/* clear command, data and fifo status registers;
-	 * Fifo clear only necessary on 2440, but doesn't hurt on 2410 */
+
+	/* Clear command, data and fifo status registers
+	   Fifo clear only necessary on 2440, but doesn't hurt on 2410
+	*/
 	writel(0xFFFFFFFF, host->base + S3C2410_SDICMDSTAT);
 	writel(0xFFFFFFFF, host->base + S3C2410_SDIDSTA);
 	writel(0xFFFFFFFF, host->base + S3C2410_SDIFSTA);
 
 	if (cmd->data) {
-		int res;
-		res = s3cmci_setup_data(host, cmd->data);
+		int res = s3cmci_setup_data(host, cmd->data);
 
 		host->dcnt++;
 
 		if (res) {
-			cmd->error = -EIO;
-			cmd->data->error = -EIO;
+			dbg(host, dbg_err, "setup data error %d\n", res);
+			cmd->error = res;
+			cmd->data->error = res;
 
 			mmc_request_done(mmc, mrq);
 			return;
 		}
-
 
 		if (host->dodma)
 			res = s3cmci_prepare_dma(host, cmd->data);
@@ -1082,88 +1040,55 @@ static void s3cmci_send_request(struct mmc_host *mmc)
 			res = s3cmci_prepare_pio(host, cmd->data);
 
 		if (res) {
-			cmd->error = -EIO;
+			dbg(host, dbg_err, "data prepare error %d\n", res);
+			cmd->error = res;
+			cmd->data->error = res;
 			cmd->data->error = -EIO;
 
 			mmc_request_done(mmc, mrq);
 			return;
 		}
-
 	}
 
-	/* establish the correct prescaler depending on the sd_slow_ratio */
-
-	if ((sd_slow_ratio > 1) &&
-	    host->pdata->use_slow && (host->pdata->use_slow)()) {
-		/* compute the slower speed */
-		pre = host->prescaler * sd_slow_ratio;
-		if (pre > 255)
-			pre = 255;
-	} else {
-		/* use the normal speed */
-		pre = host->prescaler;
-	}
-
-	if (host->sdipre != pre) {
-		dbg(host, dbg_conf, "prescaler changed: %d -> %d\n",
-		    (int)host->sdipre, pre);
-		host->sdipre = pre;
-		writel(host->sdipre, host->base + S3C2410_SDIPRE);
-	}
-
-	__s3cmci_enable_clock(host);
+	/* Send command */
 	s3cmci_send_command(host, cmd);
+
+	/* Enable Interrupt */
 	enable_irq(host->irq);
+}
+
+static int s3cmci_card_present(struct mmc_host *mmc)
+{
+	struct s3cmci_host *host = mmc_priv(mmc);
+	struct s3c24xx_mci_pdata *pdata = host->pdata;
+	int ret;
+
+	if (pdata->gpio_detect == 0)
+		return -ENOSYS;
+
+	ret = s3c2410_gpio_getpin(pdata->gpio_detect) ? 0 : 1;
+	return ret ^ pdata->detect_invert;
 }
 
 static void s3cmci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 {
 	struct s3cmci_host *host = mmc_priv(mmc);
 
+	host->status = "mmc request";
 	host->cmd_is_stop = 0;
 	host->mrq = mrq;
 
-	s3cmci_send_request(mmc);
+	if (s3cmci_card_present(mmc) == 0) {
+		dbg(host, dbg_err, "%s: no medium present\n", __func__);
+		host->mrq->cmd->error = -ENOMEDIUM;
+		mmc_request_done(mmc, mrq);
+	} else
+		s3cmci_send_request(mmc);
 }
 
-static void s3cmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
+static void s3cmci_set_clk(struct s3cmci_host *host, struct mmc_ios *ios)
 {
-	struct s3cmci_host *host = mmc_priv(mmc);
-	u32 mci_psc, mci_con;
-
-	/* Set power */
-	mci_con = readl(host->base + S3C2410_SDICON);
-	switch (ios->power_mode) {
-	case MMC_POWER_ON:
-	case MMC_POWER_UP:
-		s3c2410_gpio_cfgpin(S3C2410_GPE5, S3C2410_GPE5_SDCLK);
-		s3c2410_gpio_cfgpin(S3C2410_GPE6, S3C2410_GPE6_SDCMD);
-		s3c2410_gpio_cfgpin(S3C2410_GPE7, S3C2410_GPE7_SDDAT0);
-		s3c2410_gpio_cfgpin(S3C2410_GPE8, S3C2410_GPE8_SDDAT1);
-		s3c2410_gpio_cfgpin(S3C2410_GPE9, S3C2410_GPE9_SDDAT2);
-		s3c2410_gpio_cfgpin(S3C2410_GPE10, S3C2410_GPE10_SDDAT3);
-
-		if (host->pdata->set_power)
-			host->pdata->set_power(ios->power_mode, ios->vdd);
-
-		if (!host->is2440)
-			mci_con |= S3C2410_SDICON_FIFORESET;
-
-		break;
-
-	case MMC_POWER_OFF:
-	default:
-		s3c2410_gpio_setpin(S3C2410_GPE5, 0);
-		s3c2410_gpio_cfgpin(S3C2410_GPE5, S3C2410_GPE5_OUTP);
-
-		if (host->pdata->set_power)
-			host->pdata->set_power(ios->power_mode, ios->vdd);
-
-		if (host->is2440)
-			mci_con |= S3C2440_SDICON_SDRESET;
-
-		break;
-	}
+	u32 mci_psc;
 
 	/* Set clock */
 	for (mci_psc = 0; mci_psc < 255; mci_psc++) {
@@ -1175,14 +1100,92 @@ static void s3cmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	if (mci_psc > 255)
 		mci_psc = 255;
-	host->prescaler = mci_psc;
-	host->sdipre = mci_psc;
 
+	host->prescaler = mci_psc;
 	writel(host->prescaler, host->base + S3C2410_SDIPRE);
 
 	/* If requested clock is 0, real_rate will be 0, too */
 	if (ios->clock == 0)
 		host->real_rate = 0;
+}
+
+static int s3cmci_get_mv(int vdd)
+{
+	int mv = 1700; /* 1.7V for MMC_VDD_165_195 */
+	int bit;
+
+	for (bit = 0; bit != 24; bit++)
+		if (vdd == (1 << bit))
+			mv += 100 * (bit - 4);
+
+	return mv;
+}	
+
+static void s3cmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
+{
+	struct s3cmci_host *host = mmc_priv(mmc);
+	u32 mci_con;
+	struct regulator *regulator;
+	int mv;
+
+	/* Set the power state */
+
+	mci_con = readl(host->base + S3C2410_SDICON);
+
+	regulator = host->regulator;
+
+	switch (ios->power_mode) {
+	case MMC_POWER_UP:
+		if (regulator) {
+			mv = s3cmci_get_mv(ios->vdd);
+			regulator_set_voltage(regulator, mv * 1000, mv * 1000);
+			regulator_enable(regulator);
+		} else if (host->pdata->set_power) {
+			host->pdata->set_power(ios->power_mode, ios->vdd);
+		}  else
+			dev_err(&host->pdev->dev, "Can't MMC_POWERUP\n");
+	case MMC_POWER_ON:
+		s3c2410_gpio_cfgpin(S3C2410_GPE5, S3C2410_GPE5_SDCLK);
+		s3c2410_gpio_cfgpin(S3C2410_GPE6, S3C2410_GPE6_SDCMD);
+		s3c2410_gpio_cfgpin(S3C2410_GPE7, S3C2410_GPE7_SDDAT0);
+		s3c2410_gpio_cfgpin(S3C2410_GPE8, S3C2410_GPE8_SDDAT1);
+		s3c2410_gpio_cfgpin(S3C2410_GPE9, S3C2410_GPE9_SDDAT2);
+		s3c2410_gpio_cfgpin(S3C2410_GPE10, S3C2410_GPE10_SDDAT3);
+
+		if (regulator) {
+			mv = s3cmci_get_mv(ios->vdd);
+			regulator_set_voltage(regulator, mv * 1000, mv * 1000);
+		} else if (host->pdata->set_power) {
+			host->pdata->set_power(ios->power_mode, ios->vdd);
+		}  else
+			dev_err(&host->pdev->dev, "Can't MMC_POWERON\n");
+	
+		if (!host->is2440)
+			mci_con |= S3C2410_SDICON_FIFORESET;
+
+		break;
+
+	case MMC_POWER_OFF:
+		s3c2410_gpio_setpin(S3C2410_GPE5, 0);
+		s3c2410_gpio_cfgpin(S3C2410_GPE5, S3C2410_GPE5_OUTP);
+
+		if (host->is2440)
+			mci_con |= S3C2440_SDICON_SDRESET;
+
+		if (regulator) {
+			if (regulator_is_enabled(regulator))
+				regulator_disable(regulator);
+		} else if (host->pdata->set_power) {
+			host->pdata->set_power(ios->power_mode, ios->vdd);
+		}  else
+			dev_err(&host->pdev->dev, "Can't MMC_POWEROFF\n");
+	
+		break;
+	default:
+		printk(KERN_ERR "No such power mode %d\n", ios->power_mode);
+	}
+
+	s3cmci_set_clk(host, ios);
 
 	/* Set CLOCK_ENABLE */
 	if (ios->clock)
@@ -1192,33 +1195,15 @@ static void s3cmci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	writel(mci_con, host->base + S3C2410_SDICON);
 
-	if ((ios->power_mode == MMC_POWER_ON)
-		|| (ios->power_mode == MMC_POWER_UP)) {
-
-		dbg(host, dbg_conf,
-		    "powered (vdd: %d), clk: %lukHz div=%lu (req: %ukHz),"
-		    " bus width: %d\n", ios->vdd, host->real_rate / 1000,
-		    host->clk_div * (host->prescaler + 1),
-		    ios->clock / 1000, ios->bus_width);
-
-		/* After power-up, we need to give the card 74 clocks to
-		 * initialize, so sleep just a moment before we disable
-		 * the clock again.
-		 */
-		if (ios->clock)
-			msleep(1);
-
+	if ((ios->power_mode == MMC_POWER_ON) ||
+	    (ios->power_mode == MMC_POWER_UP)) {
+		dbg(host, dbg_conf, "running at %lukHz (requested: %ukHz).\n",
+			host->real_rate/1000, ios->clock/1000);
 	} else {
 		dbg(host, dbg_conf, "powered down.\n");
 	}
 
 	host->bus_width = ios->bus_width;
-
-	/* No need to run the clock until we have data to move */
-	if (!sd_idleclk) {
-		__s3cmci_disable_clock(host);
-		dbg(host, dbg_conf, "SD clock disabled when idle.\n");
-	}
 }
 
 static void s3cmci_reset(struct s3cmci_host *host)
@@ -1226,49 +1211,97 @@ static void s3cmci_reset(struct s3cmci_host *host)
 	u32 con = readl(host->base + S3C2410_SDICON);
 
 	con |= S3C2440_SDICON_SDRESET;
-
 	writel(con, host->base + S3C2410_SDICON);
 }
 
 static int s3cmci_get_ro(struct mmc_host *mmc)
 {
 	struct s3cmci_host *host = mmc_priv(mmc);
+	struct s3c24xx_mci_pdata *pdata = host->pdata;
+	int ret;
 
-	if (host->pdata->gpio_wprotect == 0)
+	if (pdata->gpio_wprotect == 0)
 		return 0;
 
-	return s3c2410_gpio_getpin(host->pdata->gpio_wprotect);
-}
+	ret = s3c2410_gpio_getpin(pdata->gpio_wprotect);
 
-static void s3cmci_enable_sdio_irq(struct mmc_host *mmc, int enable)
-{
-	struct s3cmci_host *host = mmc_priv(mmc);
+	if (pdata->wprotect_invert)
+		ret = !ret;
 
-	if (enable)
-		enable_imask(host, S3C2410_SDIIMSK_SDIOIRQ);
-	else
-		disable_imask(host, S3C2410_SDIIMSK_SDIOIRQ);
+	return ret;
 }
 
 static struct mmc_host_ops s3cmci_ops = {
 	.request	= s3cmci_request,
 	.set_ios	= s3cmci_set_ios,
 	.get_ro		= s3cmci_get_ro,
-	.enable_sdio_irq = s3cmci_enable_sdio_irq,
+	.get_cd		= s3cmci_card_present,
 };
 
 static struct s3c24xx_mci_pdata s3cmci_def_pdata = {
-	.do_dma		= 0,
-	.gpio_detect	= 0,
-	.set_power	= NULL,
-	.ocr_avail	= MMC_VDD_32_33,
+	/* This is currently here to avoid a number of if (host->pdata)
+	 * checks. Any zero fields to ensure reaonable defaults are picked. */
 };
 
-static int s3cmci_probe(struct platform_device *pdev, int is2440)
-{
-	struct mmc_host 	*mmc;
-	struct s3cmci_host 	*host;
+#ifdef CONFIG_CPU_FREQ
 
+static int s3cmci_cpufreq_transition(struct notifier_block *nb,
+				     unsigned long val, void *data)
+{
+	struct s3cmci_host *host;
+	struct mmc_host *mmc;
+	unsigned long newclk;
+	unsigned long flags;
+
+	host = container_of(nb, struct s3cmci_host, freq_transition);
+	newclk = clk_get_rate(host->clk);
+	mmc = host->mmc;
+
+	if ((val == CPUFREQ_PRECHANGE && newclk > host->clk_rate) ||
+	    (val == CPUFREQ_POSTCHANGE && newclk < host->clk_rate)) {
+		spin_lock_irqsave(&mmc->lock, flags);
+
+		host->clk_rate = newclk;
+
+		if (mmc->ios.power_mode != MMC_POWER_OFF &&
+		    mmc->ios.clock != 0)
+			s3cmci_set_clk(host, &mmc->ios);
+
+		spin_unlock_irqrestore(&mmc->lock, flags);
+	}
+
+	return 0;
+}
+
+static inline int s3cmci_cpufreq_register(struct s3cmci_host *host)
+{
+	host->freq_transition.notifier_call = s3cmci_cpufreq_transition;
+
+	return cpufreq_register_notifier(&host->freq_transition,
+					 CPUFREQ_TRANSITION_NOTIFIER);
+}
+
+static inline void s3cmci_cpufreq_deregister(struct s3cmci_host *host)
+{
+	cpufreq_unregister_notifier(&host->freq_transition,
+				    CPUFREQ_TRANSITION_NOTIFIER);
+}
+
+#else
+static inline int s3cmci_cpufreq_register(struct s3cmci_host *host)
+{
+	return 0;
+}
+
+static inline void s3cmci_cpufreq_deregister(struct s3cmci_host *host)
+{
+}
+#endif
+
+static int __devinit s3cmci_probe(struct platform_device *pdev, int is2440)
+{
+	struct s3cmci_host *host;
+	struct mmc_host	*mmc;
 	int ret;
 
 	mmc = mmc_alloc_host(sizeof(struct s3cmci_host), &pdev->dev);
@@ -1280,35 +1313,30 @@ static int s3cmci_probe(struct platform_device *pdev, int is2440)
 	host = mmc_priv(mmc);
 	host->mmc 	= mmc;
 	host->pdev	= pdev;
+	host->is2440	= is2440;
 
 	host->pdata = pdev->dev.platform_data;
-	if (!host->pdata) {
-		pdev->dev.platform_data = &s3cmci_def_pdata;
+	if (!host->pdata)
 		host->pdata = &s3cmci_def_pdata;
-	}
 
 	spin_lock_init(&host->complete_lock);
 	tasklet_init(&host->pio_tasklet, pio_tasklet, (unsigned long) host);
+
 	if (is2440) {
-		host->is2440	= 1;
 		host->sdiimsk	= S3C2440_SDIIMSK;
 		host->sdidata	= S3C2440_SDIDATA;
-		host->sdidata_b	= S3C2440_SDIDATA_BYTE;
 		host->clk_div	= 1;
 	} else {
-		host->is2440	= 0;
 		host->sdiimsk	= S3C2410_SDIIMSK;
 		host->sdidata	= S3C2410_SDIDATA;
-		host->sdidata_b	= S3C2410_SDIDATA_BYTE;
 		host->clk_div	= 2;
 	}
-	host->dodma		= host->pdata->do_dma;
+
+	host->dodma		= 0;
 	host->complete_what 	= COMPLETION_NONE;
 	host->pio_active 	= XFER_NONE;
 
-	host->dma		= DMACH_SDI;
-	host->irq_cd = s3c2410_gpio_getirq(host->pdata->gpio_detect);
-	s3c2410_gpio_cfgpin(host->pdata->gpio_detect, S3C2410_GPIO_IRQ);
+	host->dma		= S3CMCI_DMA;
 
 	host->mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!host->mem) {
@@ -1320,7 +1348,7 @@ static int s3cmci_probe(struct platform_device *pdev, int is2440)
 	}
 
 	host->mem = request_mem_region(host->mem->start,
-		RESSIZE(host->mem), pdev->name);
+				       RESSIZE(host->mem), pdev->name);
 
 	if (!host->mem) {
 		dev_err(&pdev->dev, "failed to request io memory region.\n");
@@ -1329,7 +1357,7 @@ static int s3cmci_probe(struct platform_device *pdev, int is2440)
 	}
 
 	host->base = ioremap(host->mem->start, RESSIZE(host->mem));
-	if (host->base == 0) {
+	if (!host->base) {
 		dev_err(&pdev->dev, "failed to ioremap() io memory region.\n");
 		ret = -EINVAL;
 		goto probe_free_mem_region;
@@ -1348,24 +1376,33 @@ static int s3cmci_probe(struct platform_device *pdev, int is2440)
 		goto probe_iounmap;
 	}
 
+	/* We get spurious interrupts even when we have set the IMSK
+	 * register to ignore everything, so use disable_irq() to make
+	 * ensure we don't lock the system with un-serviceable requests. */
+
 	disable_irq(host->irq);
 
-	s3c2410_gpio_cfgpin(host->pdata->gpio_detect, S3C2410_GPIO_IRQ);
-	set_irq_type(host->irq_cd, IRQT_BOTHEDGE);
+	host->irq_cd = s3c2410_gpio_getirq(host->pdata->gpio_detect);
 
-	if (request_irq(host->irq_cd, s3cmci_irq_cd, 0, DRIVER_NAME, host)) {
-		dev_err(&pdev->dev,
-			"failed to request card detect interrupt.\n");
-
-		ret = -ENOENT;
-		goto probe_free_irq;
+	if (host->irq_cd >= 0) {
+		if (request_irq(host->irq_cd, s3cmci_irq_cd,
+				IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+				DRIVER_NAME, host)) {
+			dev_err(&pdev->dev, "can't get card detect irq.\n");
+			ret = -ENOENT;
+			goto probe_free_irq;
+		}
+	} else {
+		dev_warn(&pdev->dev, "host detect has no irq available\n");
+		s3c2410_gpio_cfgpin(host->pdata->gpio_detect,
+				    S3C2410_GPIO_INPUT);
 	}
 
 	if (host->pdata->gpio_wprotect)
 		s3c2410_gpio_cfgpin(host->pdata->gpio_wprotect,
 				    S3C2410_GPIO_INPUT);
 
-	if (s3c2410_dma_request(host->dma, &s3cmci_dma_client, NULL)) {
+	if (s3c2410_dma_request(S3CMCI_DMA, &s3cmci_dma_client, NULL) < 0) {
 		dev_err(&pdev->dev, "unable to get DMA channel.\n");
 		ret = -EBUSY;
 		goto probe_free_irq_cd;
@@ -1388,10 +1425,25 @@ static int s3cmci_probe(struct platform_device *pdev, int is2440)
 	host->clk_rate = clk_get_rate(host->clk);
 
 	mmc->ops 	= &s3cmci_ops;
-	mmc->ocr_avail	= host->pdata->ocr_avail;
-	mmc->caps	= MMC_CAP_4_BIT_DATA | MMC_CAP_SDIO_IRQ;
+	mmc->ocr_avail	= MMC_VDD_32_33 | MMC_VDD_33_34;
+	mmc->caps	= MMC_CAP_4_BIT_DATA;
 	mmc->f_min 	= host->clk_rate / (host->clk_div * 256);
-	mmc->f_max 	= sd_max_clk;
+	mmc->f_max 	= host->clk_rate / host->clk_div;
+
+	if (f_max >= 0) {
+		unsigned f = f_max;
+
+		if (f < mmc->f_min)
+			f = mmc->f_min;
+		if (mmc->f_max > f) {
+			dev_info(&pdev->dev, "f_max lowered from %u to %u Hz\n",
+			    mmc->f_max, f);
+			mmc->f_max = f;
+		}
+	}
+
+	if (host->pdata->ocr_avail)
+		mmc->ocr_avail = host->pdata->ocr_avail;
 
 	mmc->max_blk_count	= 4095;
 	mmc->max_blk_size	= 4095;
@@ -1401,20 +1453,36 @@ static int s3cmci_probe(struct platform_device *pdev, int is2440)
 	mmc->max_phys_segs	= 128;
 	mmc->max_hw_segs	= 128;
 
-	dbg(host, dbg_debug, "probe: mode:%s mapped mci_base:%p irq:%u "
-	    "irq_cd:%u dma:%u.\n", (host->is2440?"2440":""),
+	dbg(host, dbg_debug,
+	    "probe: mode:%s mapped mci_base:%p irq:%u irq_cd:%u dma:%u.\n",
+	    (host->is2440?"2440":""),
 	    host->base, host->irq, host->irq_cd, host->dma);
+
+	ret = s3cmci_cpufreq_register(host);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to register cpufreq\n");
+		goto free_dmabuf;
+	}
+
+	host->regulator = regulator_get(&pdev->dev, "SD_3V3");
+	if (IS_ERR(host->regulator)) {
+		dev_err(&pdev->dev, "Regulator for SD_3V3 unavilable \n");
+		host->regulator = NULL;
+	}
 
 	ret = mmc_add_host(mmc);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to add mmc host.\n");
-		goto free_dmabuf;
+		goto free_cpufreq;
 	}
 
 	platform_set_drvdata(pdev, mmc);
-
 	dev_info(&pdev->dev, "initialisation done.\n");
+
 	return 0;
+
+ free_cpufreq:
+	s3cmci_cpufreq_deregister(host);
 
  free_dmabuf:
 	clk_disable(host->clk);
@@ -1423,7 +1491,8 @@ static int s3cmci_probe(struct platform_device *pdev, int is2440)
 	clk_put(host->clk);
 
  probe_free_irq_cd:
-	free_irq(host->irq_cd, host);
+	if (host->irq_cd >= 0)
+		free_irq(host->irq_cd, host);
 
  probe_free_irq:
 	free_irq(host->irq, host);
@@ -1440,72 +1509,111 @@ static int s3cmci_probe(struct platform_device *pdev, int is2440)
 	return ret;
 }
 
-static int s3cmci_remove(struct platform_device *pdev)
+static void s3cmci_shutdown(struct platform_device *pdev)
 {
-	struct mmc_host 	*mmc  = platform_get_drvdata(pdev);
-	struct s3cmci_host 	*host = mmc_priv(mmc);
+	struct mmc_host	*mmc = platform_get_drvdata(pdev);
+	struct s3cmci_host *host = mmc_priv(mmc);
 
+	if (host->irq_cd >= 0)
+		free_irq(host->irq_cd, host);
+
+	s3cmci_cpufreq_deregister(host);
 	mmc_remove_host(mmc);
 	clk_disable(host->clk);
+}
+
+static int __devexit s3cmci_remove(struct platform_device *pdev)
+{
+	struct mmc_host		*mmc  = platform_get_drvdata(pdev);
+	struct s3cmci_host	*host = mmc_priv(mmc);
+
+	s3cmci_shutdown(pdev);
+
 	clk_put(host->clk);
-	s3c2410_dma_free(host->dma, &s3cmci_dma_client);
-	free_irq(host->irq_cd, host);
+
+	tasklet_disable(&host->pio_tasklet);
+	s3c2410_dma_free(S3CMCI_DMA, &s3cmci_dma_client);
+
 	free_irq(host->irq, host);
+
 	iounmap(host->base);
 	release_mem_region(host->mem->start, RESSIZE(host->mem));
-	mmc_free_host(mmc);
 
+	mmc_free_host(mmc);
 	return 0;
 }
 
-static int s3cmci_probe_2410(struct platform_device *dev)
+static int __devinit s3cmci_2410_probe(struct platform_device *dev)
 {
 	return s3cmci_probe(dev, 0);
 }
 
-static int s3cmci_probe_2412(struct platform_device *dev)
+static int __devinit s3cmci_2412_probe(struct platform_device *dev)
 {
 	return s3cmci_probe(dev, 1);
 }
 
-static int s3cmci_probe_2440(struct platform_device *dev)
+static int __devinit s3cmci_2440_probe(struct platform_device *dev)
 {
 	return s3cmci_probe(dev, 1);
 }
 
 #ifdef CONFIG_PM
 
+static int save_regs(struct mmc_host *mmc)
+{
+	struct s3cmci_host *host = mmc_priv(mmc);
+	unsigned long flags;
+	unsigned from;
+	u32 *to = host->saved;
+
+	mmc_flush_scheduled_work();
+
+	local_irq_save(flags);
+	for (from = S3C2410_SDICON; from != S3C2410_SDIIMSK+4; from += 4)
+		if (from != host->sdidata)
+			*to++ = readl(host->base + from);
+	BUG_ON(to-host->saved != ARRAY_SIZE(host->saved));
+	local_irq_restore(flags);
+
+	return 0;
+}
+
+static int restore_regs(struct mmc_host *mmc)
+{
+	struct s3cmci_host *host = mmc_priv(mmc);
+	unsigned long flags;
+	unsigned to;
+	u32 *from = host->saved;
+
+	/*
+	 * Before we begin with the necromancy, make sure we don't
+	 * inadvertently start something we'll regret microseconds later.
+	 */
+	from[S3C2410_SDICMDCON - S3C2410_SDICON] = 0;
+
+	local_irq_save(flags);
+	for (to = S3C2410_SDICON; to != S3C2410_SDIIMSK+4; to += 4)
+		if (to != host->sdidata)
+			writel(*from++, host->base + to);
+	BUG_ON(from-host->saved != ARRAY_SIZE(host->saved));
+	local_irq_restore(flags);
+
+	return 0;
+}
+
 static int s3cmci_suspend(struct platform_device *dev, pm_message_t state)
 {
 	struct mmc_host *mmc = platform_get_drvdata(dev);
-	struct s3cmci_host *host = mmc_priv(mmc);
-	int ret;
 
-	/* Ensure clock is running so it will be running on resume */
-	__s3cmci_enable_clock(host);
-
-	/* We will do more commands, make sure the clock stays running,
-	 * and save our state so that we can restore it on resume.
-	 */
-	suspend_sd_idleclk = sd_idleclk;
-	sd_idleclk = 1;
-
-	ret = mmc_suspend_host(mmc, state);
-
-	/* so that when we resume, we use any modified max rate */
-	mmc->f_max = sd_max_clk;
-
-	return ret;
+	return persist ? save_regs(mmc) : mmc_suspend_host(mmc, state);
 }
 
 static int s3cmci_resume(struct platform_device *dev)
 {
 	struct mmc_host *mmc = platform_get_drvdata(dev);
 
-	/* Put the sd_idleclk state back to what it was */
-	sd_idleclk = suspend_sd_idleclk;
-
-	return mmc_resume_host(mmc);
+	return persist ? restore_regs(mmc) : mmc_resume_host(mmc);
 }
 
 #else /* CONFIG_PM */
@@ -1514,26 +1622,32 @@ static int s3cmci_resume(struct platform_device *dev)
 #endif /* CONFIG_PM */
 
 
-static struct platform_driver s3cmci_driver_2410 = {
+static struct platform_driver s3cmci_2410_driver = {
 	.driver.name	= "s3c2410-sdi",
-	.probe		= s3cmci_probe_2410,
-	.remove		= s3cmci_remove,
+	.driver.owner	= THIS_MODULE,
+	.probe		= s3cmci_2410_probe,
+	.remove		= __devexit_p(s3cmci_remove),
+	.shutdown	= s3cmci_shutdown,
 	.suspend	= s3cmci_suspend,
 	.resume		= s3cmci_resume,
 };
 
-static struct platform_driver s3cmci_driver_2412 = {
+static struct platform_driver s3cmci_2412_driver = {
 	.driver.name	= "s3c2412-sdi",
-	.probe		= s3cmci_probe_2412,
-	.remove		= s3cmci_remove,
+	.driver.owner	= THIS_MODULE,
+	.probe		= s3cmci_2412_probe,
+	.remove		= __devexit_p(s3cmci_remove),
+	.shutdown	= s3cmci_shutdown,
 	.suspend	= s3cmci_suspend,
 	.resume		= s3cmci_resume,
 };
 
-static struct platform_driver s3cmci_driver_2440 = {
+static struct platform_driver s3cmci_2440_driver = {
 	.driver.name	= "s3c2440-sdi",
-	.probe		= s3cmci_probe_2440,
-	.remove		= s3cmci_remove,
+	.driver.owner	= THIS_MODULE,
+	.probe		= s3cmci_2440_probe,
+	.remove		= __devexit_p(s3cmci_remove),
+	.shutdown	= s3cmci_shutdown,
 	.suspend	= s3cmci_suspend,
 	.resume		= s3cmci_resume,
 };
@@ -1541,23 +1655,29 @@ static struct platform_driver s3cmci_driver_2440 = {
 
 static int __init s3cmci_init(void)
 {
-	spin_lock_init(&clock_lock);
-	platform_driver_register(&s3cmci_driver_2410);
-	platform_driver_register(&s3cmci_driver_2412);
-	platform_driver_register(&s3cmci_driver_2440);
+	platform_driver_register(&s3cmci_2410_driver);
+	platform_driver_register(&s3cmci_2412_driver);
+	platform_driver_register(&s3cmci_2440_driver);
 	return 0;
 }
 
 static void __exit s3cmci_exit(void)
 {
-	platform_driver_unregister(&s3cmci_driver_2410);
-	platform_driver_unregister(&s3cmci_driver_2412);
-	platform_driver_unregister(&s3cmci_driver_2440);
+	platform_driver_unregister(&s3cmci_2410_driver);
+	platform_driver_unregister(&s3cmci_2412_driver);
+	platform_driver_unregister(&s3cmci_2440_driver);
 }
 
 module_init(s3cmci_init);
 module_exit(s3cmci_exit);
 
+module_param(f_max, int, 0644);
+module_param(persist, int, 0644);
+
 MODULE_DESCRIPTION("Samsung S3C MMC/SD Card Interface driver");
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Thomas Kleffel <tk@maintech.de>");
+MODULE_LICENSE("GPL v2");
+MODULE_AUTHOR("Thomas Kleffel <tk@maintech.de>, Ben Dooks <ben-linux@fluff.org>");
+MODULE_ALIAS("platform:s3c2410-sdi");
+MODULE_ALIAS("platform:s3c2412-sdi");
+MODULE_ALIAS("platform:s3c2440-sdi");
+

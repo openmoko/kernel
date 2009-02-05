@@ -50,10 +50,9 @@
 #include <linux/platform_device.h>
 #include <linux/pcf50606.h>
 #include <linux/apm-emulation.h>
-#include <linux/power_supply.h>
 
 #include <asm/mach-types.h>
-#include <asm/arch/gta01.h>
+#include <mach/gta01.h>
 
 #include "pcf50606.h"
 
@@ -141,12 +140,6 @@ struct pcf50606_data {
 };
 
 static struct i2c_driver pcf50606_driver;
-
-/* This global is set by the pcf50606 driver to the correct callback
- * for the gta01 battery driver. */
-int (*pmu_bat_get_property)(struct power_supply *, enum power_supply_property,
-			    union power_supply_propval *);
-EXPORT_SYMBOL(pmu_bat_get_property);
 
 /* This is an ugly construct on how to access the (currently single/global)
  * pcf50606 handle from other code in the kernel.  I didn't really come up with
@@ -780,8 +773,9 @@ static void pcf50606_work(struct work_struct *work)
 				 * which is very bad.  Therefore we confirm
 				 * PID #1 exists before issuing the signal
 				 */
-				if (find_task_by_pid(1)) {
-					kill_proc(1, SIGINT, 1);
+				if (find_task_by_pid_ns(1, &init_pid_ns)) {
+					kill_pid(task_pid(find_task_by_pid_ns(1, 
+							&init_pid_ns)), SIGINT, 1);
 					DEBUGPC("SIGINT(init) ");
 				}
 				/* FIXME: what to do if userspace doesn't
@@ -895,10 +889,10 @@ static void pcf50606_work(struct work_struct *work)
 			 * very bad.  Therefore we confirm PID #1 exists
 			 * before issuing SPIGPWR
 			 */
-			if (find_task_by_pid(1)) {
+			if (find_task_by_pid_ns(1, &init_pid_ns)) {
 				apm_queue_event(APM_LOW_BATTERY);
 				DEBUGPC("SIGPWR(init) ");
-				kill_proc(1, SIGPWR, 1);
+				kill_pid(task_pid(find_task_by_pid_ns(1, &init_pid_ns)), SIGPWR, 1);
 			} else
 				/*
 				 * well, our situation is like this:  we do not
@@ -1277,92 +1271,6 @@ static void pcf50606_get_power_status(struct apm_power_info *info)
 }
 
 /***********************************************************************
- * Battery driver interface
- ***********************************************************************/
-static int pcf50606_bat_get_property(struct power_supply *psy,
-				     enum power_supply_property psp,
-				     union power_supply_propval *val)
-{
-	u_int16_t adc, adc_adcin1;
-	u_int8_t mbcc1, chgmod;
-	struct pcf50606_data *pcf = pcf50606_global;
-	int ret = 0;
-
-	switch (psp) {
-
-	case POWER_SUPPLY_PROP_STATUS:
-		if (!(reg_read(pcf, PCF50606_REG_OOCS) & PCF50606_OOCS_EXTON)) {
-			/* No charger, clearly we're discharging then */
-			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
-		} else {
-
-			/* We have a charger present, get charge mode */
-			mbcc1 = reg_read(pcf, PCF50606_REG_MBCC1);
-			chgmod = (mbcc1 & PCF50606_MBCC1_CHGMOD_MASK);
-			switch (chgmod) {
-
-			/* TODO: How to determine POWER_SUPPLY_STATUS_FULL? */
-
-			case PCF50606_MBCC1_CHGMOD_QUAL:
-			case PCF50606_MBCC1_CHGMOD_PRE:
-			case PCF50606_MBCC1_CHGMOD_IDLE:
-				val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
-				break;
-
-			case PCF50606_MBCC1_CHGMOD_TRICKLE:
-			case PCF50606_MBCC1_CHGMOD_FAST_CCCV:
-			case PCF50606_MBCC1_CHGMOD_FAST_NOCC:
-			case PCF50606_MBCC1_CHGMOD_FAST_NOCV:
-			case PCF50606_MBCC1_CHGMOD_FAST_SW:
-				val->intval = POWER_SUPPLY_STATUS_CHARGING;
-				break;
-
-			default:
-				val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
-				break;
-
-			}
-		}
-
-	case POWER_SUPPLY_PROP_PRESENT:
-		val->intval = 1;   /* Must be, or the magic smoke comes out */
-		break;
-
-	case POWER_SUPPLY_PROP_ONLINE:
-		val->intval = !!(reg_read(pcf, PCF50606_REG_OOCS) &
-				 PCF50606_OOCS_EXTON);
-		break;
-
-	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-		adc = adc_read(pcf, PCF50606_ADCMUX_BATVOLT_RES, NULL);
-		/* (adc * 6000000) / 1024 ==  (adc * 46875) / 8 */
-		val->intval = (adc * 46875) / 8;
-		break;
-
-	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		adc = adc_read(pcf, PCF50606_ADCMUX_BATVOLT_ADCIN1,
-			       &adc_adcin1);
-		val->intval = adc_to_chg_milliamps(pcf, adc_adcin1, adc) * 1000;
-		break;
-
-	case POWER_SUPPLY_PROP_TEMP:
-		adc = adc_read(pcf, PCF50606_ADCMUX_BATTEMP, NULL);
-		val->intval = rntc_to_temp(adc_to_rntc(pcf, adc)) * 10;
-		break;
-
-	case POWER_SUPPLY_PROP_CAPACITY:
-		val->intval = battvolt_scale(pcf50606_battvolt(pcf));
-		break;
-
-	default:
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
-}
-
-/***********************************************************************
  * RTC
  ***********************************************************************/
 
@@ -1378,24 +1286,24 @@ struct pcf50606_time {
 
 static void pcf2rtc_time(struct rtc_time *rtc, struct pcf50606_time *pcf)
 {
-	rtc->tm_sec = BCD2BIN(pcf->sec);
-	rtc->tm_min = BCD2BIN(pcf->min);
-	rtc->tm_hour = BCD2BIN(pcf->hour);
-	rtc->tm_wday = BCD2BIN(pcf->wkday);
-	rtc->tm_mday = BCD2BIN(pcf->day);
-	rtc->tm_mon = BCD2BIN(pcf->month);
-	rtc->tm_year = BCD2BIN(pcf->year) + 100;
+	rtc->tm_sec = bcd2bin(pcf->sec);
+	rtc->tm_min = bcd2bin(pcf->min);
+	rtc->tm_hour = bcd2bin(pcf->hour);
+	rtc->tm_wday = bcd2bin(pcf->wkday);
+	rtc->tm_mday = bcd2bin(pcf->day);
+	rtc->tm_mon = bcd2bin(pcf->month);
+	rtc->tm_year = bcd2bin(pcf->year) + 100;
 }
 
 static void rtc2pcf_time(struct pcf50606_time *pcf, struct rtc_time *rtc)
 {
-	pcf->sec = BIN2BCD(rtc->tm_sec);
-	pcf->min = BIN2BCD(rtc->tm_min);
-	pcf->hour = BIN2BCD(rtc->tm_hour);
-	pcf->wkday = BIN2BCD(rtc->tm_wday);
-	pcf->day = BIN2BCD(rtc->tm_mday);
-	pcf->month = BIN2BCD(rtc->tm_mon);
-	pcf->year = BIN2BCD(rtc->tm_year - 100);
+	pcf->sec = bin2bcd(rtc->tm_sec);
+	pcf->min = bin2bcd(rtc->tm_min);
+	pcf->hour = bin2bcd(rtc->tm_hour);
+	pcf->wkday = bin2bcd(rtc->tm_wday);
+	pcf->day = bin2bcd(rtc->tm_mday);
+	pcf->month = bin2bcd(rtc->tm_mon);
+	pcf->year = bin2bcd(rtc->tm_year - 100);
 }
 
 static int pcf50606_rtc_ioctl(struct device *dev, unsigned int cmd,
@@ -1922,7 +1830,6 @@ static int pcf50606_detect(struct i2c_adapter *adapter, int address, int kind)
 	data->input_dev->name = "FIC Neo1973 PMU events";
 	data->input_dev->phys = "I2C";
 	data->input_dev->id.bustype = BUS_I2C;
-	data->input_dev->cdev.dev = &new_client->dev;
 
 	data->input_dev->evbit[0] = BIT(EV_KEY) | BIT(EV_PWR);
 	set_bit(KEY_POWER, data->input_dev->keybit);
@@ -1993,7 +1900,6 @@ static int pcf50606_detect(struct i2c_adapter *adapter, int address, int kind)
 	}
 
 	apm_get_power_status = pcf50606_get_power_status;
-	pmu_bat_get_property = pcf50606_bat_get_property;
 
 #ifdef CONFIG_MACH_NEO1973_GTA01
 	if (machine_is_neo1973_gta01()) {
@@ -2008,8 +1914,8 @@ static int pcf50606_detect(struct i2c_adapter *adapter, int address, int kind)
 		}
 		platform_device_register(&gta01_pm_gps_dev);
 		/* a link for gllin compatibility */
-		err = sysfs_create_link(&platform_bus_type.devices.kobj,
-		    &gta01_pm_gps_dev.dev.kobj, "gta01-pm-gps.0");
+		err = bus_create_device_link(&platform_bus_type,
+			&gta01_pm_gps_dev.dev.kobj, "gta01-pm-gps.0");
 		if (err)
 			printk(KERN_ERR
 			    "sysfs_create_link (gta01-pm-gps.0): %d\n", err);
@@ -2056,8 +1962,6 @@ static int pcf50606_detach_client(struct i2c_client *client)
 	struct pcf50606_data *pcf = i2c_get_clientdata(client);
 
 	apm_get_power_status = NULL;
-	pmu_bat_get_property = NULL;
-
 	input_unregister_device(pcf->input_dev);
 
 	if (pcf->pdata->used_features & PCF50606_FEAT_PWM_BL)

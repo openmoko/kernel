@@ -31,6 +31,8 @@
 #include <mach/gta02.h>
 #include <linux/pcf50633.h>
 
+#include <linux/regulator/consumer.h>
+
 struct neo1973_pm_gps_data {
 	int power_was_on;
 };
@@ -296,8 +298,11 @@ static void gps_pwron_set(int on)
 			/* don't let RX from unpowered GPS float */
 			s3c2410_gpio_pullup(S3C2410_GPH5, 1);
 		}
-		pcf50633_onoff_set(pcf50633_global,
-			PCF50633_REGULATOR_LDO5, on);
+		if ((on) && (!neo1973_gps.power_was_on))
+			regulator_enable(neo1973_gps.regulator);
+
+		if ((!on) && (neo1973_gps.power_was_on))
+			regulator_disable(neo1973_gps.regulator);
 	}
 }
 

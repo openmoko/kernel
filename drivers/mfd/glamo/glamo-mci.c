@@ -639,10 +639,8 @@ static void glamo_mci_send_request(struct mmc_host *mmc)
 			     GLAMO_STAT1_MMC_BWERR |
 			     GLAMO_STAT1_MMC_BRERR)))) && (insanity_timeout--));
 
-	if (insanity_timeout < 0) {
-		cmd->error = -ETIMEDOUT;
-		dev_err(&host->pdev->dev, "****** insanity timeout\n");
-	}
+	if (insanity_timeout < 0)
+		dev_info(&host->pdev->dev, "command timeout, continuing\n");
 
 	if (status & (GLAMO_STAT1_MMC_RTOUT |
 		      GLAMO_STAT1_MMC_DTOUT))

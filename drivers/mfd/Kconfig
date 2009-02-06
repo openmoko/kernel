@@ -240,6 +240,8 @@ config PCF50633_GPIO
 	 Say yes here if you want to include support GPIO for pins on
 	 the PCF50633 chip.
 
+source "drivers/mfd/glamo/Kconfig"
+
 endmenu
 
 menu "Multimedia Capabilities Port drivers"

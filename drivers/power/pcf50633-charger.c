@@ -397,17 +397,19 @@ static int __devinit pcf50633_mbc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = sysfs_create_group(&pdev->dev.kobj, &mbc_attr_group);
-	if (ret)
-		dev_err(mbc->pcf->dev, "failed to create sysfs entries\n");
-
 	mbcs1 = pcf50633_reg_read(mbc->pcf, PCF50633_REG_MBCS1);
 	if (mbcs1 & PCF50633_MBCS1_USBPRES)
 		pcf50633_mbc_irq_handler(PCF50633_IRQ_USBINS, mbc);
 	if (mbcs1 & PCF50633_MBCS1_ADAPTPRES)
 		pcf50633_mbc_irq_handler(PCF50633_IRQ_ADPINS, mbc);
 
-	return 0;
+	/* Disable automatic charging restart. Manually setting RESUME
+	 * won't have effect otherwise
+	 */
+	pcf50633_reg_clear_bits(pcf, PCF50633_REG_MBCC1,
+					PCF50633_MBCC1_AUTORES);
+
+	return sysfs_create_group(&pdev->dev.kobj, &mbc_attr_group);
 }
 
 static int __devexit pcf50633_mbc_remove(struct platform_device *pdev)

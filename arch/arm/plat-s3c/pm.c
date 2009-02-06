@@ -18,7 +18,6 @@
 #include <linux/delay.h>
 #include <linux/serial_core.h>
 #include <linux/io.h>
-#include <linux/regulator/machine.h>
 
 #include <asm/cacheflush.h>
 #include <mach/hardware.h>

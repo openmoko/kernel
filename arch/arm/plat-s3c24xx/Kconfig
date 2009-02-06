@@ -113,6 +113,7 @@ config MACH_SMDK
 
 config MACH_NEO1973
 	bool
+	select RFKILL
 	help
 	  Common machine code for Neo1973 hardware
 

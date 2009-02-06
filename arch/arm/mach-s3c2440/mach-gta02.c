@@ -945,16 +945,17 @@ static struct s3c24xx_mci_pdata gta02_s3c_mmc_cfg = {
 
 static void gta02_udc_command(enum s3c2410_udc_cmd_e cmd)
 {
-	printk(KERN_DEBUG "%s(%d)\n", __func__, cmd);
-
 	switch (cmd) {
 	case S3C2410_UDC_P_ENABLE:
+		printk(KERN_DEBUG "%s S3C2410_UDC_P_ENABLE\n", __func__);
 		neo1973_gpb_setpin(GTA02_GPIO_USB_PULLUP, 1);
 		break;
 	case S3C2410_UDC_P_DISABLE:
+		printk(KERN_DEBUG "%s S3C2410_UDC_P_DISABLE\n", __func__);
 		neo1973_gpb_setpin(GTA02_GPIO_USB_PULLUP, 0);
 		break;
 	case S3C2410_UDC_P_RESET:
+		printk(KERN_DEBUG "%s S3C2410_UDC_P_RESET\n", __func__);
 		/* FIXME! */
 		break;
 	default:
@@ -966,10 +967,15 @@ static void gta02_udc_command(enum s3c2410_udc_cmd_e cmd)
 
 static void gta02_udc_vbus_draw(unsigned int ma)
 {
-        if (!pcf50633_global)
+        if (!gta02_pcf_pdata.pcf) {
+		printk(KERN_ERR "********** NULL gta02_pcf_pdata.pcf *****\n");
 		return;
+	}
 
-	pcf50633_notify_usb_current_limit_change(pcf50633_global, ma);
+	gta02_usb_vbus_draw = ma;
+
+	schedule_delayed_work(&gta02_charger_work,
+				GTA02_CHARGER_CONFIGURE_TIMEOUT);
 }
 
 static struct s3c2410_udc_mach_info gta02_udc_cfg = {
@@ -1685,6 +1691,7 @@ static void __init gta02_machine_init(void)
 	}
 
 	spin_lock_init(&motion_irq_lock);
+	INIT_DELAYED_WORK(&gta02_charger_work, gta02_charger_worker);
 
 	/* Glamo chip select optimization */
 /*	 *((u32 *)(S3C2410_MEMREG(((1 + 1) << 2)))) = 0x1280; */

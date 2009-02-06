@@ -402,6 +402,9 @@ ar6000_dbglog_get_debug_logs(AR_SOFTC_T *ar)
 
     if (!ar->dbglog_init_done) return A_ERROR;
 
+#ifndef CONFIG_AR6000_WLAN_DEBUG
+    return 0;
+#endif
 
     AR6000_SPIN_LOCK(&ar->arLock, 0);
 

@@ -19,7 +19,7 @@
  * ChangeLog
  *
  * 2004-09-05: Herbert Pötzl <herbert@13thfloor.at>
- *	- added clock (de-)allocation code
+ *      - added clock (de-)allocation code
  *
  * 2005-03-06: Arnaud Patard <arnaud.patard@rtp-net.org>
  *      - h1940_ -> s3c2410 (this driver is now also used on the n30
@@ -35,11 +35,14 @@
  *        controller
  *
  * 2007-05-23: Harald Welte <laforge@openmoko.org>
- * 	- Add proper support for S32440
+ *      - Add proper support for S32440
  *
  * 2008-06-23: Andy Green <andy@openmoko.com>
  *      - removed averaging system
  *      - added generic Touchscreen filter stuff
+ *
+ * 2008-11-27: Nelson Castillo <arhuaco@freaks-unidos.net>
+ *      - improve interrupt handling
  */
 
 #include <linux/errno.h>
@@ -97,10 +100,9 @@ static char *s3c2410ts_name = "s3c2410 TouchScreen";
 #define TS_EVENT_FIFO_SIZE (2 << 6) /* must be a power of 2 */
 
 #define TS_STATE_STANDBY 0 /* initial state */
-#define TS_STATE_PRESSED_PENDING 1
-#define TS_STATE_PRESSED 2
-#define TS_STATE_RELEASE_PENDING 3
-#define TS_STATE_RELEASE 4
+#define TS_STATE_PRESSED 1
+#define TS_STATE_RELEASE_PENDING 2
+#define TS_STATE_RELEASE 3
 
 #define SKIP_NHEAD 2
 #define SKIP_NTAIL 1
@@ -294,9 +296,6 @@ static void event_send_timer_f(unsigned long data)
 			if (ts.state == TS_STATE_RELEASE_PENDING)
 				/* Ignore short UP event */
 				ts.state = TS_STATE_PRESSED;
-			else
-				/* Defer PRESSED until we get a valid point */
-				ts.state = TS_STATE_PRESSED_PENDING;
 			break;
 
 		case 'U':
@@ -315,7 +314,6 @@ static void event_send_timer_f(unsigned long data)
 
 			ts_skip_filter(IE_DOWN, buf);
 			ts.state = TS_STATE_PRESSED;
-
 			break;
 
 		default:
@@ -710,9 +708,3 @@ static void __exit s3c2410ts_exit(void)
 module_init(s3c2410ts_init);
 module_exit(s3c2410ts_exit);
 
-/*
-    Local variables:
-        compile-command: "make ARCH=arm CROSS_COMPILE=/usr/local/arm/3.3.2/bin/arm-linux- -k -C ../../.."
-        c-basic-offset: 8
-    End:
-*/

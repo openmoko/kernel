@@ -1190,6 +1190,7 @@ static inline void soc_cleanup_codec_debugfs(struct snd_soc_codec *codec)
 }
 #endif
 
+
 /**
  * snd_soc_new_ac97_codec - initailise AC97 device
  * @codec: audio codec
@@ -1407,6 +1408,9 @@ int snd_soc_init_card(struct snd_soc_device *socdev)
 	soc_init_codec_debugfs(socdev->codec);
 	mutex_unlock(&codec->mutex);
 
+	err = device_create_file(socdev->dev, &dev_attr_codec_reg_write);
+	if (err < 0)
+		printk(KERN_WARNING "asoc: failed to add codec sysfs entries\n");
 out:
 	return ret;
 }

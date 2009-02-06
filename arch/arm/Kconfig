@@ -1329,6 +1329,8 @@ source "drivers/uio/Kconfig"
 
 source "drivers/staging/Kconfig"
 
+endmenu
+
 source "fs/Kconfig"
 
 source "arch/arm/Kconfig.debug"

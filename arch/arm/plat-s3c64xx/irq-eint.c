@@ -17,6 +17,7 @@
 #include <linux/gpio.h>
 #include <linux/irq.h>
 #include <linux/io.h>
+#include <linux/gpio.h>
 
 #include <asm/hardware/vic.h>
 

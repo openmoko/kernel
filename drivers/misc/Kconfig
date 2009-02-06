@@ -230,4 +230,10 @@ config DELL_LAPTOP
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 
+config MACH_NEO1973
+	bool
+	help
+	  Common machine code for Openmoko GTAxx hardware
+
 endif # MISC_DEVICES
+

@@ -561,21 +561,39 @@ static struct platform_device gta02_pm_wlan_dev = {
 	.name		= "gta02-pm-wlan",
 };
 
-static struct pcf50633_platform_data gta02_pcf_pdata = {
-	.used_features	= PCF50633_FEAT_MBC |
-			  PCF50633_FEAT_BBC |
-			  PCF50633_FEAT_RTC |
-			  PCF50633_FEAT_CHGCUR |
-			  PCF50633_FEAT_BATVOLT |
-			  PCF50633_FEAT_BATTEMP |
-			  PCF50633_FEAT_PWM_BL,
-	.onkey_seconds_sig_init = 4,
-	.onkey_seconds_shutdown = 8,
-	.cb		= &pmu_callback,
-	.r_fix_batt	= 10000,
-	.r_fix_batt_par	= 10000,
-	.r_sense_milli	= 220,
-	.flag_use_apm_emulation = 0,
+static struct regulator_consumer_supply ldo4_consumers[] = {
+	{
+		.dev = &gta01_pm_bt_dev.dev,
+		.supply = "BT_3V2",
+	},
+};
+
+static struct regulator_consumer_supply ldo5_consumers[] = {
+	{
+		.dev = &gta01_pm_gps_dev.dev,
+		.supply = "RF_3V",
+	},
+};
+
+/*
+ * We need this dummy thing to fill the regulator consumers
+ */
+static struct platform_device gta02_mmc_dev = {
+	/* details filled in by glamo core */
+};
+
+static struct regulator_consumer_supply hcldo_consumers[] = {
+	{
+		.dev = &gta02_mmc_dev.dev,
+		.supply = "SD_3V3",
+	},
+};
+
+static char *gta02_batteries[] = {
+	"battery",
+};
+
+struct pcf50633_platform_data gta02_pcf_pdata = {
 	.resumers = {
 		[0] = PCF50633_INT1_USBINS |
 		      PCF50633_INT1_USBREM |
@@ -620,6 +638,11 @@ static struct pcf50633_platform_data gta02_pcf_pdata = {
 			.voltage	= {
 				.init	= 2000,
 				.max	= 3300,
+			.constraints = {
+				.min_uV = 2000000,
+				.max_uV = 3300000,
+				.valid_modes_mask = REGULATOR_MODE_NORMAL,
+				.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
 			},
 		},
 		[PCF50633_REGULATOR_LDO1] = {

@@ -497,36 +497,43 @@ struct platform_device bq27000_battery_device = {
 	},
 };
 
+#define ADC_NOM_CHG_DETECT_1A 6
+#define ADC_NOM_CHG_DETECT_USB 43
+
+static void
+gta02_configure_pmu_for_charger(struct pcf50633 *pcf, void *unused, int res)
+{
+	int  ma;
+	       
+	/* Interpret charger type */
+	if (res < ((ADC_NOM_CHG_DETECT_USB + ADC_NOM_CHG_DETECT_1A) / 2)) {
+
+		/* Stop GPO driving out now that we have a IA charger */
+		pcf50633_gpio_set(pcf, PCF50633_GPO, 0);
+	
+		ma = 1000;	
+	} else
+		ma = 100;
+
+	pcf50633_mbc_usb_curlim_set(pcf, ma);
+}
 
 /* PMU driver info */
 
 static int pmu_callback(struct device *dev, unsigned int feature,
 			enum pmu_event event)
 {
-	switch (feature) {
-	case PCF50633_FEAT_MBC:
-		switch (event) {
-		case PMU_EVT_CHARGER_IDLE:
-			gta02_charger_active_status = 0;
-			break;
-		case PMU_EVT_CHARGER_ACTIVE:
-			gta02_charger_active_status = 1;
-			break;
-		case PMU_EVT_USB_INSERT:
-			gta02_charger_online_status = 1;
-			break;
-		case PMU_EVT_USB_REMOVE:
-			gta02_charger_online_status = 0;
-			break;
-		case PMU_EVT_INSERT: /* adapter is unsused */
-		case PMU_EVT_REMOVE: /* adapter is unused */
-			break;
-		default:
-			break;
-		}
-		break;
-	default:
-		break;
+	struct pcf50633 *pcf = gta02_pcf_pdata.pcf;
+
+	if (gta02_usb_vbus_draw) {
+		pcf50633_mbc_usb_curlim_set(pcf, gta02_usb_vbus_draw);
+		return;
+	} else {
+		pcf50633_adc_async_read(pcf,
+			PCF50633_ADCC1_MUX_ADCIN1,
+			PCF50633_ADCC1_AVERAGE_16,
+			gta02_configure_pmu_for_charger, NULL);
+		return;
 	}
 
 	bq27000_charging_state_change(&bq27000_battery_device);

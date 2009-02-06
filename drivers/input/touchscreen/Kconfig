@@ -471,5 +471,15 @@ config TOUCHSCREEN_TSC2007
 	  To compile this driver as a module, choose M here: the
 	  module will be called tsc2007.
 
+config TOUCHSCREEN_PCAP7200
+	tristate "EETI Projected capacitive touchscreen controller"
+	help
+	  Say Y here if you have the EETI PCAP7200 touchscreen
+	  controller chip in your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called pcap7200.
 endif
 

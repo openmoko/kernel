@@ -339,8 +339,8 @@ static int __devinit pcf50633_mbc_probe(struct platform_device *pdev)
 	struct pcf50633_mbc *mbc;
 	struct pcf50633_subdev_pdata *pdata = pdev->dev.platform_data;
 	int ret;
-	int i;
 	u8 mbcs1;
+	int i;
 
 	mbc = kzalloc(sizeof(*mbc), GFP_KERNEL);
 	if (!mbc)
@@ -402,6 +402,12 @@ static int __devinit pcf50633_mbc_probe(struct platform_device *pdev)
 		pcf50633_mbc_irq_handler(PCF50633_IRQ_USBINS, mbc);
 	if (mbcs1 & PCF50633_MBCS1_ADAPTPRES)
 		pcf50633_mbc_irq_handler(PCF50633_IRQ_ADPINS, mbc);
+
+	mbcs1 = pcf50633_reg_read(pcf, PCF50633_REG_MBCS1);
+	if (mbcs1 & 0x01)
+		pcf50633_mbc_irq_handler(pcf, PCF50633_IRQ_USBINS, NULL);
+	if (mbcs1 & 0x04)
+		pcf50633_mbc_irq_handler(pcf, PCF50633_IRQ_ADPINS, NULL);
 
 	/* Disable automatic charging restart. Manually setting RESUME
 	 * won't have effect otherwise

@@ -710,6 +710,14 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 			.voltage	= {
 				.init	= 1500,
 				.max	= 1500,
+			.constraints = {
+				.min_uV = 1500000,
+				.max_uV = 1500000,
+				.valid_modes_mask = REGULATOR_MODE_NORMAL,
+				.apply_uV = 1,
+				.state_mem = {
+					.enabled = 1,
+				},
 			},
 		},
 		[PCF50633_REGULATOR_LDO6] = {

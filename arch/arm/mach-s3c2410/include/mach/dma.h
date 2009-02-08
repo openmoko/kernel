@@ -374,7 +374,7 @@ extern int s3c2410_dma_set_buffdone_fn(unsigned int, s3c2410_dma_cbfn_t rtn);
 #define S3C2410_DCON_NORELOAD   (1<<22)
 #define S3C2410_DCON_HWTRIG     (1<<23)
 
-#ifdef CONFIG_CPU_S3C2440
+#if defined(CONFIG_CPU_S3C2440) || defined(CONFIG_CPU_S3C2442)
 #define S3C2440_DIDSTC_CHKINT	(1<<2)
 
 #define S3C2440_DCON_CH0_I2SSDO	(5<<24)

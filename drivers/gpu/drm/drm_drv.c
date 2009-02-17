@@ -251,6 +251,7 @@ int drm_lastclose(struct drm_device * dev)
  */
 int drm_init(struct drm_driver *driver)
 {
+#ifdef CONFIG_PCI
 	struct pci_dev *pdev = NULL;
 	struct pci_device_id *pid;
 	int i;
@@ -280,10 +281,38 @@ int drm_init(struct drm_driver *driver)
 			drm_get_dev(pdev, pid, driver);
 		}
 	}
+#endif
 	return 0;
 }
 
 EXPORT_SYMBOL(drm_init);
+
+/**
+ *
+ * Call this to associate a drm_driver with a platform_device.
+ *
+ * \return zero on success or a negative number on failure.
+ *
+ * This is a replacement for drm_init(), but for platform drivers.
+ * In this case, the caller must provide the matching platform_device
+ *
+ * since there is no physical bus to scan through.
+ *
+ * \sa drm_init
+ *
+ */
+
+int drm_platform_init(struct drm_driver *driver, struct platform_device *pdev)
+{
+	DRM_DEBUG("\n");
+
+	INIT_LIST_HEAD(&driver->device_list);
+
+	return drm_get_platform_dev(pdev, driver);
+}
+
+EXPORT_SYMBOL(drm_platform_init);
+
 
 /**
  * Called via cleanup_module() at module unload time.

@@ -58,6 +58,7 @@
 #include <linux/mm.h>
 #include <linux/cdev.h>
 #include <linux/mutex.h>
+#include <linux/platform_device.h>
 #if defined(__alpha__) || defined(__powerpc__)
 #include <asm/pgtable.h>	/* For pte_wrprotect */
 #endif
@@ -106,6 +107,7 @@ struct drm_device;
 #define DRIVER_IRQ_VBL2    0x800
 #define DRIVER_GEM         0x1000
 #define DRIVER_MODESET     0x2000
+#define DRIVER_IS_PLATFORM 0x4000
 
 /***********************************************************************/
 /** \name Begin the DRM... */
@@ -916,6 +918,7 @@ struct drm_device {
 	wait_queue_head_t buf_writers;	/**< Processes waiting to ctx switch */
 
 	struct drm_agp_head *agp;	/**< AGP data */
+	struct platform_device *platform_dev; /**< platform device structure */
 
 	struct pci_dev *pdev;		/**< PCI device structure */
 	int pci_vendor;			/**< PCI vendor id */
@@ -1032,6 +1035,7 @@ static inline int drm_mtrr_del(int handle, unsigned long offset,
 
 				/* Driver support (drm_drv.h) */
 extern int drm_init(struct drm_driver *driver);
+extern int drm_platform_init(struct drm_driver *driver, struct platform_device *pdev);
 extern void drm_exit(struct drm_driver *driver);
 extern int drm_ioctl(struct inode *inode, struct file *filp,
 		     unsigned int cmd, unsigned long arg);
@@ -1252,6 +1256,8 @@ extern struct drm_master *drm_master_get(struct drm_master *master);
 extern void drm_master_put(struct drm_master **master);
 extern int drm_get_dev(struct pci_dev *pdev, const struct pci_device_id *ent,
 		       struct drm_driver *driver);
+extern int drm_get_platform_dev(struct platform_device *pdev,
+				struct drm_driver *driver);
 extern int drm_put_dev(struct drm_device *dev);
 extern int drm_put_minor(struct drm_minor **minor);
 extern unsigned int drm_debug;

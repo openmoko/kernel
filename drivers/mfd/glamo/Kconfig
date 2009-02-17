@@ -45,3 +45,12 @@ config MFD_GLAMO_MCI
 	  neo1973 GTA-02.
 
 	  If unsure, say N.
+config MFD_GLAMO_DRM
+	tristate "Glamo DRM support"
+	depends on MFD_GLAMO && DRM
+	help
+	  Direct Rendering Manager interface for the S-Media GLAMO chip, as
+	  used in Openmoko neo1973 GTA-02.
+
+	  If unsure, say N.
+

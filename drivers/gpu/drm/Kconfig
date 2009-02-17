@@ -6,7 +6,7 @@
 #
 menuconfig DRM
 	tristate "Direct Rendering Manager (XFree86 4.1.0 and higher DRI support)"
-	depends on (AGP || AGP=n) && PCI && !EMULATED_CMPXCHG && MMU
+	depends on (AGP || AGP=n) && !EMULATED_CMPXCHG && MMU
 	select I2C
 	select I2C_ALGOBIT
 	help
@@ -95,7 +95,7 @@ config DRM_I915_KMS
 
 config DRM_MGA
 	tristate "Matrox g200/g400"
-	depends on DRM
+	depends on DRM && PCI && AGP
 	help
 	  Choose this option if you have a Matrox G200, G400 or G450 graphics
 	  card.  If M is selected, the module will be called mga.  AGP
@@ -112,14 +112,14 @@ config DRM_SIS
 
 config DRM_VIA
 	tristate "Via unichrome video cards"
-	depends on DRM
+	depends on DRM && PCI
 	help
 	  Choose this option if you have a Via unichrome or compatible video
 	  chipset. If M is selected the module will be called via.
 
 config DRM_SAVAGE
 	tristate "Savage video cards"
-	depends on DRM
+	depends on DRM && PCI
 	help
 	  Choose this option if you have a Savage3D/4/SuperSavage/Pro/Twister
 	  chipset. If M is selected the module will be called savage.

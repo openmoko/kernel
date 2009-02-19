@@ -175,6 +175,25 @@ static inline void glamo_vmem_read(struct glamo_core *glamo, u_int16_t *buf,
 /***********************************************************************
  * resources of sibling devices
  ***********************************************************************/
+static struct resource glamo_cmdq_resources[] = {
+	{
+		.start  = GLAMO_REGOFS_CMDQUEUE,
+		.end    = GLAMO_REGOFS_RISC - 1,
+		.flags  = IORESOURCE_MEM,
+	}, {
+		.name   = "glamo-work-mem",
+		.start  = GLAMO_MEM_BASE + GLAMO_OFFSET_WORK,
+		.end    = GLAMO_MEM_BASE + GLAMO_OFFSET_WORK +
+			  GLAMO_WORK_SIZE - 1,
+		.flags  = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device glamo_cmdq_dev = {
+	.name           = "glamo-cmdq",
+	.resource       = glamo_cmdq_resources,
+	.num_resources  = ARRAY_SIZE(glamo_cmdq_resources),
+};
 
 #if 0
 static struct resource glamo_core_resources[] = {
@@ -277,8 +296,9 @@ static struct resource glamo_fb_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	}, {
 		.name	= "glamo-fb-mem",
-		.start	= GLAMO_OFFSET_FB,
-		.end	= GLAMO_OFFSET_FB + GLAMO_FB_SIZE - 1,
+		.start	= GLAMO_MEM_BASE + GLAMO_OFFSET_FB,
+		.end	= GLAMO_MEM_BASE + GLAMO_OFFSET_FB +
+			  GLAMO_FB_SIZE - 1,
 		.flags	= IORESOURCE_MEM,
 	},
 };
@@ -300,9 +320,9 @@ static struct resource glamo_mmc_resources[] = {
 		.end	= IRQ_GLAMO_MMC,
 		.flags	= IORESOURCE_IRQ,
 	}, { /* our data buffer for MMC transfers */
-		.start	= GLAMO_OFFSET_FB + GLAMO_FB_SIZE,
-		.end	= GLAMO_OFFSET_FB + GLAMO_FB_SIZE +
-				  GLAMO_MMC_BUFFER_SIZE - 1,
+		.start	= GLAMO_MEM_BASE + GLAMO_OFFSET_MMC,
+		.end	= GLAMO_MEM_BASE + GLAMO_OFFSET_MMC +
+			  GLAMO_MMC_BUFFER_SIZE - 1,
 		.flags	= IORESOURCE_MEM
 	},
 };
@@ -1308,6 +1328,10 @@ static int __init glamo_probe(struct platform_device *pdev)
 					glamo->pdata->glamo_irq_is_wired;
 
 	/* start creating the siblings */
+	glamo_cmdq_dev.dev.parent = &pdev->dev;
+	mangle_mem_resources(glamo_cmdq_dev.resource,
+			     glamo_cmdq_dev.num_resources, glamo->mem);
+	platform_device_register(&glamo_cmdq_dev);
 
 	glamo_2d_dev.dev.parent = &pdev->dev;
 	mangle_mem_resources(glamo_2d_dev.resource,

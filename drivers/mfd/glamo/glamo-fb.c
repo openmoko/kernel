@@ -595,6 +595,12 @@ static int glamofb_cursor(struct fb_info *info, struct fb_cursor *cursor)
 	struct glamofb_handle *glamo = info->par;
 	unsigned long flags;
 
+	/* Reject if the cursor is too big to fit in the memory allocated in
+	 * glamo-core.h */
+
+	if ((cursor->image.width * cursor->image.height) > GLAMO_CURSOR_SIZE )
+		return -EINVAL;
+
 	spin_lock_irqsave(&glamo->lock_cmd, flags);
 
 	reg_write(glamo, GLAMO_REG_LCD_CURSOR_X_SIZE,
@@ -847,6 +853,8 @@ static int __init glamofb_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to request mmio region\n");
 		goto out_free;
 	}
+	if (mach_info->fb_mem_size != RESSIZE(glamofb->fb_res))
+		dev_warn(&pdev->dev, "different vram sizes\n");
 
 	glamofb->fb_res = request_mem_region(glamofb->fb_res->start,
 					     mach_info->fb_mem_size,

@@ -1397,7 +1397,8 @@ static struct glamofb_platform_data gta02_glamo_pdata = {
 	.lower_margin	= 16,
 	.hsync_len	= 8,
 	.vsync_len	= 2,
-	.fb_mem_size	= 0x400000, /* glamo has 8 megs of SRAM. we use 4 */
+	//.fb_mem_size	= 0x400000, /* glamo has 8 megs of SRAM. we use 4 */
+	.fb_mem_size    = 0x12c000, /* 640 x 480 x 4 = 1200 kiB */
 	.xres		= {
 		.min	= 240,
 		.max	= 640,

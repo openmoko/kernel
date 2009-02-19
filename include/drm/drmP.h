@@ -1029,6 +1029,11 @@ static inline int drm_mtrr_del(int handle, unsigned long offset,
 }
 #endif
 
+static inline int drm_core_is_platform(struct drm_device *dev)
+{
+	return drm_core_check_feature(dev, DRIVER_IS_PLATFORM);
+}
+
 /******************************************************************/
 /** \name Internal function definitions */
 /*@{*/

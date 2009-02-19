@@ -214,14 +214,23 @@ static int drm_name_info(char *buf, char **start, off_t offset, int request,
 	*eof = 0;
 
 	if (master->unique) {
-		DRM_PROC_PRINT("%s %s %s\n",
-			       dev->driver->pci_driver.name,
-			       pci_name(dev->pdev), master->unique);
+		if (drm_core_is_platform(dev)) {
+			DRM_PROC_PRINT("%s %s %s\n", dev->driver->name,
+				       dev_name(&dev->platform_dev->dev), master->unique);
+		} else {
+			DRM_PROC_PRINT("%s %s %s\n",
+				       dev->driver->pci_driver.name,
+				       pci_name(dev->pdev), master->unique);
+		}
 	} else {
-		DRM_PROC_PRINT("%s %s\n", dev->driver->pci_driver.name,
-			       pci_name(dev->pdev));
+		if (drm_core_is_platform(dev)) {
+			DRM_PROC_PRINT("%s %s\n", dev->driver->name,
+				       dev_name(&dev->platform_dev->dev));
+		} else {
+			DRM_PROC_PRINT("%s %s\n", dev->driver->pci_driver.name,
+				       pci_name(dev->pdev));
+		}
 	}
-
 	if (len > request + offset)
 		return request;
 	*eof = 1;

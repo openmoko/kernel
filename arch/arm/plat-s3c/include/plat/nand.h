@@ -24,6 +24,7 @@
 struct s3c2410_nand_set {
 	unsigned int		disable_ecc : 1;
 	unsigned int		use_bbt : 1;
+	unsigned int		force_soft_ecc :1;
 
 	int			nr_chips;
 	int			nr_partitions;

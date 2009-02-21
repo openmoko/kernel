@@ -687,6 +687,9 @@ static void s3c2410_nand_init_chip(struct s3c2410_nand_info *info,
 	chip->options	   = 0;
 	chip->controller   = &info->controller;
 
+	if (set->use_bbt)
+		chip->options |= NAND_USE_FLASH_BBT;
+
 	switch (info->cpu_type) {
 	case TYPE_S3C2410:
 		chip->IO_ADDR_W = regs + S3C2410_NFDATA;

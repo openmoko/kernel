@@ -530,7 +530,14 @@ static void s3c2410_nand_read_buf(struct mtd_info *mtd, u_char *buf, int len)
 static void s3c2440_nand_read_buf(struct mtd_info *mtd, u_char *buf, int len)
 {
 	struct s3c2410_nand_info *info = s3c2410_nand_mtd_toinfo(mtd);
+
 	readsl(info->regs + S3C2440_NFDATA, buf, len / 4);
+	if (unlikely(len & 3)) {
+		u32 data;
+
+		data = readl(info->regs + S3C2440_NFDATA);
+		memcpy(buf + (len & ~3), &data, len & 3);
+	}
 }
 
 static void s3c2410_nand_write_buf(struct mtd_info *mtd, const u_char *buf, int len)

@@ -34,7 +34,7 @@
 #include <linux/errno.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
-#include <linux/ts_filter_mean.h>
+#include "ts_filter_mean.h"
 
 static void ts_filter_mean_clear_internal(struct ts_filter *tsf)
 {

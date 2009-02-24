@@ -18,7 +18,7 @@
 
 #include <linux/kernel.h>
 #include <linux/device.h>
-#include <linux/ts_filter.h>
+#include "ts_filter.h"
 
 static DEFINE_MUTEX(chain_mutex);
 

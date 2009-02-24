@@ -32,7 +32,7 @@
 #include <linux/errno.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
-#include <linux/ts_filter_median.h>
+#include "ts_filter_median.h"
 
 static void ts_filter_median_insert(int *p, int sample, int count)
 {

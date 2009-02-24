@@ -73,6 +73,8 @@ static inline void wm8731_write_reg_cache(struct snd_soc_codec *codec,
 	u16 *cache = codec->reg_cache;
 	if (reg >= WM8731_CACHEREGNUM)
 		return;
+
+	printk(KERN_INFO "%s: reg %d, val %04x\n", __func__, reg, value);
 	cache[reg] = value;
 }
 
@@ -83,6 +85,8 @@ static int wm8731_write(struct snd_soc_codec *codec, unsigned int reg,
 	unsigned int value)
 {
 	u8 data[2];
+
+	printk(KERN_INFO "%s: reg %d val %04x\n", __func__, reg, value);
 
 	/* data is
 	 *   D15..D9 WM8731 register offset
@@ -521,7 +525,11 @@ static int wm8731_init(struct snd_soc_device *socdev)
 	if (codec->reg_cache == NULL)
 		return -ENOMEM;
 
-	wm8731_reset(codec);
+	ret = wm8731_reset(codec);
+	if (ret < 0) {
+		printk(KERN_ERR "wm8731: failed to send reset\n");
+		return -EIO;
+	}
 
 	/* register pcms */
 	ret = snd_soc_new_pcms(socdev, SNDRV_DEFAULT_IDX1, SNDRV_DEFAULT_STR1);

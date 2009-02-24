@@ -49,11 +49,13 @@ static struct s3c2410_dma_client s3c64xx_dma_client_in = {
 
 static struct s3c24xx_pcm_dma_params s3c64xx_i2s_pcm_stereo_out[2] = {
 	[0] = {
+		.channel	= DMACH_I2S0_OUT,
 		.client		= &s3c64xx_dma_client_out,
 		.dma_addr	= S3C64XX_PA_IIS0 + S3C2412_IISTXD,
 		.dma_size	= 4,
 	},
 	[1] = {
+		.channel	= DMACH_I2S1_OUT,
 		.client		= &s3c64xx_dma_client_out,
 		.dma_addr	= S3C64XX_PA_IIS1 + S3C2412_IISTXD,
 		.dma_size	= 4,
@@ -62,11 +64,13 @@ static struct s3c24xx_pcm_dma_params s3c64xx_i2s_pcm_stereo_out[2] = {
 
 static struct s3c24xx_pcm_dma_params s3c64xx_i2s_pcm_stereo_in[2] = {
 	[0] = {
+		.channel	= DMACH_I2S0_IN,
 		.client		= &s3c64xx_dma_client_in,
 		.dma_addr	= S3C64XX_PA_IIS0 + S3C2412_IISRXD,
 		.dma_size	= 4,
 	}, 
 	[1] = {
+		.channel	= DMACH_I2S1_IN,
 		.client		= &s3c64xx_dma_client_in,
 		.dma_addr	= S3C64XX_PA_IIS1 + S3C2412_IISRXD,
 		.dma_size	= 4,

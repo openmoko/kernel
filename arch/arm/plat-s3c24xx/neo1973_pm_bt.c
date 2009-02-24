@@ -183,11 +183,14 @@ static int __init gta01_bt_probe(struct platform_device *pdev)
 	rfkill = rfkill_allocate(&pdev->dev, RFKILL_TYPE_BLUETOOTH);
 
 	rfkill->name = pdev->name;
-	rfkill->data = pdev;
-	rfkill->state = -1;
+	rfkill->data = &pdev->dev;
+	rfkill->state = RFKILL_STATE_OFF;
 	rfkill->toggle_radio = bt_rfkill_toggle_radio;
 
-	rfkill_register(rfkill);
+	if (rfkill_register(rfkill) < 0) {
+		/* We can live if it fails to register, but report it. */
+		dev_dbg(&pdev->dev, DRVMSG ": RFKILL registration failed\n");
+	}
 
 	platform_set_drvdata(pdev, rfkill);
 

@@ -24,6 +24,10 @@ obj-y				+= gpiolib.o
 obj-$(CONFIG_CPU_S3C6400_INIT)	+= s3c6400-init.o
 obj-$(CONFIG_CPU_S3C6400_CLOCK)	+= s3c6400-clock.o
 
+# DMA support
+
+obj-$(CONFIG_S3C64XX_DMA)	+= dma.o
+
 # PM support
 
 obj-$(CONFIG_PM)		+= pm.o

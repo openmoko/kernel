@@ -11,6 +11,8 @@
 #ifndef __ASM_ARCH_DMA_H
 #define __ASM_ARCH_DMA_H __FILE__
 
+#define S3C_DMA_CHANNELS	(16)
+
 /* see mach-s3c2410/dma.h for notes on dma channel numbers */
 
 /* Note, for the S3C64XX architecture we keep the DMACH_

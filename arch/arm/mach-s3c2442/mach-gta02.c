@@ -150,6 +150,7 @@ static struct s3c2410_uartcfg gta02_uartcfgs[] = {
 
 };
 
+#ifdef CONFIG_CHARGER_PCF50633
 /*
  * On GTA02 the 1A charger features a 48K resistor to 0V on the ID pin.
  * We use this to recognize that we can pull 1A from the USB socket.
@@ -215,6 +216,20 @@ static void gta02_pmu_event_callback(struct pcf50633 *pcf, int irq)
 	}
 }
 
+static void gta02_udc_vbus_draw(unsigned int ma)
+{
+        if (!gta02_pcf)
+		return;
+
+	gta02_usb_vbus_draw = ma;
+
+	schedule_delayed_work(&gta02_charger_work,
+			      GTA02_CHARGER_CONFIGURE_TIMEOUT);
+}
+#else /* !CONFIG_CHARGER_PCF50633 */
+#define gta02_pmu_event_callback        NULL
+#define gta02_udc_vbus_draw             NULL
+#endif
 
 /*
  * this is called when pc50633 is probed, unfortunately quite late in the
@@ -449,18 +464,6 @@ static void gta02_udc_command(enum s3c2410_udc_cmd_e cmd)
 }
 
 /* get PMU to set USB current limit accordingly */
-
-static void gta02_udc_vbus_draw(unsigned int ma)
-{
-        if (!gta02_pcf)
-		return;
-
-	gta02_usb_vbus_draw = ma;
-
-	schedule_delayed_work(&gta02_charger_work,
-			      GTA02_CHARGER_CONFIGURE_TIMEOUT);
-}
-
 static struct s3c2410_udc_mach_info gta02_udc_cfg = {
 	.vbus_draw	= gta02_udc_vbus_draw,
 	.udc_command	= gta02_udc_command,
@@ -611,7 +614,9 @@ static void __init gta02_machine_init(void)
 
 	s3c_pm_init();
 
+#ifdef CONFIG_CHARGER_PCF50633
 	INIT_DELAYED_WORK(&gta02_charger_work, gta02_charger_worker);
+#endif
 
 	s3c_device_usb.dev.platform_data = &gta02_usb_info;
 	s3c_device_nand.dev.platform_data = &gta02_nand_info;

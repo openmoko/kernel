@@ -194,10 +194,15 @@ static void gta02_charger_worker(struct work_struct *work)
 		return;
 	}
 
+#ifdef CONFIG_PCF50633_ADC
 	pcf50633_adc_async_read(gta02_pcf,
 		PCF50633_ADCC1_MUX_ADCIN1,
 		PCF50633_ADCC1_AVERAGE_16,
 		gta02_configure_pmu_for_charger, NULL);
+#else
+               /* If the PCF50633 ADC is disabled we fallback to a 100mA limit for safety. */
+               pcf50633_mbc_usb_curlim_set(pcf, 100);
+#endif
 }
 
 #define GTA02_CHARGER_CONFIGURE_TIMEOUT ((3000 * HZ) / 1000)

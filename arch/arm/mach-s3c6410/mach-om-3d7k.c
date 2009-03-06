@@ -67,6 +67,7 @@
 #include <plat/devs.h>
 #include <plat/cpu.h>
 #include <plat/tzic-sp890.h>
+#include <plat/usb-control.h>
 
 /* #include <plat/udc.h> */
 #include <linux/i2c.h>
@@ -1007,6 +1008,7 @@ static void om_3d7k_pmu_regulator_registered(struct pcf50633 *pcf, int id)
 static struct platform_device *om_3d7k_devices_pmu_children[] = {
 	&om_3d7k_button_dev,
 //	&s3c_device_spi_acc1, /* relies on PMU reg for power */
+	&s3c_device_usb,
 };
 
 /* this is called when pc50633 is probed, unfortunately quite late in the
@@ -1101,6 +1103,15 @@ struct platform_device om_3d7k_device_spi_lcm = {
 	},
 };
 
+/* USB */
+static struct s3c2410_hcd_info om3d7k_usb_info = {
+	.port[0]	= {
+		.flags	= S3C_HCDFLG_USED,
+	},
+	.port[1]	= {
+		.flags	= 0,
+	},
+};
 
 
 
@@ -1125,6 +1136,7 @@ static void __init om_3d7k_machine_init(void)
 {
 	s3c_pm_init();
 
+	s3c_device_usb.dev.platform_data = &om3d7k_usb_info;
 	s3c_device_usbgadget.dev.platform_data = &s3c_hs_otg_plat_data;
 
 	s3c_i2c0_set_platdata(NULL);

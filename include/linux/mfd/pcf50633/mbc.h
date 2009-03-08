@@ -134,6 +134,8 @@ void pcf50633_mbc_set_status(struct pcf50633 *, int what, int status);
 	struct power_supply usb;
 	struct power_supply adapter;
 
+	struct delayed_work charging_restart_work;
+
 	struct platform_device *pdev;
 };
 #endif

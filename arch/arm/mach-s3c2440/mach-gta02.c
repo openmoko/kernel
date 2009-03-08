@@ -999,6 +999,57 @@ static struct s3c2410_ts_mach_info gta02_ts_cfg = {
 	},
 };
 
+static void gta02_bl_set_intensity(int intensity)
+{
+	struct pcf50633 *pcf = gta02_pcf_pdata.pcf;
+	int old_intensity = pcf50633_reg_read(pcf, PCF50633_REG_LEDOUT);
+	int ret;
+
+	intensity >>= 2;
+
+	if (intensity == old_intensity)
+		return;
+
+	/* We can't do this anywhere else */
+	pcf50633_reg_write(pcf, PCF50633_REG_LEDDIM, 5);
+
+	if (!(pcf50633_reg_read(pcf, PCF50633_REG_LEDENA) & 3))
+		old_intensity = 0;
+
+	/*
+	 * The PCF50633 cannot handle LEDOUT = 0 (datasheet p60)
+	 * if seen, you have to re-enable the LED unit
+	 */
+	if (!intensity || !old_intensity)
+		pcf50633_reg_write(pcf, PCF50633_REG_LEDENA, 0);
+
+	if (!intensity) /* illegal to set LEDOUT to 0 */
+		ret = pcf50633_reg_set_bit_mask(pcf, PCF50633_REG_LEDOUT, 0x3f,
+									     2);
+	else
+		ret = pcf50633_reg_set_bit_mask(pcf, PCF50633_REG_LEDOUT, 0x3f,
+			       intensity);
+
+	if (intensity)
+		pcf50633_reg_write(pcf, PCF50633_REG_LEDENA, 2);
+
+}
+
+static struct generic_bl_info gta02_bl_info = {
+	.name 			= "gta02-bl",
+	.max_intensity 		= 0xff,
+	.default_intensity 	= 0xff,
+	.set_bl_intensity 	= gta02_bl_set_intensity,
+};
+
+static struct platform_device gta02_bl_dev = {
+	.name		  = "generic-bl",
+	.id		  = 1,
+	.dev = {
+		.platform_data = &gta02_bl_info,
+	},
+};
+
 /* SPI: LCM control interface attached to Glamo3362 */
 
 static void gta02_jbt6k74_reset(int devidx, int level)

@@ -1449,7 +1449,15 @@ static const struct snd_soc_dai wm8753_all_dai[] = {
 },
 };
 
-struct snd_soc_dai wm8753_dai[2];
+struct snd_soc_dai wm8753_dai[2] = {
+	{
+		.name = "dummy1"
+	},
+	{
+		.name = "dummy2"
+	},
+};
+
 EXPORT_SYMBOL_GPL(wm8753_dai);
 
 static void wm8753_set_dai_mode(struct snd_soc_codec *codec, unsigned int mode)
@@ -1659,6 +1667,7 @@ static int wm8753_i2c_probe(struct i2c_client *i2c,
 	/* codec->control_data must be set before call to wm8753_init */
 	i2c_set_clientdata(i2c, codec);
 	codec->control_data = i2c;
+	wm8753_dai->dev = &i2c->dev;
 
 	ret = wm8753_init(socdev);
 	if (ret < 0) {
@@ -1743,6 +1752,7 @@ static int __devinit wm8753_spi_probe(struct spi_device *spi)
 	int ret;
 
 	codec->control_data = spi;
+	wm8753_dai->dev = &spi->dev;
 
 	ret = wm8753_init(socdev);
 	if (ret < 0)
@@ -1813,6 +1823,7 @@ static int wm8753_probe(struct platform_device *pdev)
 
 	codec->private_data = wm8753;
 	socdev->codec = codec;
+
 	mutex_init(&codec->mutex);
 	INIT_LIST_HEAD(&codec->dapm_widgets);
 	INIT_LIST_HEAD(&codec->dapm_paths);
@@ -1829,17 +1840,19 @@ static int wm8753_probe(struct platform_device *pdev)
 	if (setup->spi) {
 		codec->hw_write = (hw_write_t)wm8753_spi_write;
 		ret = spi_register_driver(&wm8753_spi_driver);
-		if (ret != 0)
+		if (ret != 0) {
 			printk(KERN_ERR "can't add spi driver");
+			goto err;
+		}
 	}
 #endif
 
-	if (ret != 0) {
-		printk(KERN_ERR "can't add codec bus driver\n");
-		kfree(codec->private_data);
-		kfree(codec);
-	}
 	return ret;
+err:
+	kfree(codec->private_data);
+	kfree(codec);
+	return ret;
+
 }
 
 /*

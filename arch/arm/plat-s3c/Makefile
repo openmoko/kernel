@@ -34,3 +34,5 @@ obj-$(CONFIG_S3C_DEV_FB)	+= dev-fb.o
 obj-$(CONFIG_S3C_DEV_USB_HOST)	+= dev-usb.o
 
 obj-$(CONFIG_S3C_PWM)		+= pwm.o
+obj-$(CONFIG_S3C_DMA)		+= dma.o
+

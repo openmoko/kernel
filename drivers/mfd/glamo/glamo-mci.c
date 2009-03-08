@@ -626,6 +626,11 @@ static void glamo_mci_send_request(struct mmc_host *mmc)
 
 	if (glamo_mci_send_command(host, cmd))
 		goto bail;
+
+	/* we are deselecting card?  because it isn't going to ack then... */
+	if ((cmd->opcode == 7) && (cmd->arg == 0))
+		goto done;
+
 	/*
 	 * we must spin until response is ready or timed out
 	 * -- we don't get interrupts unless there is a bulk rx

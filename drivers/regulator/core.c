@@ -1102,18 +1102,19 @@ int regulator_disable(struct regulator *regulator)
 	struct regulator_dev *rdev = regulator->rdev;
 	int ret = 0;
 
-	mutex_lock(&rdev->mutex);
-	if (regulator->enabled == 1) {
-		ret = _regulator_disable(rdev);
-		if (ret == 0)
-			regulator->uA_load = 0;
-	} else if (WARN(regulator->enabled <= 0,
-			"unbalanced disables for supply %s\n",
-			regulator->supply_name))
-		ret = -EIO;
-	if (ret == 0)
-		regulator->enabled--;
-	mutex_unlock(&rdev->mutex);
+	if (!regulator->enabled) {
+		printk(KERN_ERR "%s: not in use by this consumer\n",
+			__func__);
+		WARN_ON(1);
+		return 0;
+	}
+
+	mutex_lock(&regulator->rdev->mutex);
+	regulator->enabled = 0;
+	regulator->uA_load = 0;
+	ret = _regulator_disable(regulator->rdev);
+	mutex_unlock(&regulator->rdev->mutex);
+
 	return ret;
 }
 EXPORT_SYMBOL_GPL(regulator_disable);

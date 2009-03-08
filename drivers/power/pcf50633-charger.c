@@ -43,6 +43,8 @@ int pcf50633_mbc_usb_curlim_set(struct pcf50633 *pcf, int ma)
 	struct pcf50633_mbc *mbc = platform_get_drvdata(pcf->mbc_pdev);
 	int ret = 0;
 	u8 bits;
+	int charging_start = 1;
+	u8 mbcs2, chgmod;
 
 	if (ma >= 1000)
 		bits = PCF50633_MBCC7_USB_1000mA;
@@ -50,8 +52,10 @@ int pcf50633_mbc_usb_curlim_set(struct pcf50633 *pcf, int ma)
 		bits = PCF50633_MBCC7_USB_500mA;
 	else if (ma >= 100)
 		bits = PCF50633_MBCC7_USB_100mA;
-	else
+	else {
 		bits = PCF50633_MBCC7_USB_SUSPEND;
+		charging_start = 0;
+	}
 
 	ret = pcf50633_reg_set_bit_mask(pcf, PCF50633_REG_MBCC7,
 					PCF50633_MBCC7_USB_MASK, bits);
@@ -60,9 +64,21 @@ int pcf50633_mbc_usb_curlim_set(struct pcf50633 *pcf, int ma)
 	else
 		dev_info(pcf->dev, "usb curlim to %d mA\n", ma);
 
-	power_supply_changed(&mbc->usb);
+	mbcs2 = pcf50633_reg_read(pcf, PCF50633_REG_MBCS2);
+	chgmod = (mbcs2 & PCF50633_MBCS2_MBC_MASK);
 
-	return ret;
+	/* If chgmod == BATFULL, setting chgena has no effect.
+	 * We need to set resume instead.
+	 */
+	if (chgmod != PCF50633_MBCS2_MBC_BAT_FULL)
+		pcf50633_reg_set_bit_mask(pcf, PCF50633_REG_MBCC1,
+				PCF50633_MBCC1_CHGENA, PCF50633_MBCC1_CHGENA);
+	else
+		pcf50633_reg_set_bit_mask(pcf, PCF50633_REG_MBCC1,
+				PCF50633_MBCC1_RESUME, PCF50633_MBCC1_RESUME);
+
+	pcf->mbc.usb_active = charging_start;
+	power_supply_changed(&pcf->mbc.usb);
 }
 EXPORT_SYMBOL_GPL(pcf50633_mbc_usb_curlim_set);
 
@@ -186,7 +202,10 @@ pcf50633_mbc_irq_handler(int irq, void *data)
 	if (irq == PCF50633_IRQ_BATFULL) {
 		mbc->usb_active = 0;
 		mbc->adapter_active = 0;
-	}
+	} else if (irq == PCF50633_IRQ_USBLIMON)
+		mbc->usb_active = 0;
+	else if (irq == PCF50633_IRQ_USBLIMOFF)
+		mbc->usb_active = 1;
 
 	power_supply_changed(&mbc->ac);
 	power_supply_changed(&mbc->usb);

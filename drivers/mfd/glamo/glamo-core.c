@@ -195,94 +195,6 @@ static struct platform_device glamo_cmdq_dev = {
 	.num_resources  = ARRAY_SIZE(glamo_cmdq_resources),
 };
 
-#if 0
-static struct resource glamo_core_resources[] = {
-	{
-		.start	= GLAMO_REGOFS_GENERIC,
-		.end	= GLAMO_REGOFS_GENERIC + 0x400,
-		.flags	= IORESOURCE_MEM,
-	}, {
-		.start	= 0,
-		.end	= 0,
-		.flags	= IORESOURCE_IRQ,
-	},
-};
-
-static struct platform_device glamo_core_dev = {
-	.name		= "glamo-core",
-	.resource	= &glamo_core_resources,
-	.num_resources	= ARRAY_SIZE(glamo_core_resources),
-};
-#endif
-
-static struct resource glamo_jpeg_resources[] = {
-	{
-		.start	= GLAMO_REGOFS_JPEG,
-		.end	= GLAMO_REGOFS_MPEG - 1,
-		.flags	= IORESOURCE_MEM,
-	}, {
-		.start	= IRQ_GLAMO_JPEG,
-		.end	= IRQ_GLAMO_JPEG,
-		.flags	= IORESOURCE_IRQ,
-	},
-};
-
-static struct platform_device glamo_jpeg_dev = {
-	.name		= "glamo-jpeg",
-	.resource	= glamo_jpeg_resources,
-	.num_resources	= ARRAY_SIZE(glamo_jpeg_resources),
-};
-
-static struct resource glamo_mpeg_resources[] = {
-	{
-		.start	= GLAMO_REGOFS_MPEG,
-		.end	= GLAMO_REGOFS_LCD - 1,
-		.flags	= IORESOURCE_MEM,
-	}, {
-		.start	= IRQ_GLAMO_MPEG,
-		.end	= IRQ_GLAMO_MPEG,
-		.flags	= IORESOURCE_IRQ,
-	},
-};
-
-static struct platform_device glamo_mpeg_dev = {
-	.name		= "glamo-mpeg",
-	.resource	= glamo_mpeg_resources,
-	.num_resources	= ARRAY_SIZE(glamo_mpeg_resources),
-};
-
-static struct resource glamo_2d_resources[] = {
-	{
-		.start	= GLAMO_REGOFS_2D,
-		.end	= GLAMO_REGOFS_3D - 1,
-		.flags	= IORESOURCE_MEM,
-	}, {
-		.start	= IRQ_GLAMO_2D,
-		.end	= IRQ_GLAMO_2D,
-		.flags	= IORESOURCE_IRQ,
-	},
-};
-
-static struct platform_device glamo_2d_dev = {
-	.name		= "glamo-2d",
-	.resource	= glamo_2d_resources,
-	.num_resources	= ARRAY_SIZE(glamo_2d_resources),
-};
-
-static struct resource glamo_3d_resources[] = {
-	{
-		.start	= GLAMO_REGOFS_3D,
-		.end	= GLAMO_REGOFS_END - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-};
-
-static struct platform_device glamo_3d_dev = {
-	.name		= "glamo-3d",
-	.resource	= glamo_3d_resources,
-	.num_resources	= ARRAY_SIZE(glamo_3d_resources),
-};
-
 static struct platform_device glamo_spigpio_dev = {
 	.name		= "glamo-spi-gpio",
 };
@@ -1333,51 +1245,31 @@ static int __init glamo_probe(struct platform_device *pdev)
 			     glamo_cmdq_dev.num_resources, glamo->mem);
 	platform_device_register(&glamo_cmdq_dev);
 
-	glamo_2d_dev.dev.parent = &pdev->dev;
-	mangle_mem_resources(glamo_2d_dev.resource,
-			     glamo_2d_dev.num_resources, glamo->mem);
-	platform_device_register(&glamo_2d_dev);
-
-	glamo_3d_dev.dev.parent = &pdev->dev;
-	mangle_mem_resources(glamo_3d_dev.resource,
-			     glamo_3d_dev.num_resources, glamo->mem);
-	platform_device_register(&glamo_3d_dev);
-
-	glamo_jpeg_dev.dev.parent = &pdev->dev;
-	mangle_mem_resources(glamo_jpeg_dev.resource,
-			     glamo_jpeg_dev.num_resources, glamo->mem);
-	platform_device_register(&glamo_jpeg_dev);
-
-	glamo_mpeg_dev.dev.parent = &pdev->dev;
-	mangle_mem_resources(glamo_mpeg_dev.resource,
-			     glamo_mpeg_dev.num_resources, glamo->mem);
-	platform_device_register(&glamo_mpeg_dev);
-
-	glamo->pdata->glamo = glamo;
+	/* Frambuffer device */
 	glamo_fb_dev.dev.parent = &pdev->dev;
 	glamo_fb_dev.dev.platform_data = glamo->pdata;
 	mangle_mem_resources(glamo_fb_dev.resource,
 			     glamo_fb_dev.num_resources, glamo->mem);
 	platform_device_register(&glamo_fb_dev);
 
+	/* GPIO */
 	glamo->pdata->spigpio_info->glamo = glamo;
 	glamo_spigpio_dev.dev.parent = &pdev->dev;
 	glamo_spigpio_dev.dev.platform_data = glamo->pdata->spigpio_info;
 	platform_device_register(&glamo_spigpio_dev);
 
+	/* MMC */
 	glamo_mmc_dev = glamo->pdata->mmc_dev;
 	glamo_mmc_dev->name = "glamo-mci";
 	glamo_mmc_dev->dev.parent = &pdev->dev;
 	glamo_mmc_dev->resource = glamo_mmc_resources;
 	glamo_mmc_dev->num_resources = ARRAY_SIZE(glamo_mmc_resources); 
-
-	/* we need it later to give to the engine enable and disable */
 	glamo_mci_def_pdata.pglamo = glamo;
 	mangle_mem_resources(glamo_mmc_dev->resource,
 			     glamo_mmc_dev->num_resources, glamo->mem);
 	platform_device_register(glamo_mmc_dev);
 
-	/* only request the generic, hostbus and memory controller MMIO */
+	/* Only request the generic, hostbus and memory controller MMIO */
 	glamo->mem = request_mem_region(glamo->mem->start,
 					GLAMO_REGOFS_VIDCAP, "glamo-core");
 	if (!glamo->mem) {

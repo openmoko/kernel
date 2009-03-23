@@ -573,15 +573,15 @@ static int glamo_mci_prepare_pio(struct glamo_mci_host *host,
 	 * Read is halfway up the buffer and write is at the start
 	 */
 	if (data->flags & MMC_DATA_READ) {
-		writew((u16)(GLAMO_FB_SIZE + (RESSIZE(host->mem_data) / 2)),
+		writew((u16)(GLAMO_OFFSET_MMC + (RESSIZE(host->mem_data) / 2)),
 			   host->base + GLAMO_REG_MMC_WDATADS1);
-		writew((u16)((GLAMO_FB_SIZE +
+		writew((u16)((GLAMO_OFFSET_MMC +
 					(RESSIZE(host->mem_data) / 2)) >> 16),
 			   host->base + GLAMO_REG_MMC_WDATADS2);
 	} else {
-		writew((u16)GLAMO_FB_SIZE, host->base +
+		writew((u16)GLAMO_OFFSET_MMC, host->base +
 					       GLAMO_REG_MMC_RDATADS1);
-		writew((u16)(GLAMO_FB_SIZE >> 16), host->base +
+		writew((u16)(GLAMO_OFFSET_MMC >> 16), host->base +
 						       GLAMO_REG_MMC_RDATADS2);
 	}
 

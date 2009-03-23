@@ -1240,7 +1240,11 @@ static int __init glamo_probe(struct platform_device *pdev)
 					glamo->pdata->glamo_irq_is_wired;
 
 	/* start creating the siblings */
+	glamo->pdata->glamo = glamo;
+
+	/* Command queue device (for DRM) */
 	glamo_cmdq_dev.dev.parent = &pdev->dev;
+	glamo_cmdq_dev.dev.platform_data = glamo;
 	mangle_mem_resources(glamo_cmdq_dev.resource,
 			     glamo_cmdq_dev.num_resources, glamo->mem);
 	platform_device_register(&glamo_cmdq_dev);

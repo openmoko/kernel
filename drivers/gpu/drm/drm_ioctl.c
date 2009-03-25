@@ -83,8 +83,7 @@ int drm_setunique(struct drm_device *dev, void *data,
 {
 	struct drm_unique *u = data;
 	struct drm_master *master = file_priv->master;
-	int domain, bus, slot, func, ret;
-
+	
 	if (master->unique_len || master->unique)
 		return -EBUSY;
 
@@ -101,29 +100,50 @@ int drm_setunique(struct drm_device *dev, void *data,
 
 	master->unique[master->unique_len] = '\0';
 
-	dev->devname =
-	    drm_alloc(strlen(dev->driver->pci_driver.name) +
-		      strlen(master->unique) + 2, DRM_MEM_DRIVER);
-	if (!dev->devname)
-		return -ENOMEM;
+	if ( !drm_core_is_platform(dev) ) {
+	
+		/* PCI device */
+		
+		int domain, bus, slot, func, ret;
 
-	sprintf(dev->devname, "%s@%s", dev->driver->pci_driver.name,
-		master->unique);
+		dev->devname =
+		    drm_alloc(strlen(dev->driver->pci_driver.name) +
+			      strlen(master->unique) + 2, DRM_MEM_DRIVER);
+		if (!dev->devname)
+			return -ENOMEM;
 
-	/* Return error if the busid submitted doesn't match the device's actual
-	 * busid.
-	 */
-	ret = sscanf(master->unique, "PCI:%d:%d:%d", &bus, &slot, &func);
-	if (ret != 3)
-		return -EINVAL;
-	domain = bus >> 8;
-	bus &= 0xff;
+		sprintf(dev->devname, "%s@%s", dev->driver->pci_driver.name,
+			master->unique);
 
-	if ((domain != drm_get_pci_domain(dev)) ||
-	    (bus != dev->pdev->bus->number) ||
-	    (slot != PCI_SLOT(dev->pdev->devfn)) ||
-	    (func != PCI_FUNC(dev->pdev->devfn)))
-		return -EINVAL;
+		/* Return error if the busid submitted doesn't match the
+		 * device's actual busid.
+		 */
+		ret = sscanf(master->unique, "PCI:%d:%d:%d",
+			     &bus, &slot, &func);
+		if (ret != 3)
+			return -EINVAL;
+		domain = bus >> 8;
+		bus &= 0xff;
+
+		if ((domain != drm_get_pci_domain(dev)) ||
+		    (bus != dev->pdev->bus->number) ||
+		    (slot != PCI_SLOT(dev->pdev->devfn)) ||
+		    (func != PCI_FUNC(dev->pdev->devfn)))
+			return -EINVAL;
+			
+	} else {
+	
+		/* Platform device */
+		dev->devname =
+		    drm_alloc(strlen(dev->driver->name) +
+			      strlen(master->unique) + 2, DRM_MEM_DRIVER);
+		if (!dev->devname)
+			return -ENOMEM;
+
+		sprintf(dev->devname, "%s@%s", dev->driver->name,
+			master->unique);
+	
+	}
 
 	return 0;
 }
@@ -131,8 +151,7 @@ int drm_setunique(struct drm_device *dev, void *data,
 static int drm_set_busid(struct drm_device *dev, struct drm_file *file_priv)
 {
 	struct drm_master *master = file_priv->master;
-	int len;
-
+	
 	if (master->unique != NULL)
 		return -EBUSY;
 
@@ -142,25 +161,58 @@ static int drm_set_busid(struct drm_device *dev, struct drm_file *file_priv)
 	if (master->unique == NULL)
 		return -ENOMEM;
 
-	len = snprintf(master->unique, master->unique_len, "pci:%04x:%02x:%02x.%d",
-		       drm_get_pci_domain(dev),
-		       dev->pdev->bus->number,
-		       PCI_SLOT(dev->pdev->devfn),
-		       PCI_FUNC(dev->pdev->devfn));
-	if (len >= master->unique_len)
-		DRM_ERROR("buffer overflow");
-	else
-		master->unique_len = len;
+	if ( !drm_core_is_platform(dev) ) {
+	
+		/* PCI device */
+	
+		int len;
 
-	dev->devname =
-	    drm_alloc(strlen(dev->driver->pci_driver.name) + master->unique_len +
-		      2, DRM_MEM_DRIVER);
-	if (dev->devname == NULL)
-		return -ENOMEM;
+		len = snprintf(master->unique, master->unique_len,
+				"pci:%04x:%02x:%02x.%d",
+				drm_get_pci_domain(dev),
+				dev->pdev->bus->number,
+				PCI_SLOT(dev->pdev->devfn),
+				PCI_FUNC(dev->pdev->devfn));
+		       
+		if (len >= master->unique_len)
+			DRM_ERROR("buffer overflow");
+		else
+			master->unique_len = len;
 
-	sprintf(dev->devname, "%s@%s", dev->driver->pci_driver.name,
-		master->unique);
+		dev->devname =
+		    drm_alloc(strlen(dev->driver->pci_driver.name)
+		    		+ master->unique_len + 2, DRM_MEM_DRIVER);
+		if (dev->devname == NULL)
+			return -ENOMEM;
 
+		sprintf(dev->devname, "%s@%s", dev->driver->pci_driver.name,
+			master->unique);
+
+	} else {
+	
+		/* Platform device */
+		
+		int len;
+
+		len = snprintf(master->unique, master->unique_len,
+				"platform:%s", dev->platform_dev->name);
+		       
+		if (len >= master->unique_len)
+			DRM_ERROR("buffer overflow");
+		else
+			master->unique_len = len;
+
+		dev->devname =
+		    drm_alloc(strlen(dev->driver->name)
+		    		+ master->unique_len + 2, DRM_MEM_DRIVER);
+		if (dev->devname == NULL)
+			return -ENOMEM;
+
+		sprintf(dev->devname, "%s@%s", dev->driver->name,
+			master->unique);
+	
+	}
+	
 	return 0;
 }
 

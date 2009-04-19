@@ -25,6 +25,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <drm/drmP.h>
+#include <drm/glamo_drm.h>
 
 #include "glamo-core.h"
 
@@ -34,6 +35,89 @@
 #define DRIVER_DATE             "20090217"
 
 #define RESSIZE(ressource) (((ressource)->end - (ressource)->start)+1)
+
+static int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
+			      struct drm_file *file_priv)
+{
+	printk(KERN_INFO "glamo_ioctl_cmdbuf\n");
+	return 0;
+}
+
+static int glamo_ioctl_swap(struct drm_device *dev, void *data,
+			    struct drm_file *file_priv)
+{
+	printk(KERN_INFO "glamo_ioctl_swap\n");
+	return 0;
+}
+
+static int glamo_ioctl_gem_info(struct drm_device *dev, void *data,
+				struct drm_file *file_priv)
+{
+	printk(KERN_INFO "glamo_ioctl_gem_info\n");
+	return 0;
+}
+
+static int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
+				  struct drm_file *file_priv)
+{
+	printk(KERN_INFO "glamo_ioctl_gem_create\n");
+	return 0;
+}
+
+static int glamo_ioctl_gem_mmap(struct drm_device *dev, void *data,
+				struct drm_file *file_priv)
+{
+	printk(KERN_INFO "glamo_ioctl_gem_mmap\n");
+	return 0;
+}
+
+static int glamo_ioctl_gem_pin(struct drm_device *dev, void *data,
+			       struct drm_file *file_priv)
+{
+	printk(KERN_INFO "glamo_ioctl_gem_pin\n");
+	return 0;
+}
+
+static int glamo_ioctl_gem_unpin(struct drm_device *dev, void *data,
+				 struct drm_file *file_priv)
+{
+	printk(KERN_INFO "glamo_ioctl_gem_unpin\n");
+	return 0;
+}
+
+static int glamo_ioctl_gem_pread(struct drm_device *dev, void *data,
+				 struct drm_file *file_priv)
+{
+	printk(KERN_INFO "glamo_ioctl_gem_pread\n");
+	return 0;
+}
+
+static int glamo_ioctl_gem_pwrite(struct drm_device *dev, void *data,
+				  struct drm_file *file_priv)
+{
+	printk(KERN_INFO "glamo_ioctl_gem_pwrite\n");
+	return 0;
+}
+
+static int glamo_ioctl_gem_wait_rendering(struct drm_device *dev, void *data,
+					  struct drm_file *file_priv)
+{
+	printk(KERN_INFO "glamo_ioctl_gem_wait_rendering\n");
+	return 0;
+}
+
+struct drm_ioctl_desc glamo_ioctls[] = {
+	DRM_IOCTL_DEF(DRM_GLAMO_CMDBUF, glamo_ioctl_cmdbuf, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_GLAMO_SWAP, glamo_ioctl_swap, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_GLAMO_GEM_INFO, glamo_ioctl_gem_info, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_GLAMO_GEM_CREATE, glamo_ioctl_gem_create, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_GLAMO_GEM_MMAP, glamo_ioctl_gem_mmap, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_GLAMO_GEM_PIN, glamo_ioctl_gem_pin, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_GLAMO_GEM_UNPIN, glamo_ioctl_gem_unpin, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_GLAMO_PREAD, glamo_ioctl_gem_pread, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_GLAMO_PWRITE, glamo_ioctl_gem_pwrite, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_GLAMO_GEM_WAIT_RENDERING, glamo_ioctl_gem_wait_rendering, DRM_AUTH),
+};
 
 struct glamodrm_handle {
 
@@ -52,6 +136,12 @@ struct glamodrm_handle {
 
 	ssize_t vram_size;
 };
+
+static int glamo_command(struct drm_device *dev, void *data,
+				struct drm_file *file_priv)
+{
+	return 0;
+}
 
 int glamodrm_firstopen(struct drm_device *dev)
 {
@@ -263,4 +353,3 @@ module_exit(glamodrm_exit);
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
-

@@ -114,8 +114,8 @@ struct drm_ioctl_desc glamo_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_MMAP, glamo_ioctl_gem_mmap, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_PIN, glamo_ioctl_gem_pin, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_UNPIN, glamo_ioctl_gem_unpin, DRM_AUTH),
-	DRM_IOCTL_DEF(DRM_GLAMO_PREAD, glamo_ioctl_gem_pread, DRM_AUTH),
-	DRM_IOCTL_DEF(DRM_GLAMO_PWRITE, glamo_ioctl_gem_pwrite, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_GLAMO_GEM_PREAD, glamo_ioctl_gem_pread, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_GLAMO_GEM_PWRITE, glamo_ioctl_gem_pwrite, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_WAIT_RENDERING, glamo_ioctl_gem_wait_rendering, DRM_AUTH),
 };
 

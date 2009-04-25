@@ -986,7 +986,7 @@ const static struct ts_filter_linear_configuration gta02_ts_linear = {
 };
 #endif
 
-const struct ts_filter_chain_configuration filter_configuration[] =
+const static struct ts_filter_chain_configuration gta02_filter_configuration[] =
 {
 #ifdef CONFIG_TOUCHSCREEN_FILTER
 	{&ts_filter_group_api,		&gta02_ts_group.config},
@@ -1000,7 +1000,7 @@ const struct ts_filter_chain_configuration filter_configuration[] =
 const static struct s3c2410_ts_mach_info gta02_ts_cfg = {
 	.delay = 10000,
 	.presc = 0xff, /* slow as we can go */
-	.filter_config = filter_configuration,
+	.filter_config = gta02_filter_configuration,
 };
 
 
@@ -1027,15 +1027,16 @@ static void gta02_bl_set_intensity(int intensity)
 		return;
 	}
 
-	old_intensity = pcf50633_reg_read(pcf, PCF50633_REG_LEDOUT);
+	if (!(pcf50633_reg_read(pcf, PCF50633_REG_LEDENA) & 3))
+		old_intensity = 0;
+	else
+		old_intensity = pcf50633_reg_read(pcf, PCF50633_REG_LEDOUT);
+
 	if (intensity == old_intensity)
 		return;
 
 	/* We can't do this anywhere else */
 	pcf50633_reg_write(pcf, PCF50633_REG_LEDDIM, 5);
-
-	if (!(pcf50633_reg_read(pcf, PCF50633_REG_LEDENA) & 3))
-		old_intensity = 0;
 
 	/*
 	 * The PCF50633 cannot handle LEDOUT = 0 (datasheet p60)

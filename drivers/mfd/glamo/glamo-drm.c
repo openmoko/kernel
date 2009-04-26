@@ -28,20 +28,16 @@
 #include <drm/glamo_drm.h>
 
 #include "glamo-core.h"
+#include "glamo-cmdq.h"
+#include "glamo-drm-private.h"
 
 #define DRIVER_AUTHOR           "Openmoko, Inc."
 #define DRIVER_NAME             "glamo-drm"
 #define DRIVER_DESC             "SMedia Glamo 3362"
-#define DRIVER_DATE             "20090217"
+#define DRIVER_DATE             "20090426"
 
 #define RESSIZE(ressource) (((ressource)->end - (ressource)->start)+1)
 
-static int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
-			      struct drm_file *file_priv)
-{
-	printk(KERN_INFO "glamo_ioctl_cmdbuf\n");
-	return 0;
-}
 
 static int glamo_ioctl_swap(struct drm_device *dev, void *data,
 			    struct drm_file *file_priv)
@@ -116,25 +112,8 @@ struct drm_ioctl_desc glamo_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_UNPIN, glamo_ioctl_gem_unpin, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_PREAD, glamo_ioctl_gem_pread, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_PWRITE, glamo_ioctl_gem_pwrite, DRM_AUTH),
-	DRM_IOCTL_DEF(DRM_GLAMO_GEM_WAIT_RENDERING, glamo_ioctl_gem_wait_rendering, DRM_AUTH),
-};
-
-struct glamodrm_handle {
-
-	/* This device */
-	struct device *dev;
-	/* The parent device handle */
-	struct glamo_core *glamo_core;
-
-	/* MMIO region */
-	struct resource *reg;
-	char __iomem *base;
-
-	/* VRAM region */
-	struct resource *vram;
-	char __iomem *vram_base;
-
-	ssize_t vram_size;
+	DRM_IOCTL_DEF(DRM_GLAMO_GEM_WAIT_RENDERING,
+				glamo_ioctl_gem_wait_rendering, DRM_AUTH),
 };
 
 static int glamodrm_firstopen(struct drm_device *dev)
@@ -164,14 +143,16 @@ static void glamodrm_lastclose(struct drm_device *dev)
 	DRM_DEBUG("\n");
 }
 
-static int glamodrm_master_create(struct drm_device *dev, struct drm_master *master)
+static int glamodrm_master_create(struct drm_device *dev,
+				  struct drm_master *master)
 {
 	DRM_DEBUG("\n");
 
         return 0;
 }
 
-static void glamodrm_master_destroy(struct drm_device *dev, struct drm_master *master)
+static void glamodrm_master_destroy(struct drm_device *dev,
+				    struct drm_master *master)
 {
 	DRM_DEBUG("\n");
 }
@@ -256,9 +237,10 @@ static int glamodrm_probe(struct platform_device *pdev)
 		rc = -ENOENT;
 		goto out_free;
 	}
-	glamodrm->base = ioremap(glamodrm->reg->start, RESSIZE(glamodrm->reg));
-	if ( !glamodrm->base ) {
-		dev_err(&pdev->dev, "failed to ioremap() MMIO memory\n");
+	glamodrm->reg_base = ioremap(glamodrm->reg->start,
+				     RESSIZE(glamodrm->reg));
+	if ( !glamodrm->reg_base ) {
+		dev_err(&pdev->dev, "failed to ioremap() MMIO registers\n");
 		rc = -ENOENT;
 		goto out_release_regs;
 	}
@@ -280,7 +262,7 @@ static int glamodrm_probe(struct platform_device *pdev)
 	glamodrm->vram_base = ioremap(glamodrm->vram->start,
 						RESSIZE(glamodrm->vram));
 	if ( !glamodrm->vram_base ) {
-		dev_err(&pdev->dev, "failed to ioremap() MMIO memory\n");
+		dev_err(&pdev->dev, "failed to ioremap() VRAM\n");
 		rc = -ENOENT;
 		goto out_release_vram;
 	}
@@ -289,8 +271,30 @@ static int glamodrm_probe(struct platform_device *pdev)
 	printk(KERN_INFO "[glamo-drm] %lli bytes of Glamo RAM to work with\n",
 					(long long int)glamodrm->vram_size);
 
+	/* Find the command queue itself */
+	glamodrm->cmdq = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	if ( !glamodrm->cmdq ) {
+		dev_err(&pdev->dev, "Unable to find command queue.\n");
+		rc = -ENOENT;
+		goto out_unmap_vram;
+	}
+	glamodrm->cmdq = request_mem_region(glamodrm->cmdq->start,
+					  RESSIZE(glamodrm->cmdq), pdev->name);
+	if ( !glamodrm->cmdq ) {
+		dev_err(&pdev->dev, "failed to request command queue region\n");
+		rc = -ENOENT;
+		goto out_unmap_vram;
+	}
+	glamodrm->cmdq_base = ioremap(glamodrm->cmdq->start,
+						RESSIZE(glamodrm->cmdq));
+	if ( !glamodrm->cmdq_base ) {
+		dev_err(&pdev->dev, "failed to ioremap() command queue\n");
+		rc = -ENOENT;
+		goto out_release_cmdq;
+	}
+
 	/* Initialise DRM */
-	drm_platform_init(&glamodrm_drm_driver, pdev);
+	drm_platform_init(&glamodrm_drm_driver, pdev, (void *)glamodrm_handle);
 
 	/* Enable 2D and 3D */
 	glamo_engine_enable(glamodrm->glamo_core, GLAMO_ENGINE_3D);
@@ -300,12 +304,18 @@ static int glamodrm_probe(struct platform_device *pdev)
 	glamo_engine_reset(glamodrm->glamo_core, GLAMO_ENGINE_2D);
 	msleep(5);
 
+	glamo_cmdq_init(glamodrm->glamo_core);
+
 	return 0;
 
+out_release_cmdq:
+	release_mem_region(glamodrm->cmdq->start, RESSIZE(glamodrm->cmdq));
+out_unmap_vram:
+	iounmap(glamodrm->vram);
 out_release_vram:
 	release_mem_region(glamodrm->vram->start, RESSIZE(glamodrm->vram));
 out_unmap_regs:
-	iounmap(glamodrm->base);
+	iounmap(glamodrm->reg_base);
 out_release_regs:
 	release_mem_region(glamodrm->reg->start, RESSIZE(glamodrm->reg));
 out_free:
@@ -328,12 +338,16 @@ static int glamodrm_remove(struct platform_device *pdev)
 	platform_set_drvdata(pdev, NULL);
 
 	/* Release registers */
-	iounmap(glamodrm->base);
+	iounmap(glamodrm->reg_base);
 	release_mem_region(glamodrm->reg->start, RESSIZE(glamodrm->reg));
 
 	/* Release VRAM */
 	iounmap(glamodrm->vram_base);
 	release_mem_region(glamodrm->vram->start, RESSIZE(glamodrm->vram));
+
+	/* Release command queue  */
+	iounmap(glamodrm->cmdq_base);
+	release_mem_region(glamodrm->cmdq->start, RESSIZE(glamodrm->cmdq));
 
 	kfree(glamodrm);
 

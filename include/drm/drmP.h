@@ -1040,7 +1040,9 @@ static inline int drm_core_is_platform(struct drm_device *dev)
 
 				/* Driver support (drm_drv.h) */
 extern int drm_init(struct drm_driver *driver);
-extern int drm_platform_init(struct drm_driver *driver, struct platform_device *pdev);
+extern int drm_platform_init(struct drm_driver *driver,
+			     struct platform_device *pdev,
+			     void *dev_private);
 extern void drm_exit(struct drm_driver *driver);
 extern int drm_ioctl(struct inode *inode, struct file *filp,
 		     unsigned int cmd, unsigned long arg);
@@ -1262,7 +1264,7 @@ extern void drm_master_put(struct drm_master **master);
 extern int drm_get_dev(struct pci_dev *pdev, const struct pci_device_id *ent,
 		       struct drm_driver *driver);
 extern int drm_get_platform_dev(struct platform_device *pdev,
-				struct drm_driver *driver);
+				struct drm_driver *driver, void *priv);
 extern int drm_put_dev(struct drm_device *dev);
 extern int drm_put_minor(struct drm_minor **minor);
 extern unsigned int drm_debug;

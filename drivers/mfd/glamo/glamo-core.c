@@ -177,6 +177,7 @@ static inline void glamo_vmem_read(struct glamo_core *glamo, u_int16_t *buf,
  ***********************************************************************/
 static struct resource glamo_cmdq_resources[] = {
 	{
+		.name	= "glamo-cmdq-regs",
 		.start  = GLAMO_REGOFS_CMDQUEUE,
 		.end    = GLAMO_REGOFS_RISC - 1,
 		.flags  = IORESOURCE_MEM,
@@ -185,6 +186,12 @@ static struct resource glamo_cmdq_resources[] = {
 		.start  = GLAMO_MEM_BASE + GLAMO_OFFSET_WORK,
 		.end    = GLAMO_MEM_BASE + GLAMO_OFFSET_WORK +
 			  GLAMO_WORK_SIZE - 1,
+		.flags  = IORESOURCE_MEM,
+	}, {
+		.name	= "glamo-command-queue",
+		.start  = GLAMO_MEM_BASE + GLAMO_OFFSET_CMDQ,
+		.end    = GLAMO_MEM_BASE + GLAMO_OFFSET_CMDQ +
+			  GLAMO_CMDQ_SIZE - 1,
 		.flags  = IORESOURCE_MEM,
 	},
 };
@@ -915,7 +922,7 @@ static void glamo_power(struct glamo_core *glamo,
 {
 	int n;
 	unsigned long flags;
-	
+
 	spin_lock_irqsave(&glamo->lock, flags);
 
 	dev_info(&glamo->pdev->dev, "***** glamo_power -> %d\n", new_state);
@@ -1267,7 +1274,7 @@ static int __init glamo_probe(struct platform_device *pdev)
 	glamo_mmc_dev->name = "glamo-mci";
 	glamo_mmc_dev->dev.parent = &pdev->dev;
 	glamo_mmc_dev->resource = glamo_mmc_resources;
-	glamo_mmc_dev->num_resources = ARRAY_SIZE(glamo_mmc_resources); 
+	glamo_mmc_dev->num_resources = ARRAY_SIZE(glamo_mmc_resources);
 	glamo_mci_def_pdata.pglamo = glamo;
 	mangle_mem_resources(glamo_mmc_dev->resource,
 			     glamo_mmc_dev->num_resources, glamo->mem);

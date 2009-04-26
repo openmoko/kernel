@@ -65,19 +65,15 @@
 #define DRM_IOCTL_GLAMO_GEM_WAIT_RENDERING DRM_IOW(DRM_COMMAND_BASE + DRM_GLAMO_GEM_WAIT_RENDERING, struct drm_glamo_gem_wait_rendering)
 
 typedef struct drm_glamo_cmd_buffer {
-	int bufsz;
-	char __user *buf;
+	int bufsz;		/* Size of buffer, in bytes */
+	char __user *buf;	/* Buffer of stuff to go onto the ring buffer */
 	int nbox;
 	struct drm_clip_rect __user *boxes;
 } drm_glamo_cmd_buffer_t;
 
-/* return to userspace start/size of gtt and vram apertures */
 struct drm_glamo_gem_info {
-	uint64_t gart_start;
-	uint64_t gart_size;
 	uint64_t vram_start;
 	uint64_t vram_size;
-	uint64_t vram_visible;
 };
 
 struct drm_glamo_gem_create {
@@ -85,8 +81,7 @@ struct drm_glamo_gem_create {
 	uint64_t alignment;
 	uint32_t handle;
 	uint32_t initial_domain; // to allow VRAM to be created
-	uint32_t no_backing_store; // for VRAM objects - select whether they need backing store
-	// pretty much front/back/depth don't need it - other things do
+	uint32_t no_backing_store;
 };
 
 struct drm_glamo_gem_mmap {

@@ -434,7 +434,7 @@ err_g1:
  * \sa drm_get_dev
  */
 int drm_get_platform_dev(struct platform_device *pdev,
-                         struct drm_driver *driver)
+                         struct drm_driver *driver, void *priv)
 {
 	struct drm_device *dev;
 	int ret;
@@ -446,6 +446,7 @@ int drm_get_platform_dev(struct platform_device *pdev,
 	dev = drm_calloc(1, sizeof(*dev), DRM_MEM_STUB);
 	if (!dev)
 		return -ENOMEM;
+	dev->dev_private = priv;
 
 	if ((ret = drm_fill_in_dev(dev, NULL, NULL, driver))) {
 		printk(KERN_ERR "DRM: Fill_in_dev failed.\n");

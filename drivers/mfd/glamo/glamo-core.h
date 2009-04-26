@@ -77,7 +77,8 @@ enum glamo_engine {
 	GLAMO_ENGINE_RISC1,
 	GLAMO_ENGINE_SPI,
 #endif
-	__NUM_GLAMO_ENGINES
+	__NUM_GLAMO_ENGINES,
+	GLAMO_ENGINE_ALL
 };
 
 struct glamo_mci_pdata {

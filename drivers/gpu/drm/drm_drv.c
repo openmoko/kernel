@@ -302,13 +302,14 @@ EXPORT_SYMBOL(drm_init);
  *
  */
 
-int drm_platform_init(struct drm_driver *driver, struct platform_device *pdev)
+int drm_platform_init(struct drm_driver *driver, struct platform_device *pdev,
+		      void *priv)
 {
 	DRM_DEBUG("\n");
 
 	INIT_LIST_HEAD(&driver->device_list);
 
-	return drm_get_platform_dev(pdev, driver);
+	return drm_get_platform_dev(pdev, driver, priv);
 }
 
 EXPORT_SYMBOL(drm_platform_init);

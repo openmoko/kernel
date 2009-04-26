@@ -137,35 +137,29 @@ struct glamodrm_handle {
 	ssize_t vram_size;
 };
 
-static int glamo_command(struct drm_device *dev, void *data,
-				struct drm_file *file_priv)
-{
-	return 0;
-}
-
-int glamodrm_firstopen(struct drm_device *dev)
+static int glamodrm_firstopen(struct drm_device *dev)
 {
 	DRM_DEBUG("\n");
 	return 0;
 }
 
-int glamodrm_open(struct drm_device *dev, struct drm_file *fh)
+static int glamodrm_open(struct drm_device *dev, struct drm_file *fh)
 {
 	DRM_DEBUG("\n");
 	return 0;
 }
 
-void glamodrm_preclose(struct drm_device *dev, struct drm_file *fh)
+static void glamodrm_preclose(struct drm_device *dev, struct drm_file *fh)
 {
 	DRM_DEBUG("\n");
 }
 
-void glamodrm_postclose(struct drm_device *dev, struct drm_file *fh)
+static void glamodrm_postclose(struct drm_device *dev, struct drm_file *fh)
 {
 	DRM_DEBUG("\n");
 }
 
-void glamodrm_lastclose(struct drm_device *dev)
+static void glamodrm_lastclose(struct drm_device *dev)
 {
 	DRM_DEBUG("\n");
 }
@@ -182,8 +176,27 @@ static void glamodrm_master_destroy(struct drm_device *dev, struct drm_master *m
 	DRM_DEBUG("\n");
 }
 
+static int glamodrm_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+{
+	return VM_FAULT_SIGBUS;
+}
+
+static int glamodrm_gem_init_object(struct drm_gem_object *obj)
+{
+	return 0;
+}
+
+static void glamodrm_gem_free_object(struct drm_gem_object *obj)
+{
+}
+
+
+static struct vm_operations_struct glamodrm_gem_vm_ops = {
+	.fault = glamodrm_gem_fault,
+};
+
 static struct drm_driver glamodrm_drm_driver = {
-	.driver_features = DRIVER_IS_PLATFORM,
+	.driver_features = DRIVER_IS_PLATFORM | DRIVER_GEM,
 	.firstopen = glamodrm_firstopen,
 	.open = glamodrm_open,
 	.preclose = glamodrm_preclose,
@@ -194,11 +207,10 @@ static struct drm_driver glamodrm_drm_driver = {
 	.get_reg_ofs = drm_core_get_reg_ofs,
 	.master_create = glamodrm_master_create,
 	.master_destroy = glamodrm_master_destroy,
-	/* TODO GEM interface
 	.gem_init_object = glamodrm_gem_init_object,
 	.gem_free_object = glamodrm_gem_free_object,
 	.gem_vm_ops = &glamodrm_gem_vm_ops,
-	*/
+	.ioctls = glamo_ioctls,
 	.fops = {
 		.owner = THIS_MODULE,
 		.open = drm_open,
@@ -339,6 +351,7 @@ static struct platform_driver glamodrm_driver = {
 
 static int __devinit glamodrm_init(void)
 {
+	glamodrm_drm_driver.num_ioctls = DRM_ARRAY_SIZE(glamo_ioctls);
 	return platform_driver_register(&glamodrm_driver);
 }
 

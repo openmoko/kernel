@@ -81,6 +81,7 @@ static void
 glamo_cmdq_wait(struct glamodrm_handle *gdrm, enum glamo_engine engine)
 {
 	u16 mask, val, status;
+	int i;
 
 	switch (engine)
 	{
@@ -108,10 +109,11 @@ glamo_cmdq_wait(struct glamodrm_handle *gdrm, enum glamo_engine engine)
 	}
 
 	printk(KERN_INFO "Waiting for engine idle...\n");
-	do {
-		status = ioread16(gdrm->reg_base + GLAMO_REG_CMDQ_STATUS);
-	} while ((status & mask) != val);
-	printk(KERN_INFO "Engine(s) idle.\n");
+	for ( i=0; i<10000; i++ ) {
+		status = reg_read(gdrm, GLAMO_REG_CMDQ_STATUS);
+		if ((status & mask) == val) break;
+	}
+	if ( i == 10000 ) printk(KERN_WARNING "[glamo-drm] CmdQ timeout!\n");
 }
 
 

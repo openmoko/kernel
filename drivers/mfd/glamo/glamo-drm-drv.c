@@ -213,113 +213,113 @@ static struct drm_driver glamodrm_drm_driver = {
 static int glamodrm_probe(struct platform_device *pdev)
 {
 	int rc;
-	struct glamodrm_handle *glamodrm;
+	struct glamodrm_handle *gdrm;
 
 	printk(KERN_INFO "[glamo-drm] SMedia Glamo Direct Rendering Support\n");
 
-	glamodrm = kmalloc(sizeof(*glamodrm), GFP_KERNEL);
-	if ( !glamodrm )
+	gdrm = kmalloc(sizeof(*gdrm), GFP_KERNEL);
+	if ( !gdrm )
 		return -ENOMEM;
-	platform_set_drvdata(pdev, glamodrm);
-	glamodrm->glamo_core = pdev->dev.platform_data;
+	platform_set_drvdata(pdev, gdrm);
+	gdrm->glamo_core = pdev->dev.platform_data;
 
 	/* Find the command queue registers */
-	glamodrm->reg = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if ( !glamodrm->reg ) {
+	gdrm->reg = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if ( !gdrm->reg ) {
 		dev_err(&pdev->dev, "Unable to find cmdq registers.\n");
 		rc = -ENOENT;
 		goto out_free;
 	}
-	glamodrm->reg = request_mem_region(glamodrm->reg->start,
-					  RESSIZE(glamodrm->reg), pdev->name);
-	if ( !glamodrm->reg ) {
+	gdrm->reg = request_mem_region(gdrm->reg->start,
+					  RESSIZE(gdrm->reg), pdev->name);
+	if ( !gdrm->reg ) {
 		dev_err(&pdev->dev, "failed to request MMIO region\n");
 		rc = -ENOENT;
 		goto out_free;
 	}
-	glamodrm->reg_base = ioremap(glamodrm->reg->start,
-				     RESSIZE(glamodrm->reg));
-	if ( !glamodrm->reg_base ) {
+	gdrm->reg_base = ioremap(gdrm->reg->start, RESSIZE(gdrm->reg));
+	if ( !gdrm->reg_base ) {
 		dev_err(&pdev->dev, "failed to ioremap() MMIO registers\n");
 		rc = -ENOENT;
 		goto out_release_regs;
 	}
 
 	/* Find the working VRAM */
-	glamodrm->vram = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	if ( !glamodrm->vram ) {
+	gdrm->vram = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if ( !gdrm->vram ) {
 		dev_err(&pdev->dev, "Unable to find work VRAM.\n");
 		rc = -ENOENT;
 		goto out_unmap_regs;
 	}
-	glamodrm->vram = request_mem_region(glamodrm->vram->start,
-					  RESSIZE(glamodrm->vram), pdev->name);
-	if ( !glamodrm->vram ) {
+	gdrm->vram = request_mem_region(gdrm->vram->start,
+					  RESSIZE(gdrm->vram), pdev->name);
+	if ( !gdrm->vram ) {
 		dev_err(&pdev->dev, "failed to request VRAM region\n");
 		rc = -ENOENT;
 		goto out_unmap_regs;
 	}
-	glamodrm->vram_base = ioremap(glamodrm->vram->start,
-						RESSIZE(glamodrm->vram));
-	if ( !glamodrm->vram_base ) {
+	gdrm->vram_base = ioremap(gdrm->vram->start, RESSIZE(gdrm->vram));
+	if ( !gdrm->vram_base ) {
 		dev_err(&pdev->dev, "failed to ioremap() VRAM\n");
 		rc = -ENOENT;
 		goto out_release_vram;
 	}
 
-	glamodrm->vram_size = GLAMO_WORK_SIZE;
+	gdrm->vram_size = GLAMO_WORK_SIZE;
 	printk(KERN_INFO "[glamo-drm] %lli bytes of Glamo RAM to work with\n",
-					(long long int)glamodrm->vram_size);
+					(long long int)gdrm->vram_size);
 
 	/* Find the command queue itself */
-	glamodrm->cmdq = platform_get_resource(pdev, IORESOURCE_MEM, 2);
-	if ( !glamodrm->cmdq ) {
+	gdrm->cmdq = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	if ( !gdrm->cmdq ) {
 		dev_err(&pdev->dev, "Unable to find command queue.\n");
 		rc = -ENOENT;
 		goto out_unmap_vram;
 	}
-	glamodrm->cmdq = request_mem_region(glamodrm->cmdq->start,
-					  RESSIZE(glamodrm->cmdq), pdev->name);
-	if ( !glamodrm->cmdq ) {
+	gdrm->cmdq = request_mem_region(gdrm->cmdq->start,
+					  RESSIZE(gdrm->cmdq), pdev->name);
+	if ( !gdrm->cmdq ) {
 		dev_err(&pdev->dev, "failed to request command queue region\n");
 		rc = -ENOENT;
 		goto out_unmap_vram;
 	}
-	glamodrm->cmdq_base = ioremap(glamodrm->cmdq->start,
-						RESSIZE(glamodrm->cmdq));
-	if ( !glamodrm->cmdq_base ) {
+	gdrm->cmdq_base = ioremap(gdrm->cmdq->start, RESSIZE(gdrm->cmdq));
+	if ( !gdrm->cmdq_base ) {
 		dev_err(&pdev->dev, "failed to ioremap() command queue\n");
 		rc = -ENOENT;
 		goto out_release_cmdq;
 	}
 
 	/* Initialise DRM */
-	drm_platform_init(&glamodrm_drm_driver, pdev, (void *)glamodrm_handle);
+	drm_platform_init(&glamodrm_drm_driver, pdev, (void *)gdrm);
 
 	/* Enable 2D and 3D */
-	glamo_engine_enable(glamodrm->glamo_core, GLAMO_ENGINE_3D);
-	glamo_engine_reset(glamodrm->glamo_core, GLAMO_ENGINE_3D);
+	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_3D);
+	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_3D);
 	msleep(5);
-	glamo_engine_enable(glamodrm->glamo_core, GLAMO_ENGINE_2D);
-	glamo_engine_reset(glamodrm->glamo_core, GLAMO_ENGINE_2D);
+	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_2D);
+	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_2D);
+	msleep(5);
+	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_CMDQ);
+	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_CMDQ);
 	msleep(5);
 
-	glamo_cmdq_init(glamodrm->glamo_core);
+	glamo_cmdq_init(gdrm);
 
 	return 0;
 
 out_release_cmdq:
-	release_mem_region(glamodrm->cmdq->start, RESSIZE(glamodrm->cmdq));
+	release_mem_region(gdrm->cmdq->start, RESSIZE(gdrm->cmdq));
 out_unmap_vram:
-	iounmap(glamodrm->vram);
+	iounmap(gdrm->vram_base);
 out_release_vram:
-	release_mem_region(glamodrm->vram->start, RESSIZE(glamodrm->vram));
+	release_mem_region(gdrm->vram->start, RESSIZE(gdrm->vram));
 out_unmap_regs:
-	iounmap(glamodrm->reg_base);
+	iounmap(gdrm->reg_base);
 out_release_regs:
-	release_mem_region(glamodrm->reg->start, RESSIZE(glamodrm->reg));
+	release_mem_region(gdrm->reg->start, RESSIZE(gdrm->reg));
 out_free:
-	kfree(glamodrm);
+	kfree(gdrm);
 	pdev->dev.driver_data = NULL;
 	return rc;
 }

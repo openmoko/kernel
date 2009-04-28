@@ -33,7 +33,7 @@
 extern int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 			      struct drm_file *file_priv);
 
-extern int glamo_cmdq_init(struct glamo_core *glamo);
+extern int glamo_cmdq_init(struct glamodrm_handle *gdrm);
 
 
 #endif /* __GLAMO_CMDQ_H */

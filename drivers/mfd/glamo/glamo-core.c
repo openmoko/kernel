@@ -484,6 +484,8 @@ int __glamo_engine_enable(struct glamo_core *glamo, enum glamo_engine engine)
 		__reg_set_bit_mask(glamo, GLAMO_REG_HOSTBUS(2),
 				   GLAMO_HOSTBUS2_MMIO_EN_CQ,
 				   GLAMO_HOSTBUS2_MMIO_EN_CQ);
+		__reg_set_bit_mask(glamo, GLAMO_REG_CLOCK_GEN5_1,
+				   GLAMO_CLOCK_GEN51_EN_DIV_MCLK, 0xffff);
 		break;
 	/* FIXME: Implementation */
 	default:

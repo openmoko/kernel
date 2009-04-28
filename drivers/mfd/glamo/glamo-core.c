@@ -616,6 +616,11 @@ struct glamo_script reset_regs[] = {
 	[GLAMO_ENGINE_JPEG] = {
 		GLAMO_REG_CLOCK_JPEG, GLAMO_CLOCK_JPEG_RESET
 	},
+	/* The following is defined as "Reset command queue", nothing to do
+	 * with the 2D engine. */
+	[GLAMO_ENGINE_CMDQ] = {
+		GLAMO_REG_CLOCK_2D, GLAMO_CLOCK_2D_CQ_RESET
+	},
 };
 
 void glamo_engine_reset(struct glamo_core *glamo, enum glamo_engine engine)

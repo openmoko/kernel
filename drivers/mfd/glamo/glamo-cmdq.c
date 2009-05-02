@@ -108,13 +108,23 @@ glamo_cmdq_wait(struct glamodrm_handle *gdrm, enum glamo_engine engine)
 			break;
 	}
 
-	printk(KERN_INFO "Waiting for engine idle...\n");
+	printk(KERN_INFO "[glamo-drm] Waiting for engine idle...\n");
 	for ( i=0; i<1000; i++ ) {
 		status = reg_read(gdrm, GLAMO_REG_CMDQ_STATUS);
 		if ((status & mask) == val) break;
 		mdelay(1);
 	}
-	if ( i == 1000 ) printk(KERN_WARNING "[glamo-drm] CmdQ timeout!\n");
+	if ( i == 1000 ) {
+		size_t ring_read;
+		printk(KERN_WARNING "[glamo-drm] CmdQ timeout!\n");
+		printk(KERN_WARNING "[glamo-drm] status = %x\n", status);
+		ring_read = reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRL)
+				& CQ_MASKL;
+		ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
+				& CQ_MASKH) << 16);
+		printk(KERN_INFO "[glamo-drm] ring_read now 0x%x\n",
+				 ring_read);
+	}
 }
 
 
@@ -129,7 +139,8 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 	drm_glamo_cmd_buffer_t *cbuf = data;
 	u16 *addr;
 
-	printk(KERN_INFO "glamo_ioctl_cmdbuf: %i bytes\n", cbuf->bufsz);
+	printk(KERN_INFO "[glamo-drm] glamo_ioctl_cmdbuf: %i bytes\n",
+			 cbuf->bufsz);
 	gdrm = dev->dev_private;
 
 	count = cbuf->bufsz;
@@ -139,11 +150,13 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 
 	ring_write = reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL);
 	ring_write |= (reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH) << 16);
-	printk(KERN_INFO "Old write pointer = 0x%x\n", ring_write);
+	printk(KERN_INFO "[glamo-drm] Old write pointer = 0x%x\n",
+			 ring_write);
 
 	/* Calculate where we'll end up */
 	new_ring_write = (ring_write + count) % GLAMO_CMDQ_SIZE;
-	printk(KERN_INFO "New write pointer = 0x%x\n", new_ring_write);
+	printk(KERN_INFO "[glamo-drm] New write pointer = 0x%x\n",
+			 new_ring_write);
 
 	/* Wait until there is enough space to queue the cmd buffer */
 	if (new_ring_write > ring_write) {
@@ -152,7 +165,8 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 					& CQ_MASKL;
 			ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
 					& CQ_MASKH) << 16);
-			printk(KERN_INFO "ring_read now 0x%x\n", ring_read);
+			printk(KERN_INFO "[glamo-drm] ring_read now 0x%x\n",
+					 ring_read);
 		/* Loop while the read pointer is between the old and new
 		 * positions */
 		} while (ring_read > ring_write && ring_read < new_ring_write);
@@ -162,7 +176,8 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 					& CQ_MASKL;
 			ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
 					& CQ_MASKH) << 16);
-			printk(KERN_INFO "ring_read now 0x%x\n", ring_read);
+			printk(KERN_INFO "[glamo-drm] ring_read now 0x%x\n",
+					 ring_read);
 		} while (ring_read > ring_write || ring_read < new_ring_write);
 	}
 
@@ -171,7 +186,7 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 
 		size_t rest_size;
 		int i;
-		printk(KERN_INFO "Command queue is wrapping around...\n");
+		printk(KERN_INFO "[glamo-drm] CmdQ wrap-around...\n");
 		/* Wrap around */
 		rest_size = GLAMO_CMDQ_SIZE - ring_write; /* Space left */
 
@@ -212,7 +227,7 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 		int i;
 		/* The easy case */
 		for ( i=0; i<count/2; i++ ) { /* Number of words */
-			printk(KERN_INFO "Writing 2 byes at 0x%x : %4x\n",
+			printk(KERN_INFO "[glamo-drm] CmdQ write: 0x%x : %4x\n",
 				ring_write+(i*2), *(addr+i));
 			iowrite16(*(addr+i), gdrm->cmdq_base+ring_write+(i*2));
 		}

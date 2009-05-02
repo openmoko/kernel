@@ -293,17 +293,6 @@ static int glamodrm_probe(struct platform_device *pdev)
 	/* Initialise DRM */
 	drm_platform_init(&glamodrm_drm_driver, pdev, (void *)gdrm);
 
-	/* Enable 2D and 3D */
-	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_3D);
-	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_3D);
-	msleep(5);
-	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_2D);
-	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_2D);
-	msleep(5);
-	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_CMDQ);
-	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_CMDQ);
-	msleep(5);
-
 	glamo_cmdq_init(gdrm);
 
 	return 0;

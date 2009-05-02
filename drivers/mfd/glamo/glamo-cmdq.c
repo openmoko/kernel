@@ -255,11 +255,16 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 {
 	unsigned int i;
 
+	/* Enable 2D and 3D */
+	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_2D);
+	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_2D);
+
 	/* Start by zeroing the command queue memory */
 	for ( i=0; i<GLAMO_CMDQ_SIZE; i+=2 ) {
 		iowrite16(0x0000, gdrm->cmdq_base+i);
 	}
 
+	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_CMDQ);
 	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_CMDQ);
 
 	/* Set up command queue location */

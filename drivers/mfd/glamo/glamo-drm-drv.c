@@ -343,9 +343,27 @@ static int glamodrm_remove(struct platform_device *pdev)
 	return 0;
 }
 
+
+static int glamodrm_suspend(struct platform_device *pdev)
+{
+	/* glamo_core.c will suspend the engines for us */
+	return 0;
+}
+
+
+static int glamodrm_resume(struct platform_device *pdev)
+{
+	struct glamodrm_handle *gdrm = platform_get_drvdata(pdev);
+	glamo_cmdq_init(gdrm);
+	return 0;
+}
+
+
 static struct platform_driver glamodrm_driver = {
 	.probe          = glamodrm_probe,
 	.remove         = glamodrm_remove,
+	.suspend	= glamodrm_suspend,
+	.resume		= glamodrm_resume,
 	.driver         = {
 		.name   = "glamo-cmdq",
 		.owner  = THIS_MODULE,

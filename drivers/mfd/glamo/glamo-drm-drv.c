@@ -29,6 +29,7 @@
 
 #include "glamo-core.h"
 #include "glamo-cmdq.h"
+#include "glamo-buffer.h"
 #include "glamo-drm-private.h"
 
 #define DRIVER_AUTHOR           "Openmoko, Inc."
@@ -50,48 +51,6 @@ static int glamo_ioctl_gem_info(struct drm_device *dev, void *data,
 				struct drm_file *file_priv)
 {
 	printk(KERN_INFO "glamo_ioctl_gem_info\n");
-	return 0;
-}
-
-static int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
-				  struct drm_file *file_priv)
-{
-	printk(KERN_INFO "glamo_ioctl_gem_create\n");
-	return 0;
-}
-
-static int glamo_ioctl_gem_mmap(struct drm_device *dev, void *data,
-				struct drm_file *file_priv)
-{
-	printk(KERN_INFO "glamo_ioctl_gem_mmap\n");
-	return 0;
-}
-
-static int glamo_ioctl_gem_pin(struct drm_device *dev, void *data,
-			       struct drm_file *file_priv)
-{
-	printk(KERN_INFO "glamo_ioctl_gem_pin\n");
-	return 0;
-}
-
-static int glamo_ioctl_gem_unpin(struct drm_device *dev, void *data,
-				 struct drm_file *file_priv)
-{
-	printk(KERN_INFO "glamo_ioctl_gem_unpin\n");
-	return 0;
-}
-
-static int glamo_ioctl_gem_pread(struct drm_device *dev, void *data,
-				 struct drm_file *file_priv)
-{
-	printk(KERN_INFO "glamo_ioctl_gem_pread\n");
-	return 0;
-}
-
-static int glamo_ioctl_gem_pwrite(struct drm_device *dev, void *data,
-				  struct drm_file *file_priv)
-{
-	printk(KERN_INFO "glamo_ioctl_gem_pwrite\n");
 	return 0;
 }
 
@@ -344,7 +303,7 @@ static int glamodrm_remove(struct platform_device *pdev)
 }
 
 
-static int glamodrm_suspend(struct platform_device *pdev)
+static int glamodrm_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	/* glamo_core.c will suspend the engines for us */
 	return 0;

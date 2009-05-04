@@ -38,6 +38,8 @@ int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
 
 	gdrm = dev->dev_private;
 
+	args->size = roundup(args->size, PAGE_SIZE);
+
 	obj = drm_gem_object_alloc(dev, args->size);
 	if (obj == NULL) return -ENOMEM;
 
@@ -64,7 +66,7 @@ int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
 
 	if (ret) goto fail;
 
-	printk(KERN_INFO "[glamo-drm] %i: allocated %li bytes at %lx\n",
+	printk(KERN_INFO "[glamo-drm] GEM object %i: %li bytes at 0x%lx\n",
 			  handle, gobj->block->size, gobj->block->start);
 	args->handle = handle;
 
@@ -130,8 +132,6 @@ int glamodrm_gem_init_object(struct drm_gem_object *obj)
 {
 	struct drm_glamo_gem_object *gobj;
 
-	printk(KERN_INFO "Hello from glamodrm_gem_init_object\n");
-
 	/* Allocate a private structure */
 	gobj = drm_calloc(1, sizeof(*gobj), DRM_MEM_DRIVER);
 	if (!gobj) return -ENOMEM;
@@ -160,7 +160,7 @@ void glamodrm_gem_free_object(struct drm_gem_object *obj)
 /* Memory management initialisation */
 int glamo_buffer_init(struct glamodrm_handle *gdrm)
 {
-	printk(KERN_INFO "[glamo-drm] Initialising memory manager.\n");
+	gdrm->mmgr = drm_calloc(1, sizeof(struct drm_mm), DRM_MEM_DRIVER);
 	drm_mm_init(gdrm->mmgr, 0, gdrm->vram_size);
 	return 0;
 }
@@ -169,7 +169,7 @@ int glamo_buffer_init(struct glamodrm_handle *gdrm)
 /* Memory management finalisation */
 int glamo_buffer_final(struct glamodrm_handle *gdrm)
 {
-	printk(KERN_INFO "[glamo-drm] Shutting down memory manager.\n");
 	drm_mm_takedown(gdrm->mmgr);
+	drm_free(gdrm->mmgr , 1, DRM_MEM_DRIVER);
 	return 0;
 }

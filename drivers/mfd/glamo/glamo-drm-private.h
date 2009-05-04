@@ -26,10 +26,12 @@
 #ifndef __GLAMO_DRMPRIV_H
 #define __GLAMO_DRMPRIV_H
 
+
 #include <linux/module.h>
 #include <linux/platform_device.h>
 
 #include "glamo-core.h"
+
 
 struct glamodrm_handle {
 
@@ -51,7 +53,17 @@ struct glamodrm_handle {
 	char __iomem *cmdq_base;
 
 	ssize_t vram_size;
+
+	/* Memory management */
+	struct drm_mm *mmgr;
 };
+
+/* Private data.  This is where we keep our memory management bits */
+struct drm_glamo_gem_object {
+	struct drm_gem_object *obj;	/* The GEM object this refers to */
+	struct drm_mm_node *block;	/* Block handle for drm_mm */
+};
+
 
 
 #endif /* __GLAMO_DRMPRIV_H */

@@ -27,6 +27,15 @@
 
 #include "glamo-drm-private.h"
 
+extern int glamo_buffer_init(struct glamodrm_handle *gdrm);
+extern int glamo_buffer_final(struct glamodrm_handle *gdrm);
+
+extern int glamodrm_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
+
+extern int glamodrm_gem_init_object(struct drm_gem_object *obj);
+
+extern void glamodrm_gem_free_object(struct drm_gem_object *obj);
+
 extern int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
 				  struct drm_file *file_priv);
 

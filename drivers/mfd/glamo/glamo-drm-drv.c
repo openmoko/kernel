@@ -47,6 +47,7 @@ static int glamo_ioctl_swap(struct drm_device *dev, void *data,
 	return 0;
 }
 
+
 static int glamo_ioctl_gem_info(struct drm_device *dev, void *data,
 				struct drm_file *file_priv)
 {
@@ -54,12 +55,14 @@ static int glamo_ioctl_gem_info(struct drm_device *dev, void *data,
 	return 0;
 }
 
+
 static int glamo_ioctl_gem_wait_rendering(struct drm_device *dev, void *data,
 					  struct drm_file *file_priv)
 {
 	printk(KERN_INFO "glamo_ioctl_gem_wait_rendering\n");
 	return 0;
 }
+
 
 struct drm_ioctl_desc glamo_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_GLAMO_CMDBUF, glamo_ioctl_cmdbuf, DRM_AUTH),
@@ -75,17 +78,20 @@ struct drm_ioctl_desc glamo_ioctls[] = {
 				glamo_ioctl_gem_wait_rendering, DRM_AUTH),
 };
 
+
 static int glamodrm_firstopen(struct drm_device *dev)
 {
 	DRM_DEBUG("\n");
 	return 0;
 }
 
+
 static int glamodrm_open(struct drm_device *dev, struct drm_file *fh)
 {
 	DRM_DEBUG("\n");
 	return 0;
 }
+
 
 static void glamodrm_preclose(struct drm_device *dev, struct drm_file *fh)
 {
@@ -97,10 +103,12 @@ static void glamodrm_postclose(struct drm_device *dev, struct drm_file *fh)
 	DRM_DEBUG("\n");
 }
 
+
 static void glamodrm_lastclose(struct drm_device *dev)
 {
 	DRM_DEBUG("\n");
 }
+
 
 static int glamodrm_master_create(struct drm_device *dev,
 				  struct drm_master *master)
@@ -110,24 +118,11 @@ static int glamodrm_master_create(struct drm_device *dev,
         return 0;
 }
 
+
 static void glamodrm_master_destroy(struct drm_device *dev,
 				    struct drm_master *master)
 {
 	DRM_DEBUG("\n");
-}
-
-static int glamodrm_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
-{
-	return VM_FAULT_SIGBUS;
-}
-
-static int glamodrm_gem_init_object(struct drm_gem_object *obj)
-{
-	return 0;
-}
-
-static void glamodrm_gem_free_object(struct drm_gem_object *obj)
-{
 }
 
 
@@ -252,6 +247,7 @@ static int glamodrm_probe(struct platform_device *pdev)
 	/* Initialise DRM */
 	drm_platform_init(&glamodrm_drm_driver, pdev, (void *)gdrm);
 
+	glamo_buffer_init(gdrm);
 	glamo_cmdq_init(gdrm);
 
 	return 0;
@@ -275,29 +271,30 @@ out_free:
 
 static int glamodrm_remove(struct platform_device *pdev)
 {
-	struct glamodrm_handle *glamodrm = platform_get_drvdata(pdev);
+	struct glamodrm_handle *gdrm = platform_get_drvdata(pdev);
 	struct glamo_core *glamocore = pdev->dev.platform_data;
 
 	glamo_engine_disable(glamocore, GLAMO_ENGINE_2D);
 	glamo_engine_disable(glamocore, GLAMO_ENGINE_3D);
 
+	glamo_buffer_final(gdrm);
 	drm_exit(&glamodrm_drm_driver);
 
 	platform_set_drvdata(pdev, NULL);
 
 	/* Release registers */
-	iounmap(glamodrm->reg_base);
-	release_mem_region(glamodrm->reg->start, RESSIZE(glamodrm->reg));
+	iounmap(gdrm->reg_base);
+	release_mem_region(gdrm->reg->start, RESSIZE(gdrm->reg));
 
 	/* Release VRAM */
-	iounmap(glamodrm->vram_base);
-	release_mem_region(glamodrm->vram->start, RESSIZE(glamodrm->vram));
+	iounmap(gdrm->vram_base);
+	release_mem_region(gdrm->vram->start, RESSIZE(gdrm->vram));
 
 	/* Release command queue  */
-	iounmap(glamodrm->cmdq_base);
-	release_mem_region(glamodrm->cmdq->start, RESSIZE(glamodrm->cmdq));
+	iounmap(gdrm->cmdq_base);
+	release_mem_region(gdrm->cmdq->start, RESSIZE(gdrm->cmdq));
 
-	kfree(glamodrm);
+	kfree(gdrm);
 
 	return 0;
 }
@@ -329,16 +326,19 @@ static struct platform_driver glamodrm_driver = {
 	},
 };
 
+
 static int __devinit glamodrm_init(void)
 {
 	glamodrm_drm_driver.num_ioctls = DRM_ARRAY_SIZE(glamo_ioctls);
 	return platform_driver_register(&glamodrm_driver);
 }
 
+
 static void __exit glamodrm_exit(void)
 {
 	platform_driver_unregister(&glamodrm_driver);
 }
+
 
 module_init(glamodrm_init);
 module_exit(glamodrm_exit);

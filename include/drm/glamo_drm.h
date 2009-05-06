@@ -65,8 +65,11 @@
 #define DRM_IOCTL_GLAMO_GEM_WAIT_RENDERING DRM_IOW(DRM_COMMAND_BASE + DRM_GLAMO_GEM_WAIT_RENDERING, struct drm_glamo_gem_wait_rendering)
 
 typedef struct drm_glamo_cmd_buffer {
-	int bufsz;		/* Size of buffer, in bytes */
+	unsigned int bufsz;	/* Size of buffer, in bytes */
 	char __user *buf;	/* Buffer of stuff to go onto the ring buffer */
+	unsigned int *obj_pos;	/* Offsets (in bytes) at which to put objs */
+	uint32_t *objs;		/* List of buffer object (handles) to use */
+	unsigned int nobjs;	/* Number of objects referenced */
 	int nbox;
 	struct drm_clip_rect __user *boxes;
 } drm_glamo_cmd_buffer_t;

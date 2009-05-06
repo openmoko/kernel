@@ -120,23 +120,12 @@ glamo_cmdq_wait(struct glamodrm_handle *gdrm, enum glamo_engine engine)
 }
 
 
-/* This is DRM_IOCTL_GLAMO_CMDBUF */
-int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
-		       struct drm_file *file_priv)
+/* Add commands to the ring buffer */
+static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
+			     unsigned int count)
 {
 	size_t ring_write, ring_read;
 	size_t new_ring_write;
-	struct glamodrm_handle *gdrm;
-	size_t count;
-	drm_glamo_cmd_buffer_t *cbuf = data;
-	u16 *addr;
-
-	gdrm = dev->dev_private;
-
-	count = cbuf->bufsz;
-	addr = (u16 *)cbuf->buf;
-
-	/* TODO: Sanitise buffer before doing anything else */
 
 	ring_write = reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL);
 	ring_write |= (reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH) << 16);
@@ -190,9 +179,6 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 			new_ring_write = 4;
 		}
 
-		/* Before changing write position, read has to stop */
-		glamo_cmdq_wait(gdrm, GLAMO_ENGINE_CMDQ);
-
 		/* Suppose we just filled the WHOLE ring buffer, and so the
 		 * write position ends up in the same place as it started.
 		 * No change in pointer means no activity from the command
@@ -210,11 +196,14 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 		for ( i=0; i<count/2; i++ ) { /* Number of words */
 			iowrite16(*(addr+i), gdrm->cmdq_base+ring_write+(i*2));
 		}
-		glamo_cmdq_wait(gdrm, GLAMO_ENGINE_CMDQ);
 
 	}
 
-	/* Finally, update the write pointer */
+	/* Before changing write position, read has to stop
+	 * (Brought across from xf86-video-glamo)
+	 * TAW: Really?  Is pausing the clock not enough? */
+	glamo_cmdq_wait(gdrm, GLAMO_ENGINE_CMDQ);
+	/* Note that CLOCK_2D_EN_M6CLK has nothing to do with the 2D engine */
 	glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_2D,
 				GLAMO_CLOCK_2D_EN_M6CLK, 0x0000);
 	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH,
@@ -224,7 +213,135 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 	glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_2D,
 				GLAMO_CLOCK_2D_EN_M6CLK, 0xffff);
 
+	return 0;
+}
+
+
+/* Return true for a legal sequence of commands, otherwise false */
+static int glamo_sanitize_buffer(u16 *cmds, unsigned int count)
+{
+	/* XXX FIXME TODO: Implementation... */
+	return 1;
+}
+
+
+/* Substitute the real addresses in VRAM for any required buffer objects */
+static int glamo_do_relocation(struct glamodrm_handle *gdrm,
+			       drm_glamo_cmd_buffer_t *cbuf, u16 *cmds,
+			       struct drm_device *dev,
+			       struct drm_file *file_priv)
+{
+	uint32_t *handles;
+	int *offsets;
+	int nobjs =  cbuf->nobjs;
+	int i;
+
+	if ( nobjs > 32 ) return -EINVAL;	/* Get real... */
+
+	handles = drm_alloc(nobjs*sizeof(uint32_t), DRM_MEM_DRIVER);
+	if ( handles == NULL ) return -1;
+	if ( copy_from_user(handles, cbuf->objs, nobjs*sizeof(uint32_t)) )
+		return -1;
+
+	offsets = drm_alloc(nobjs*sizeof(int), DRM_MEM_DRIVER);
+	if ( offsets == NULL ) return -1;
+	if ( copy_from_user(offsets, cbuf->obj_pos, nobjs*sizeof(int)) )
+		return -1;
+
+	for ( i=0; i<nobjs; i++ ) {
+
+		uint32_t handle = handles[i];
+		int offset = offsets[i];
+		struct drm_gem_object *obj;
+		struct drm_glamo_gem_object *gobj;
+		u32 addr;
+		u16 addr_low, addr_high;
+
+		printk(KERN_INFO "[glamo-drm] Relocating object handle %i "
+				 "at position 0x%x\n", handle, offset);
+
+		if ( offset > cbuf->bufsz ) {
+			printk(KERN_WARNING "[glamo-drm] Offset out of range "
+					    "for this relocation!\n");
+			goto fail;
+		}
+
+		obj = drm_gem_object_lookup(dev, file_priv, handle);
+		if ( obj == NULL ) return -1;
+
+		/* Unref the object now, or it'll never get freed.
+		 * This should really happen after the GPU has finished
+		 * the commands which are about to be submitted. */
+		drm_gem_object_unreference(obj);
+
+		gobj = obj->driver_private;
+		if ( gobj == NULL ) {
+			printk(KERN_WARNING "[glamo-drm] This object has no "
+					    "private data!\n");
+			goto fail;
+		}
+
+		addr = GLAMO_OFFSET_WORK + gobj->block->start;
+		addr_low = addr & 0xffff;
+		addr_high = (addr >> 16) & 0x7f;
+		printk(KERN_INFO "Addr low 0x%x, high 0x%x\n",
+				  addr_low, addr_high);
+
+		/* FIXME: Should really check that the register is a
+		 * valid one for this relocation. */
+
+		*(cmds+(offset/2)+1) = addr_low;
+		*(cmds+(offset/2)+3) = addr_high;
+
+	}
+
+	drm_free(handles, 1, DRM_MEM_DRIVER);
+	drm_free(offsets, 1, DRM_MEM_DRIVER);
+	return 0;
+
+fail:
+	drm_free(handles, 1, DRM_MEM_DRIVER);
+	drm_free(offsets, 1, DRM_MEM_DRIVER);
+	return -1;
+}
+
+
+/* This is DRM_IOCTL_GLAMO_CMDBUF */
+int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
+		       struct drm_file *file_priv)
+{
+	struct glamodrm_handle *gdrm;
+	unsigned int count;
+	drm_glamo_cmd_buffer_t *cbuf = data;
+	u16 *cmds;
+
+	gdrm = dev->dev_private;
+
+	count = cbuf->bufsz;
+
+	if ( count > PAGE_SIZE ) return -EINVAL;
+
+	cmds = drm_alloc(count, DRM_MEM_DRIVER);
+	if ( cmds == NULL ) return -ENOMEM;
+	if ( copy_from_user(cmds, cbuf->buf, count) ) return -EINVAL;
+
+	/* Check the buffer isn't going to tell Glamo to enact naughtiness */
+	if ( !glamo_sanitize_buffer(cmds, count) ) return -EINVAL;
+
+	/* Perform relocation, if necessary */
+	if ( cbuf->nobjs ) {
+		if ( glamo_do_relocation(gdrm, cbuf, cmds, dev, file_priv) )
+			return -EINVAL;	/* Relocation failed */
+	}
+
+	glamo_add_to_ring(gdrm, cmds, count);
+
+	/* Having the CPU wait for the CPU is, to put it mildly,
+	 * less than optimal.
+	 * TODO: Avoid doing this, by some suitable means */
 	glamo_cmdq_wait(gdrm, GLAMO_ENGINE_ALL);
+
+	drm_free(cmds, 1, DRM_MEM_DRIVER);
 
 	return 0;
 }

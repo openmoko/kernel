@@ -85,7 +85,30 @@ fail:
 int glamo_ioctl_gem_mmap(struct drm_device *dev, void *data,
 			 struct drm_file *file_priv)
 {
-	printk(KERN_INFO "glamo_ioctl_gem_mmap\n");
+	struct drm_glamo_gem_mmap *args = data;
+	struct drm_gem_object *obj;
+	loff_t offset;
+	unsigned long addr;
+
+	obj = drm_gem_object_lookup(dev, file_priv, args->handle);
+	if (obj == NULL)
+		return -EBADF;
+
+	offset = args->offset;
+
+	down_write(&current->mm->mmap_sem);
+	addr = do_mmap(obj->filp, 0, args->size,
+		       PROT_READ | PROT_WRITE, MAP_SHARED,
+		       args->offset);
+	up_write(&current->mm->mmap_sem);
+	mutex_lock(&dev->struct_mutex);
+	drm_gem_object_unreference(obj);
+	mutex_unlock(&dev->struct_mutex);
+	if (IS_ERR((void *)addr))
+		return addr;
+
+	args->addr_ptr = (uint64_t) addr;
+
 	return 0;
 }
 

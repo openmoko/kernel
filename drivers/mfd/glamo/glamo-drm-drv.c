@@ -31,6 +31,7 @@
 #include "glamo-cmdq.h"
 #include "glamo-buffer.h"
 #include "glamo-drm-private.h"
+#include "glamo-display.h"
 
 #define DRIVER_AUTHOR           "Openmoko, Inc."
 #define DRIVER_NAME             "glamo-drm"
@@ -126,13 +127,43 @@ static void glamodrm_master_destroy(struct drm_device *dev,
 }
 
 
+static int glamodrm_load(struct drm_device *dev, unsigned long flags)
+{
+	struct glamodrm_handle *gdrm;
+
+	gdrm = dev->dev_private;
+
+	glamo_buffer_init(gdrm);
+	glamo_cmdq_init(gdrm);
+	glamo_display_init(dev);
+
+	return 0;
+}
+
+
+static int glamodrm_unload(struct drm_device *dev)
+{
+	struct glamodrm_handle *gdrm;
+
+	gdrm = dev->dev_private;
+
+	glamo_engine_disable(gdrm->glamo_core, GLAMO_ENGINE_2D);
+	glamo_engine_disable(gdrm->glamo_core, GLAMO_ENGINE_3D);
+	glamo_buffer_final(gdrm);
+
+	return 0;
+}
+
+
 static struct vm_operations_struct glamodrm_gem_vm_ops = {
 	.fault = glamodrm_gem_fault,
 };
 
 static struct drm_driver glamodrm_drm_driver = {
-	.driver_features = DRIVER_IS_PLATFORM | DRIVER_GEM,
+	.driver_features = DRIVER_IS_PLATFORM | DRIVER_GEM | DRIVER_MODESET,
 	.firstopen = glamodrm_firstopen,
+	.load = glamodrm_load,
+	.unload = glamodrm_unload,
 	.open = glamodrm_open,
 	.preclose = glamodrm_preclose,
 	.postclose = glamodrm_postclose,
@@ -247,9 +278,6 @@ static int glamodrm_probe(struct platform_device *pdev)
 	/* Initialise DRM */
 	drm_platform_init(&glamodrm_drm_driver, pdev, (void *)gdrm);
 
-	glamo_buffer_init(gdrm);
-	glamo_cmdq_init(gdrm);
-
 	return 0;
 
 out_release_cmdq:
@@ -272,12 +300,7 @@ out_free:
 static int glamodrm_remove(struct platform_device *pdev)
 {
 	struct glamodrm_handle *gdrm = platform_get_drvdata(pdev);
-	struct glamo_core *glamocore = pdev->dev.platform_data;
 
-	glamo_engine_disable(glamocore, GLAMO_ENGINE_2D);
-	glamo_engine_disable(glamocore, GLAMO_ENGINE_3D);
-
-	glamo_buffer_final(gdrm);
 	drm_exit(&glamodrm_drm_driver);
 
 	platform_set_drvdata(pdev, NULL);

@@ -58,12 +58,23 @@ struct glamodrm_handle {
 	struct drm_mm *mmgr;
 };
 
+
 /* Private data.  This is where we keep our memory management bits */
 struct drm_glamo_gem_object {
 	struct drm_gem_object *obj;	/* The GEM object this refers to */
 	struct drm_mm_node *block;	/* Block handle for drm_mm */
 };
 
+
+struct glamo_crtc {
+	struct drm_crtc base;
+};
+
+
+#define to_glamo_crtc(x) container_of(x, struct glamo_crtc, base)
+#define to_glamo_output(x) container_of(x, struct glamo_output, base)
+#define enc_to_glamo_output(x) container_of(x, struct glamo_output, enc)
+#define to_glamo_framebuffer(x) container_of(x, struct glamo_framebuffer, base)
 
 
 #endif /* __GLAMO_DRMPRIV_H */

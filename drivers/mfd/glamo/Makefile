@@ -12,4 +12,4 @@ obj-$(CONFIG_MFD_GLAMO_SPI_FB)		+= glamo-lcm-spi.o
 obj-$(CONFIG_MFD_GLAMO_MCI)		+= glamo-mci.o
 obj-$(CONFIG_MFD_GLAMO_DRM)		+= glamo-drm.o
 
-glamo-drm-objs	:=  glamo-drm-drv.o glamo-cmdq.o glamo-buffer.o
+glamo-drm-objs	:=  glamo-drm-drv.o glamo-cmdq.o glamo-buffer.o glamo-display.o

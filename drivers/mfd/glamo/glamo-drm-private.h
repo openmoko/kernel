@@ -71,6 +71,18 @@ struct glamo_crtc {
 };
 
 
+struct glamo_framebuffer {
+	struct drm_framebuffer base;
+	struct drm_gem_object *obj;
+};
+
+
+struct glamo_output {
+	struct drm_connector base;
+	struct drm_encoder enc;
+};
+
+
 #define to_glamo_crtc(x) container_of(x, struct glamo_crtc, base)
 #define to_glamo_output(x) container_of(x, struct glamo_output, base)
 #define enc_to_glamo_output(x) container_of(x, struct glamo_output, enc)

@@ -229,33 +229,8 @@ static int glamodrm_probe(struct platform_device *pdev)
 		goto out_release_regs;
 	}
 
-	/* Find the working VRAM */
-	gdrm->vram = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	if ( !gdrm->vram ) {
-		dev_err(&pdev->dev, "Unable to find work VRAM.\n");
-		rc = -ENOENT;
-		goto out_unmap_regs;
-	}
-	gdrm->vram = request_mem_region(gdrm->vram->start,
-					  RESSIZE(gdrm->vram), pdev->name);
-	if ( !gdrm->vram ) {
-		dev_err(&pdev->dev, "failed to request VRAM region\n");
-		rc = -ENOENT;
-		goto out_unmap_regs;
-	}
-	gdrm->vram_base = ioremap(gdrm->vram->start, RESSIZE(gdrm->vram));
-	if ( !gdrm->vram_base ) {
-		dev_err(&pdev->dev, "failed to ioremap() VRAM\n");
-		rc = -ENOENT;
-		goto out_release_vram;
-	}
-
-	gdrm->vram_size = GLAMO_WORK_SIZE;
-	printk(KERN_INFO "[glamo-drm] %lli bytes of Glamo RAM to work with\n",
-					(long long int)gdrm->vram_size);
-
 	/* Find the command queue itself */
-	gdrm->cmdq = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	gdrm->cmdq = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if ( !gdrm->cmdq ) {
 		dev_err(&pdev->dev, "Unable to find command queue.\n");
 		rc = -ENOENT;
@@ -274,6 +249,31 @@ static int glamodrm_probe(struct platform_device *pdev)
 		rc = -ENOENT;
 		goto out_release_cmdq;
 	}
+
+	/* Find the VRAM */
+	gdrm->vram = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	if ( !gdrm->vram ) {
+		dev_err(&pdev->dev, "Unable to find VRAM.\n");
+		rc = -ENOENT;
+		goto out_unmap_regs;
+	}
+	gdrm->vram = request_mem_region(gdrm->vram->start,
+					  RESSIZE(gdrm->vram), pdev->name);
+	if ( !gdrm->vram ) {
+		dev_err(&pdev->dev, "failed to request VRAM region\n");
+		rc = -ENOENT;
+		goto out_unmap_regs;
+	}
+	gdrm->vram_base = ioremap(gdrm->vram->start, RESSIZE(gdrm->vram));
+	if ( !gdrm->vram_base ) {
+		dev_err(&pdev->dev, "failed to ioremap() VRAM\n");
+		rc = -ENOENT;
+		goto out_release_vram;
+	}
+
+	gdrm->vram_size = GLAMO_FB_SIZE;
+	printk(KERN_INFO "[glamo-drm] %lli bytes of VRAM\n",
+					(long long int)gdrm->vram_size);
 
 	/* Initialise DRM */
 	drm_platform_init(&glamodrm_drm_driver, pdev, (void *)gdrm);

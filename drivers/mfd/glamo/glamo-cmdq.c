@@ -281,7 +281,7 @@ static int glamo_do_relocation(struct glamodrm_handle *gdrm,
 			goto fail;
 		}
 
-		addr = GLAMO_OFFSET_WORK + gobj->block->start;
+		addr = GLAMO_OFFSET_FB + gobj->block->start;
 		addr_low = addr & 0xffff;
 		addr_high = (addr >> 16) & 0x7f;
 		printk(KERN_INFO "Addr low 0x%x, high 0x%x\n",

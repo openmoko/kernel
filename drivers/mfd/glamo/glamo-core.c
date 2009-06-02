@@ -182,17 +182,17 @@ static struct resource glamo_cmdq_resources[] = {
 		.end    = GLAMO_REGOFS_RISC - 1,
 		.flags  = IORESOURCE_MEM,
 	}, {
-		.name   = "glamo-work-mem",
-		.start  = GLAMO_MEM_BASE + GLAMO_OFFSET_WORK,
-		.end    = GLAMO_MEM_BASE + GLAMO_OFFSET_WORK +
-			  GLAMO_WORK_SIZE - 1,
-		.flags  = IORESOURCE_MEM,
-	}, {
 		.name	= "glamo-command-queue",
 		.start  = GLAMO_MEM_BASE + GLAMO_OFFSET_CMDQ,
 		.end    = GLAMO_MEM_BASE + GLAMO_OFFSET_CMDQ +
 			  GLAMO_CMDQ_SIZE - 1,
 		.flags  = IORESOURCE_MEM,
+	}, {
+		.name	= "glamo-fb-mem",
+		.start	= GLAMO_MEM_BASE + GLAMO_OFFSET_FB,
+		.end	= GLAMO_MEM_BASE + GLAMO_OFFSET_FB +
+			  GLAMO_FB_SIZE - 1,
+		.flags	= IORESOURCE_MEM,
 	},
 };
 
@@ -213,13 +213,7 @@ static struct resource glamo_fb_resources[] = {
 		.start	= GLAMO_REGOFS_LCD,
 		.end	= GLAMO_REGOFS_MMC - 1,
 		.flags	= IORESOURCE_MEM,
-	}, {
-		.name	= "glamo-fb-mem",
-		.start	= GLAMO_MEM_BASE + GLAMO_OFFSET_FB,
-		.end	= GLAMO_MEM_BASE + GLAMO_OFFSET_FB +
-			  GLAMO_FB_SIZE - 1,
-		.flags	= IORESOURCE_MEM,
-	},
+	}
 };
 
 static struct platform_device glamo_fb_dev = {

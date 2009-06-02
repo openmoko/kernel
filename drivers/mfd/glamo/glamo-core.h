@@ -7,18 +7,19 @@
  * sure we have sufficient memory for other functions of the chip */
 /* FIXME: this should be autodetected */
 #define GLAMO_INTERNAL_RAM_SIZE 0x800000
-/* A 640x480, 16bpp, double-buffered framebuffer */
-#define GLAMO_FB_SIZE (640 * 480 * 4)	/* == 0x12c000 */
 /* Arbitrarily determined amount for the hardware cursor */
 #define GLAMO_CURSOR_SIZE (4096)
 #define GLAMO_MMC_BUFFER_SIZE (64 * 1024) /* 64k MMC buffer */
 #define GLAMO_CMDQ_SIZE (128 * 1024)    /* 128k ring buffer */
 /* Remaining memory will be used for 2D and 3D graphics */
-#define GLAMO_WORK_SIZE (GLAMO_INTERNAL_RAM_SIZE	\
-			 - GLAMO_FB_SIZE 		\
+#define GLAMO_FB_SIZE (GLAMO_INTERNAL_RAM_SIZE	\
 			 - GLAMO_CURSOR_SIZE		\
 			 - GLAMO_MMC_BUFFER_SIZE	\
 			 - GLAMO_CMDQ_SIZE)
+/* A 640x480, 16bpp, double-buffered framebuffer */
+#if (GLAMO_FB_SIZE < (640 * 480 * 4))	/* == 0x12c000 */
+#error Not enough Glamo VRAM for framebuffer!
+#endif
 
 /* for the time being, we put the on-screen framebuffer into the lowest
  * VRAM space.  This should make the code easily compatible with the various
@@ -26,12 +27,10 @@
  * glamo-fb.c assumes FB comes first, followed by cursor, so DON'T MOVE THEM
  * (see glamo_regs[] in glamo-fb.c for more information) */
 #define GLAMO_MEM_BASE 		(0x800000)
-#define GLAMO_OFFSET_VRAM	(0x000000)
-#define GLAMO_OFFSET_FB		(GLAMO_OFFSET_VRAM)
+#define GLAMO_OFFSET_FB		(0x000000)
 #define GLAMO_OFFSET_CURSOR	(GLAMO_OFFSET_FB + GLAMO_FB_SIZE)
 #define GLAMO_OFFSET_MMC	(GLAMO_OFFSET_CURSOR + GLAMO_CURSOR_SIZE)
 #define GLAMO_OFFSET_CMDQ	(GLAMO_OFFSET_MMC + GLAMO_MMC_BUFFER_SIZE)
-#define GLAMO_OFFSET_WORK	(GLAMO_OFFSET_CMDQ + GLAMO_CMDQ_SIZE)
 
 struct glamo_core {
 	int irq;

@@ -29,6 +29,8 @@
 
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/spinlock.h>
+#include <linux/semaphore.h>
 
 #include "glamo-core.h"
 
@@ -56,6 +58,12 @@ struct glamodrm_handle {
 
 	/* Memory management */
 	struct drm_mm *mmgr;
+
+	/* semaphore against concurrent ioctl */
+	struct semaphore add_to_ring;
+
+	spinlock_t new_ring_write_lock;
+	size_t new_ring_write;
 };
 
 /* Private data.  This is where we keep our memory management bits */

@@ -126,9 +126,13 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 {
 	size_t ring_write, ring_read;
 	size_t new_ring_write;
+	unsigned long flags;
 
-	ring_write = reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL);
-	ring_write |= (reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH) << 16);
+	up(&gdrm->add_to_ring);
+
+	spin_lock_irqsave( &gdrm->new_ring_write_lock, flags );
+	ring_write = gdrm->new_ring_write;
+	spin_unlock_irqrestore( &gdrm->new_ring_write_lock, flags );
 
 	/* Calculate where we'll end up */
 	new_ring_write = (ring_write + count) % GLAMO_CMDQ_SIZE;
@@ -142,10 +146,10 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 			ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
 					& 0x7) << 16);
 		} while (ring_read > ring_write && ring_read < new_ring_write);
-    	} else {
+	   	} else {
 		/* Same, but kind of inside-out */
 		do {
-	        	ring_read = reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRL);
+		   	ring_read = reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRL);
 			ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
 					& 0x7) << 16);
 		} while (ring_read > ring_write || ring_read < new_ring_write);
@@ -198,7 +202,10 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 		}
 
 	}
-
+	spin_lock_irqsave( &gdrm->new_ring_write_lock, flags );
+	gdrm->new_ring_write = new_ring_write;
+	spin_unlock_irqrestore( &gdrm->new_ring_write_lock, flags );
+#if 0
 	/* Before changing write position, read has to stop
 	 * (Brought across from xf86-video-glamo)
 	 * TAW: Really?  Is pausing the clock not enough? */
@@ -212,6 +219,8 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 					new_ring_write & 0xffff);
 	glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_2D,
 				GLAMO_CLOCK_2D_EN_M6CLK, 0xffff);
+#endif
+	down(&gdrm->add_to_ring);
 
 	return 0;
 }
@@ -351,6 +360,9 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 {
 	unsigned int i;
 
+	init_MUTEX(&gdrm->add_to_ring);
+	spin_lock_init(&gdrm->new_ring_write_lock);
+
 	/* Enable 2D and 3D */
 	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_2D);
 	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_2D);
@@ -369,6 +381,7 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 	reg_write(gdrm, GLAMO_REG_CMDQ_BASE_ADDRH,
 					(GLAMO_OFFSET_CMDQ >> 16) & 0x7f);
 
+	gdrm->new_ring_write = 0;
 	/* Length of command queue in 1k blocks, minus one */
 	reg_write(gdrm, GLAMO_REG_CMDQ_LEN, (GLAMO_CMDQ_SIZE >> 10)-1);
 	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH, 0);

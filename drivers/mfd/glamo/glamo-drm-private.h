@@ -1,6 +1,7 @@
 /* Smedia Glamo 336x/337x DRM private bits
  *
  * Copyright (C) 2008-2009 Thomas White <taw@bitwiz.org.uk>
+ * Copyright (C) 2009 Andreas Pokorny <andreas.pokorny@gmail.com>
  * Based on xf86-video-glamo
  * Copyright  2007 OpenMoko, Inc.
  * Copyright © 2009 Lars-Peter Clausen <lars@metafoo.de>
@@ -62,6 +63,7 @@ struct glamodrm_handle {
 	/* semaphore against concurrent ioctl */
 	struct semaphore add_to_ring;
 
+	/* spinlock to protect the access to new_ring_write */
 	spinlock_t new_ring_write_lock;
 	size_t new_ring_write;
 };

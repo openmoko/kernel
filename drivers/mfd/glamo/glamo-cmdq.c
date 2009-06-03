@@ -2,6 +2,7 @@
  * SMedia Glamo 336x/337x command queue handling
  *
  * Copyright (C) 2008-2009 Thomas White <taw@bitwiz.org.uk>
+ * Copyright (C) 2009 Andreas Pokorny <andreas.pokorny@gmail.com>
  * Based on xf86-video-glamo (see below for details)
  *
  * All rights reserved.
@@ -49,6 +50,8 @@
  * OF THIS SOFTWARE.
  */
 
+#include <linux/irq.h>
+#include <linux/interrupt.h>
 
 #include <drm/drmP.h>
 #include <drm/glamo_drm.h>
@@ -127,6 +130,7 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 	size_t ring_write, ring_read;
 	size_t new_ring_write;
 	unsigned long flags;
+	uint16_t irq_status;
 
 	up(&gdrm->add_to_ring);
 
@@ -205,6 +209,7 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 	spin_lock_irqsave( &gdrm->new_ring_write_lock, flags );
 	gdrm->new_ring_write = new_ring_write;
 	spin_unlock_irqrestore( &gdrm->new_ring_write_lock, flags );
+
 #if 0
 	/* Before changing write position, read has to stop
 	 * (Brought across from xf86-video-glamo)
@@ -220,10 +225,45 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 	glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_2D,
 				GLAMO_CLOCK_2D_EN_M6CLK, 0xffff);
 #endif
+
+	irq_status = reg_read(gdrm, GLAMO_REG_IRQ_ENABLE );
+	irq_status |= GLAMO_IRQ_CMDQUEUE;
+	reg_write(gdrm, GLAMO_REG_IRQ_ENABLE, irq_status ); 
 	down(&gdrm->add_to_ring);
 
 	return 0;
 }
+
+static void glamo_cmdq_irq(unsigned int irq, struct irq_desc *desc)
+{
+	unsigned long flags;
+	struct glamodrm_handle * gdrm = desc->handler_data;
+	ssize_t new_ring_write;
+
+	printk( KERN_INFO "IRQ.\n");
+	if(!gdrm)
+		return;
+
+	/* ack the interrupt source */
+	/* reg_write(gdrm, GLAMO_REG_IRQ_CLEAR, GLAMO_IRQ_CMDQUEUE); */
+
+	spin_lock_irqsave(&gdrm->new_ring_write_lock, flags);
+	new_ring_write = gdrm->new_ring_write;
+	spin_unlock_irqrestore(&gdrm->new_ring_write_lock, flags);
+
+	/* Note that CLOCK_2D_EN_M6CLK has nothing to do with the 2D engine */
+	glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_2D,
+				GLAMO_CLOCK_2D_EN_M6CLK, 0x0000);
+	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH,
+					(new_ring_write >> 16) & 0x7f);
+	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL,
+					new_ring_write & 0xffff);
+	glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_2D,
+				GLAMO_CLOCK_2D_EN_M6CLK, 0xffff);
+
+	printk( KERN_INFO "Just wrote: %d\n", new_ring_write);
+}
+
 
 
 /* Return true for a legal sequence of commands, otherwise false */
@@ -345,11 +385,6 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 
 	glamo_add_to_ring(gdrm, cmds, count);
 
-	/* Having the CPU wait for the CPU is, to put it mildly,
-	 * less than optimal.
-	 * TODO: Avoid doing this, by some suitable means */
-	glamo_cmdq_wait(gdrm, GLAMO_ENGINE_ALL);
-
 	drm_free(cmds, 1, DRM_MEM_DRIVER);
 
 	return 0;
@@ -381,7 +416,14 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 	reg_write(gdrm, GLAMO_REG_CMDQ_BASE_ADDRH,
 					(GLAMO_OFFSET_CMDQ >> 16) & 0x7f);
 
+
+	/* setup irq */
+	set_irq_handler(IRQ_GLAMO(GLAMO_IRQIDX_CMDQUEUE), glamo_cmdq_irq);
+	set_irq_data(IRQ_GLAMO(GLAMO_IRQIDX_CMDQUEUE), gdrm);
+
+	/* initial write position is 0 */
 	gdrm->new_ring_write = 0;
+
 	/* Length of command queue in 1k blocks, minus one */
 	reg_write(gdrm, GLAMO_REG_CMDQ_LEN, (GLAMO_CMDQ_SIZE >> 10)-1);
 	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH, 0);
@@ -390,7 +432,7 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 	reg_write(gdrm, GLAMO_REG_CMDQ_READ_ADDRL, 0);
 	reg_write(gdrm, GLAMO_REG_CMDQ_CONTROL,
 					 1 << 12 |	/* Turbo flip (?) */
-					 5 << 8 |	/* No interrupt */
+					 4 << 8 |	/* SQ Idle interrupt */
 					 8 << 4);	/* HQ threshold */
 
 	/* Wait for things to settle down */

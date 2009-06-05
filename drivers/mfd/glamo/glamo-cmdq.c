@@ -87,6 +87,15 @@ static void glamo_set_cmdq_irq(struct glamodrm_handle *gdrm)
 	reg_write(gdrm, GLAMO_REG_IRQ_SET, irq_status ); 
 }
 
+static ssize_t glamo_get_read(struct glamodrm_handle *gdrm)
+{
+	ssize_t ring_read = reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRL);
+	ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
+				& 0x7) << 16);
+
+	return ring_read;
+}
+
 
 static void
 glamo_cmdq_wait(struct glamodrm_handle *gdrm, enum glamo_engine engine)
@@ -146,7 +155,7 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 	unsigned long flags;
 
 
-	printk( KERN_INFO "[glamo-drm] glamo add to ring %d bytes\n", count);
+	printk( KERN_INFO "[glamo-drm] glamo add to ring %d bytes, ring_read: %d\n", count, glamo_get_read(gdrm));
 
 	up(&gdrm->add_to_ring);
 
@@ -234,14 +243,14 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 	spin_unlock_irqrestore( &gdrm->new_ring_write_lock, flags );
 
 	/* We try to make the irq happen somehow :( */
-	printk(KERN_INFO "[glamo-drm] enabling...\n");
+	printk(KERN_INFO "[glamo-drm] enabling..., ring_read %d\n", glamo_get_read(gdrm));
 	glamo_enable_cmdq_irq(gdrm);
 	printk(KERN_INFO "[glamo-drm] writing CMDQ_CONTROL ...\n");
 	reg_write(gdrm, GLAMO_REG_CMDQ_CONTROL,
 					 1 << 12 |	/* Turbo flip (?) */
 					 3 << 8 |	/* SQ Idle interrupt */
 					 8 << 4);	/* HQ threshold */
-	printk(KERN_INFO "[glamo-drm] ..expecting irq real soon now\n");
+	printk(KERN_INFO "[glamo-drm] ..expecting irq real soon now, ring_read %d\n", glamo_get_read(gdrm));
 
 
 	down(&gdrm->add_to_ring);
@@ -257,6 +266,7 @@ static void glamo_cmdq_irq(unsigned int irq, struct irq_desc *desc)
 
 	if(!gdrm)
 		return;
+	reg_write(gdrm, GLAMO_REG_IRQ_CLEAR, GLAMO_IRQ_CMDQUEUE);
 
 	spin_lock_irqsave(&gdrm->new_ring_write_lock, flags);
 	new_ring_write = gdrm->new_ring_write;
@@ -272,7 +282,7 @@ static void glamo_cmdq_irq(unsigned int irq, struct irq_desc *desc)
 	glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_2D,
 				GLAMO_CLOCK_2D_EN_M6CLK, 0xffff);
 
-	printk( KERN_INFO "[glamo-drm] Write Pointer: %d\n", new_ring_write);
+	printk( KERN_INFO "[glamo-drm] IRQ:%d Write Pointer: %d, ring_read %d\n", irq, new_ring_write, glamo_get_read(gdrm));
 }
 
 

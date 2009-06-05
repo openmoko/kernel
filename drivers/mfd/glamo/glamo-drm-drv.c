@@ -2,6 +2,7 @@
  *
  * Copyright (C) 2009 Openmoko, Inc. Jorge Luis Zapata <turran@openmoko.com>
  * Copyright (C) 2008-2009 Thomas White <taw@bitwiz.org.uk>
+ * Copyright (C) 2009 Andreas Pokorny <andreas.pokorny@gmail.com>
  *
  * All rights reserved.
  *
@@ -278,6 +279,7 @@ static int glamodrm_remove(struct platform_device *pdev)
 	glamo_engine_disable(glamocore, GLAMO_ENGINE_3D);
 
 	glamo_buffer_final(gdrm);
+	glamo_cmdq_shutdown(gdrm);
 	drm_exit(&glamodrm_drm_driver);
 
 	platform_set_drvdata(pdev, NULL);

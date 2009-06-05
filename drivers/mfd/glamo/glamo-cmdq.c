@@ -75,18 +75,17 @@ static u16 reg_read(struct glamodrm_handle *gdrm, u_int16_t reg)
 
 static void glamo_enable_cmdq_irq(struct glamodrm_handle *gdrm)
 {
-    uint16_t irq_status = reg_read(gdrm, GLAMO_REG_IRQ_ENABLE );
-    irq_status |= GLAMO_IRQ_CMDQUEUE;
-    reg_write(gdrm, GLAMO_REG_IRQ_ENABLE, irq_status ); 
+	uint16_t irq_status = reg_read(gdrm, GLAMO_REG_IRQ_ENABLE );
+	irq_status |= GLAMO_IRQ_CMDQUEUE;
+	reg_write(gdrm, GLAMO_REG_IRQ_ENABLE, irq_status ); 
 }
 
 static void glamo_set_cmdq_irq(struct glamodrm_handle *gdrm)
 {
-    uint16_t irq_status = reg_read(gdrm, GLAMO_REG_IRQ_SET);
-    irq_status |= GLAMO_IRQ_CMDQUEUE;
-    reg_write(gdrm, GLAMO_REG_IRQ_SET, irq_status ); 
+	uint16_t irq_status = reg_read(gdrm, GLAMO_REG_IRQ_SET);
+	irq_status |= GLAMO_IRQ_CMDQUEUE;
+	reg_write(gdrm, GLAMO_REG_IRQ_SET, irq_status ); 
 }
-
 
 
 static void
@@ -245,7 +244,7 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 	printk(KERN_INFO "[glamo-drm] ..expecting irq real soon now\n");
 
 
-    down(&gdrm->add_to_ring);
+	down(&gdrm->add_to_ring);
 
 	return 0;
 }
@@ -258,9 +257,6 @@ static void glamo_cmdq_irq(unsigned int irq, struct irq_desc *desc)
 
 	if(!gdrm)
 		return;
-
-	/* ack the interrupt source */
-	/*reg_write(gdrm, GLAMO_REG_IRQ_CLEAR, GLAMO_IRQ_CMDQUEUE);*/
 
 	spin_lock_irqsave(&gdrm->new_ring_write_lock, flags);
 	new_ring_write = gdrm->new_ring_write;
@@ -277,7 +273,6 @@ static void glamo_cmdq_irq(unsigned int irq, struct irq_desc *desc)
 				GLAMO_CLOCK_2D_EN_M6CLK, 0xffff);
 
 	printk( KERN_INFO "[glamo-drm] Write Pointer: %d\n", new_ring_write);
-	/*glamo_enable_cmdq_irq(gdrm); */
 }
 
 

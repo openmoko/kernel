@@ -1,6 +1,7 @@
 /* Smedia Glamo 336x/337x DRM private bits
  *
  * Copyright (C) 2008-2009 Thomas White <taw@bitwiz.org.uk>
+ * Copyright (C) 2009 Andreas Pokorny <andreas.pokorny@gmail.com>
  * Based on xf86-video-glamo
  * Copyright  2007 OpenMoko, Inc.
  * Copyright © 2009 Lars-Peter Clausen <lars@metafoo.de>
@@ -29,6 +30,7 @@
 
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/semaphore.h>
 
 #include "glamo-core.h"
 
@@ -56,6 +58,9 @@ struct glamodrm_handle {
 
 	/* Memory management */
 	struct drm_mm *mmgr;
+
+	/* semaphore against concurrent ioctl */
+	struct semaphore add_to_ring;
 };
 
 /* Private data.  This is where we keep our memory management bits */

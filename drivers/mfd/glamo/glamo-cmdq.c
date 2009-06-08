@@ -50,9 +50,6 @@
  * OF THIS SOFTWARE.
  */
 
-#include <linux/irq.h>
-#include <linux/interrupt.h>
-
 #include <drm/drmP.h>
 #include <drm/glamo_drm.h>
 
@@ -73,22 +70,9 @@ static u16 reg_read(struct glamodrm_handle *gdrm, u_int16_t reg)
 	return ioread16(gdrm->reg_base + reg);
 }
 
-static void glamo_enable_cmdq_irq(struct glamodrm_handle *gdrm)
-{
-	uint16_t irq_status = reg_read(gdrm, GLAMO_REG_IRQ_ENABLE );
-	irq_status |= GLAMO_IRQ_CMDQUEUE;
-	reg_write(gdrm, GLAMO_REG_IRQ_ENABLE, irq_status ); 
-}
-
-static void glamo_set_cmdq_irq(struct glamodrm_handle *gdrm)
-{
-	uint16_t irq_status = reg_read(gdrm, GLAMO_REG_IRQ_SET);
-	irq_status |= GLAMO_IRQ_CMDQUEUE;
-	reg_write(gdrm, GLAMO_REG_IRQ_SET, irq_status ); 
-}
-
 static ssize_t glamo_get_read(struct glamodrm_handle *gdrm)
 {
+	/* we could turn off clock here */
 	ssize_t ring_read = reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRL);
 	ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
 				& 0x7) << 16);
@@ -96,6 +80,18 @@ static ssize_t glamo_get_read(struct glamodrm_handle *gdrm)
 	return ring_read;
 }
 
+static ssize_t glamo_get_write(struct glamodrm_handle *gdrm)
+{
+	ssize_t ring_write = reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL);
+	ring_write |= ((reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH)
+				& 0x7) << 16);
+
+	return ring_write;
+}
+
+#if 0 
+
+/* hopefully we will never need that again */
 
 static void
 glamo_cmdq_wait(struct glamodrm_handle *gdrm, enum glamo_engine engine)
@@ -144,6 +140,7 @@ glamo_cmdq_wait(struct glamodrm_handle *gdrm, enum glamo_engine engine)
 				 ring_read);
 	}
 }
+#endif
 
 
 /* Add commands to the ring buffer */
@@ -152,16 +149,12 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 {
 	size_t ring_write, ring_read;
 	size_t new_ring_write;
-	unsigned long flags;
-
 
 	printk( KERN_INFO "[glamo-drm] glamo add to ring %d bytes, ring_read: %d\n", count, glamo_get_read(gdrm));
 
 	up(&gdrm->add_to_ring);
 
-	spin_lock_irqsave( &gdrm->new_ring_write_lock, flags );
-	ring_write = gdrm->new_ring_write;
-	spin_unlock_irqrestore( &gdrm->new_ring_write_lock, flags );
+	ring_write = glamo_get_write(gdrm);
 
 	/* Calculate where we'll end up */
 	new_ring_write = (ring_write + count) % GLAMO_CMDQ_SIZE;
@@ -171,16 +164,12 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 		/* Loop while the read pointer is between the old and new
 		 * positions */
 		do {
-			ring_read = reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRL);
-			ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
-					& 0x7) << 16);
+			ring_read = glamo_get_read(gdrm);
 		} while (ring_read > ring_write && ring_read < new_ring_write);
 	   	} else {
 		/* Same, but kind of inside-out */
 		do {
-		   	ring_read = reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRL);
-			ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
-					& 0x7) << 16);
+		   	ring_read = glamo_get_read(gdrm);
 		} while (ring_read > ring_write || ring_read < new_ring_write);
 	}
 
@@ -230,62 +219,23 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 			iowrite16(*(addr+i), gdrm->cmdq_base+ring_write+(i*2));
 		}
 
-		/* this completes the command - if we do not add that
-		 * the commands get executed in a loop */
-		iowrite16(0x0000, gdrm->cmdq_base + new_ring_write);
-		iowrite16(0x0000, gdrm->cmdq_base + new_ring_write + 2);
-		new_ring_write += 4;
-
 	}
 
-	spin_lock_irqsave( &gdrm->new_ring_write_lock, flags );
-	gdrm->new_ring_write = new_ring_write;
-	spin_unlock_irqrestore( &gdrm->new_ring_write_lock, flags );
-
-	/* We try to make the irq happen somehow :( */
-	printk(KERN_INFO "[glamo-drm] enabling..., ring_read %d\n", glamo_get_read(gdrm));
-	glamo_enable_cmdq_irq(gdrm);
-	printk(KERN_INFO "[glamo-drm] writing CMDQ_CONTROL ...\n");
-	reg_write(gdrm, GLAMO_REG_CMDQ_CONTROL,
-					 1 << 12 |	/* Turbo flip (?) */
-					 3 << 8 |	/* SQ Idle interrupt */
-					 8 << 4);	/* HQ threshold */
-	printk(KERN_INFO "[glamo-drm] ..expecting irq real soon now, ring_read %d\n", glamo_get_read(gdrm));
-
+	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH,
+			(new_ring_write >> 16) & 0x7f);
+	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL,
+			new_ring_write & 0xffff);
 
 	down(&gdrm->add_to_ring);
 
+	printk( KERN_INFO "[glamo-drm] IOCTL2 CMDQ at: %d-%d, CMDQ CTRL: %d, CMDQ STATUS: %d\n", 
+			glamo_get_read(gdrm), glamo_get_write(gdrm),
+			reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL), 
+			reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) );
+
+
 	return 0;
 }
-
-static void glamo_cmdq_irq(unsigned int irq, struct irq_desc *desc)
-{
-	unsigned long flags;
-	struct glamodrm_handle * gdrm = desc->handler_data;
-	ssize_t new_ring_write;
-
-	if(!gdrm)
-		return;
-	reg_write(gdrm, GLAMO_REG_IRQ_CLEAR, GLAMO_IRQ_CMDQUEUE);
-
-	spin_lock_irqsave(&gdrm->new_ring_write_lock, flags);
-	new_ring_write = gdrm->new_ring_write;
-	spin_unlock_irqrestore(&gdrm->new_ring_write_lock, flags);
-
-	/* Note that CLOCK_2D_EN_M6CLK has nothing to do with the 2D engine */
-	glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_2D,
-				GLAMO_CLOCK_2D_EN_M6CLK, 0x0000);
-	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH,
-					(new_ring_write >> 16) & 0x7f);
-	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL,
-					new_ring_write & 0xffff);
-	glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_2D,
-				GLAMO_CLOCK_2D_EN_M6CLK, 0xffff);
-
-	printk( KERN_INFO "[glamo-drm] IRQ:%d Write Pointer: %d, ring_read %d\n", irq, new_ring_write, glamo_get_read(gdrm));
-}
-
-
 
 /* Return true for a legal sequence of commands, otherwise false */
 static int glamo_sanitize_buffer(u16 *cmds, unsigned int count)
@@ -388,6 +338,12 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 
 	gdrm = dev->dev_private;
 
+	printk( KERN_INFO "[glamo-drm] IOCTL CMDQ at: %d-%d, CMDQ CTRL: %d, CMDQ STATUS: %d\n", 
+			glamo_get_read(gdrm), glamo_get_write(gdrm),
+			reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL), 
+			reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) );
+
+
 	count = cbuf->bufsz;
 
 	if ( count > PAGE_SIZE ) return -EINVAL;
@@ -432,7 +388,6 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 	unsigned int i;
 
 	init_MUTEX(&gdrm->add_to_ring);
-	spin_lock_init(&gdrm->new_ring_write_lock);
 
 	/* Enable 2D and 3D */
 	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_2D);
@@ -444,7 +399,7 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 	}
 
 	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_CMDQ);
-	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_CMDQ);
+	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_CMDQ); 
 
 	/* Set up command queue location */
 	reg_write(gdrm, GLAMO_REG_CMDQ_BASE_ADDRL,
@@ -452,35 +407,24 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 	reg_write(gdrm, GLAMO_REG_CMDQ_BASE_ADDRH,
 					(GLAMO_OFFSET_CMDQ >> 16) & 0x7f);
 
-
-	/* setup irq */
-	set_irq_handler(IRQ_GLAMO(GLAMO_IRQIDX_CMDQUEUE), glamo_cmdq_irq);
-	set_irq_data(IRQ_GLAMO(GLAMO_IRQIDX_CMDQUEUE), gdrm);
-
-	glamo_enable_cmdq_irq(gdrm);
-
-	/* initial write position is 0 */
-	gdrm->new_ring_write = 0;
-
 	/* Length of command queue in 1k blocks, minus one */
 	reg_write(gdrm, GLAMO_REG_CMDQ_LEN, (GLAMO_CMDQ_SIZE >> 10)-1);
 	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH, 0);
 	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL, 0);
-	reg_write(gdrm, GLAMO_REG_CMDQ_READ_ADDRH, 0);
-	reg_write(gdrm, GLAMO_REG_CMDQ_READ_ADDRL, 0);
 	reg_write(gdrm, GLAMO_REG_CMDQ_CONTROL,
 					 1 << 12 |	/* Turbo flip (?) */
-					 3 << 8 |	/* SQ Idle interrupt */
+					 5 << 8 |	/* no interrupt */
 					 8 << 4);	/* HQ threshold */
 
-	/* Wait for things to settle down */
-	glamo_cmdq_wait(gdrm, GLAMO_ENGINE_ALL);
+	printk( KERN_INFO "[glamo-drm] INIT CMDQ at: %d-%d, CMDQ CTRL: %d, CMDQ STATUS: %d\n", 
+			glamo_get_read(gdrm), glamo_get_write(gdrm),
+			reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL), 
+			reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) );
 
 	return 0;
 }
 
 int glamo_cmdq_shutdown(struct glamodrm_handle *gdrm)
 {
-	set_irq_handler(IRQ_GLAMO(GLAMO_IRQIDX_CMDQUEUE), handle_level_irq);
 	return 0;
 }

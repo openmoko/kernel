@@ -58,31 +58,31 @@
 #include "glamo-regs.h"
 
 
-static void reg_write(struct glamodrm_handle *gdrm,
+static inline void reg_write(struct glamodrm_handle *gdrm,
 		      u_int16_t reg, u_int16_t val)
 {
 	iowrite16(val, gdrm->reg_base + reg);
 }
 
 
-static u16 reg_read(struct glamodrm_handle *gdrm, u_int16_t reg)
+static inline u16 reg_read(struct glamodrm_handle *gdrm, u_int16_t reg)
 {
 	return ioread16(gdrm->reg_base + reg);
 }
 
-static ssize_t glamo_get_read(struct glamodrm_handle *gdrm)
+static u32 glamo_get_read(struct glamodrm_handle *gdrm)
 {
 	/* we could turn off clock here */
-	ssize_t ring_read = reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRL);
+	u32 ring_read = reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRL);
 	ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
 				& 0x7) << 16);
 
 	return ring_read;
 }
 
-static ssize_t glamo_get_write(struct glamodrm_handle *gdrm)
+static u32 glamo_get_write(struct glamodrm_handle *gdrm)
 {
-	ssize_t ring_write = reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL);
+	u32 ring_write = reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL);
 	ring_write |= ((reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH)
 				& 0x7) << 16);
 
@@ -166,31 +166,26 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 		do {
 			ring_read = glamo_get_read(gdrm);
 		} while (ring_read > ring_write && ring_read < new_ring_write);
-	   	} else {
+	} else {
 		/* Same, but kind of inside-out */
 		do {
-		   	ring_read = glamo_get_read(gdrm);
+			ring_read = glamo_get_read(gdrm);
 		} while (ring_read > ring_write || ring_read < new_ring_write);
 	}
 
 	/* Are we about to wrap around? */
 	if (ring_write >= new_ring_write) {
 
-		size_t rest_size;
-		int i;
+		u32 rest_size;
 		printk(KERN_INFO "[glamo-drm] CmdQ wrap-around...\n");
 		/* Wrap around */
 		rest_size = GLAMO_CMDQ_SIZE - ring_write; /* Space left */
 
 		/* Write from current position to end */
-		for ( i=0; i<rest_size; i++ ) {
-			iowrite16(*(addr+i), gdrm->cmdq_base+ring_write+(i*2));
-		}
+		memcpy_toio(gdrm->cmdq_base+ring_write, addr, rest_size);
 
 		/* Write from start */
-		for ( i=0; i<(count-rest_size); i++ ) {
-			iowrite16(*(addr+rest_size+i), gdrm->cmdq_base+(i*2));
-		}
+		memcpy_toio(gdrm->cmdq_base, addr+(rest_size>>1), count - rest_size);
 
 		/* ring_write being 0 will result in a deadlock because the
 		 * cmdq read will never stop. To avoid such an behaviour insert
@@ -203,7 +198,7 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 
 		/* Suppose we just filled the WHOLE ring buffer, and so the
 		 * write position ends up in the same place as it started.
-		 * No change in pointer means no activity from the command
+		 * No change in poginter means no activity from the command
 		 * queue engine.  So, insert a no-op */
 		if (ring_write == new_ring_write) {
 			iowrite16(0x0000, gdrm->cmdq_base + new_ring_write);
@@ -213,11 +208,7 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 
 	} else {
 
-		int i;
-		/* The easy case */
-		for ( i=0; i<count/2; i++ ) { /* Number of words */
-			iowrite16(*(addr+i), gdrm->cmdq_base+ring_write+(i*2));
-		}
+		memcpy_toio(gdrm->cmdq_base+ring_write, addr,count);
 
 	}
 
@@ -251,16 +242,16 @@ static int glamo_do_relocation(struct glamodrm_handle *gdrm,
 			       struct drm_device *dev,
 			       struct drm_file *file_priv)
 {
-	uint32_t *handles;
+	u32 *handles;
 	int *offsets;
 	int nobjs =  cbuf->nobjs;
 	int i;
 
 	if ( nobjs > 32 ) return -EINVAL;	/* Get real... */
 
-	handles = drm_alloc(nobjs*sizeof(uint32_t), DRM_MEM_DRIVER);
+	handles = drm_alloc(nobjs*sizeof(u32), DRM_MEM_DRIVER);
 	if ( handles == NULL ) return -1;
-	if ( copy_from_user(handles, cbuf->objs, nobjs*sizeof(uint32_t)) )
+	if ( copy_from_user(handles, cbuf->objs, nobjs*sizeof(u32)) )
 		return -1;
 
 	offsets = drm_alloc(nobjs*sizeof(int), DRM_MEM_DRIVER);
@@ -270,7 +261,7 @@ static int glamo_do_relocation(struct glamodrm_handle *gdrm,
 
 	for ( i=0; i<nobjs; i++ ) {
 
-		uint32_t handle = handles[i];
+		u32 handle = handles[i];
 		int offset = offsets[i];
 		struct drm_gem_object *obj;
 		struct drm_glamo_gem_object *gobj;

@@ -3,6 +3,8 @@
  *
  * Copyright (C) 2008-2009 Thomas White <taw@bitwiz.org.uk>
  *
+ * Based on glamo-fb.c (C) 2007-2008 by Openmoko, Inc.
+ * Author: Harald Welte <laforge@openmoko.org>
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -61,8 +63,48 @@
 #include "glamo-regs.h"
 
 
+static void notify_blank(struct drm_crtc *crtc, int mode)
+{
+	struct fb_event event;
+
+	event.info = info;
+	event.data = &blank_mode;
+	fb_notifier_call_chain(FB_EVENT_CONBLANK, &event);
+}
+
+
+/* Power on/off */
 static void glamo_crtc_dpms(struct drm_crtc *crtc, int mode)
 {
+	dev_dbg(gfb->dev, "glamofb_blank(%u)\n", blank_mode);
+
+	switch (mode) {
+	case DRM_MODE_DPMS_OFF:
+		/* Simulating FB_BLANK_NORMAL allow turning off backlight */
+		if (gfb->blank_mode != FB_BLANK_NORMAL)
+			notify_blank(info, FB_BLANK_NORMAL);
+
+		/* LCM need notification before pixel clock is stopped */
+		notify_blank(crtc, blank_mode);
+
+		/* disable the pixel clock */
+		glamo_engine_clkreg_set(gcore, GLAMO_ENGINE_LCD,
+					GLAMO_CLOCK_LCD_EN_DCLK, 0);
+		gfb->blank_mode = blank_mode;
+		break;
+	case DRM_MODE_DPMS_ON:
+		/* enable the pixel clock if off */
+		if (gfb->blank_mode == DRM_MODE_DPMS_OFF)
+			glamo_engine_clkreg_set(gcore,
+					GLAMO_ENGINE_LCD,
+					GLAMO_CLOCK_LCD_EN_DCLK,
+					GLAMO_CLOCK_LCD_EN_DCLK);
+
+		notify_blank(info, blank_mode);
+		gfb->blank_mode = blank_mode;
+		break;
+	}
+
 }
 
 
@@ -84,8 +126,8 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
 
 
 
-static void glamo_pipe_set_base(struct drm_crtc *crtc, int x, int y,
-                                struct drm_framebuffer *old_fb)
+static void glamo_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
+                                     struct drm_framebuffer *old_fb)
 {
 }
 
@@ -222,6 +264,95 @@ static void glamo_encoder_destroy(struct drm_encoder *encoder)
 }
 
 
+static void glamo_user_framebuffer_destroy(struct drm_framebuffer *fb)
+{
+	struct glamo_framebuffer *glamo_fb = to_glamo_framebuffer(fb);
+	struct drm_device *dev = fb->dev;
+
+	drm_framebuffer_cleanup(fb);
+	mutex_lock(&dev->struct_mutex);
+	drm_gem_object_unreference(glamo_fb->obj);
+	mutex_unlock(&dev->struct_mutex);
+
+	kfree(glamo_fb);
+}
+
+static int glamo_user_framebuffer_create_handle(struct drm_framebuffer *fb,
+						struct drm_file *file_priv,
+						unsigned int *handle)
+{
+	struct glamo_framebuffer *glamo_fb = to_glamo_framebuffer(fb);
+	struct drm_gem_object *object = glamo_fb->obj;
+
+	return drm_gem_handle_create(file_priv, object, handle);
+}
+
+
+
+static const struct drm_framebuffer_funcs glamo_fb_funcs = {
+	.destroy = glamo_user_framebuffer_destroy,
+	.create_handle = glamo_user_framebuffer_create_handle,
+};
+
+
+int glamo_framebuffer_create(struct drm_device *dev,
+			     struct drm_mode_fb_cmd *mode_cmd,
+			     struct drm_framebuffer **fb,
+			     struct drm_gem_object *obj)
+{
+	struct glamo_framebuffer *glamo_fb;
+	int ret;
+
+	glamo_fb = kzalloc(sizeof(*glamo_fb), GFP_KERNEL);
+	if (!glamo_fb)
+		return -ENOMEM;
+
+	ret = drm_framebuffer_init(dev, &glamo_fb->base, &glamo_fb_funcs);
+	if (ret) {
+		DRM_ERROR("framebuffer init failed %d\n", ret);
+		return ret;
+	}
+
+	drm_helper_mode_fill_fb_struct(&glamo_fb->base, mode_cmd);
+
+	glamo_fb->obj = obj;
+
+	*fb = &glamo_fb->base;
+
+	return 0;
+}
+
+
+static struct drm_framebuffer *
+glamo_user_framebuffer_create(struct drm_device *dev,
+			      struct drm_file *filp,
+			      struct drm_mode_fb_cmd *mode_cmd)
+{
+	struct drm_gem_object *obj;
+	struct drm_framebuffer *fb;
+	int ret;
+
+	obj = drm_gem_object_lookup(dev, filp, mode_cmd->handle);
+	if (!obj)
+		return NULL;
+
+	ret = glamo_framebuffer_create(dev, mode_cmd, &fb, obj);
+	if (ret) {
+		drm_gem_object_unreference(obj);
+		return NULL;
+	}
+
+	return fb;
+}
+
+
+int glamo_fb_changed(struct drm_device *dev)
+{
+	return 0;
+}
+
+
+
 /* CRTC functions */
 static const struct drm_crtc_funcs glamo_crtc_funcs = {
 	.cursor_set = glamo_crtc_cursor_set,
@@ -237,7 +368,7 @@ static const struct drm_crtc_helper_funcs glamo_crtc_helper_funcs = {
 	.dpms = glamo_crtc_dpms,
 	.mode_fixup = glamo_crtc_mode_fixup,
 	.mode_set = glamo_crtc_mode_set,
-	.mode_set_base = glamo_pipe_set_base,
+	.mode_set_base = glamo_crtc_mode_set_base,
 	.prepare = glamo_crtc_prepare,
 	.commit = glamo_crtc_commit,
 };
@@ -276,6 +407,13 @@ static const struct drm_encoder_helper_funcs glamo_encoder_helper_funcs = {
 };
 
 
+/* Mode functions */
+static const struct drm_mode_config_funcs glamo_mode_funcs = {
+	.fb_create = glamo_user_framebuffer_create,
+	.fb_changed = glamofb_fbchanged
+};
+
+
 int glamo_display_init(struct drm_device *dev)
 {
 	struct glamodrm_handle *gdrm;
@@ -284,6 +422,13 @@ int glamo_display_init(struct drm_device *dev)
 	struct drm_connector *connector;
 
 	gdrm = dev->dev_private;
+
+	drm_mode_config_init(dev);
+
+	dev->mode_config.min_width = 0;
+	dev->mode_config.min_height = 0;
+
+	dev->mode_config.funcs = (void *)&glamo_mode_funcs;
 
 	/* Initialise our CRTC object */
 	glamo_crtc = kzalloc(sizeof(struct glamo_crtc)

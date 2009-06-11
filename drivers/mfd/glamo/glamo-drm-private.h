@@ -61,6 +61,9 @@ struct glamodrm_handle {
 
 	/* semaphore against concurrent ioctl */
 	struct semaphore add_to_ring;
+
+	/* Front buffer kludge */
+	uint32_t front_buffer_handle;
 };
 
 /* Private data.  This is where we keep our memory management bits */

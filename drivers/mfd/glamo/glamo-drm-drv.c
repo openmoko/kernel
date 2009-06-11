@@ -49,14 +49,6 @@ static int glamo_ioctl_swap(struct drm_device *dev, void *data,
 }
 
 
-static int glamo_ioctl_gem_info(struct drm_device *dev, void *data,
-				struct drm_file *file_priv)
-{
-	printk(KERN_INFO "glamo_ioctl_gem_info\n");
-	return 0;
-}
-
-
 static int glamo_ioctl_gem_wait_rendering(struct drm_device *dev, void *data,
 					  struct drm_file *file_priv)
 {

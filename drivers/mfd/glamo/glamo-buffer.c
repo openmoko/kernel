@@ -27,6 +27,54 @@
 #include "glamo-drm-private.h"
 
 
+int glamo_ioctl_gem_info(struct drm_device *dev, void *data,
+				struct drm_file *file_priv)
+{
+	struct drm_glamo_gem_info *args = data;
+	struct glamodrm_handle *gdrm;
+	int ret;
+
+	gdrm = dev->dev_private;
+
+	/* Have we decided on a name for the front buffer yet? */
+	if ( gdrm->front_buffer_handle ) {
+		args->front_buffer_handle = gdrm->front_buffer_handle;
+	} else {
+
+		/* "Baptise" the front buffer */
+		struct drm_gem_object *obj;
+		struct drm_glamo_gem_object *gobj;
+		uint32_t handle;
+
+		/* We don't really care about this object - it's only being
+		 * created so we can generate a handle to refer to the front
+		 * buffer which X can use for the screen pixmap. */
+		obj = drm_gem_object_alloc(dev, PAGE_SIZE);
+		if (obj == NULL) return -ENOMEM;
+
+		gobj = obj->driver_private;
+
+		ret = drm_gem_handle_create(file_priv, obj, &handle);
+		mutex_lock(&dev->struct_mutex);
+		drm_gem_object_handle_unreference(obj);
+		mutex_unlock(&dev->struct_mutex);
+		if (ret) return ret;
+
+		/* The handle is specific to this context */
+		printk(KERN_INFO "[glamo-drm] Front buffer handle: %i\n",
+		                 handle);
+
+		args->front_buffer_handle = handle;
+		gdrm->front_buffer_handle = handle;
+
+	}
+
+	args->vram_size = gdrm->vram_size;
+
+	return 0;
+}
+
+
 int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
 			   struct drm_file *file_priv)
 {
@@ -34,7 +82,7 @@ int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
 	struct drm_gem_object *obj;
 	struct glamodrm_handle *gdrm;
 	struct drm_glamo_gem_object *gobj;
-	int handle, ret;
+	uint32_t handle, ret;
 
 	gdrm = dev->dev_private;
 
@@ -185,6 +233,7 @@ int glamo_buffer_init(struct glamodrm_handle *gdrm)
 {
 	gdrm->mmgr = drm_calloc(1, sizeof(struct drm_mm), DRM_MEM_DRIVER);
 	drm_mm_init(gdrm->mmgr, 0, gdrm->vram_size);
+	gdrm->front_buffer_handle = 0;
 	return 0;
 }
 

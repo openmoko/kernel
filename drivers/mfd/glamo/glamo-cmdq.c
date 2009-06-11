@@ -243,6 +243,7 @@ static int glamo_do_relocation(struct glamodrm_handle *gdrm,
 			       struct drm_file *file_priv)
 {
 	u32 *handles;
+	u32 front_handle;
 	int *offsets;
 	int nobjs =  cbuf->nobjs;
 	int i;
@@ -258,6 +259,8 @@ static int glamo_do_relocation(struct glamodrm_handle *gdrm,
 	if ( offsets == NULL ) return -1;
 	if ( copy_from_user(offsets, cbuf->obj_pos, nobjs*sizeof(int)) )
 		return -1;
+
+	front_handle = gdrm->front_buffer_handle;
 
 	for ( i=0; i<nobjs; i++ ) {
 
@@ -277,22 +280,29 @@ static int glamo_do_relocation(struct glamodrm_handle *gdrm,
 			goto fail;
 		}
 
-		obj = drm_gem_object_lookup(dev, file_priv, handle);
-		if ( obj == NULL ) return -1;
+		if ( handle == front_handle ) {
 
-		/* Unref the object now, or it'll never get freed.
-		 * This should really happen after the GPU has finished
-		 * the commands which are about to be submitted. */
-		drm_gem_object_unreference(obj);
+			addr = GLAMO_OFFSET_FRAMEBUFFER;
 
-		gobj = obj->driver_private;
-		if ( gobj == NULL ) {
-			printk(KERN_WARNING "[glamo-drm] This object has no "
-					    "private data!\n");
-			goto fail;
+		} else {
+			obj = drm_gem_object_lookup(dev, file_priv, handle);
+			if ( obj == NULL ) return -1;
+
+			/* Unref the object now, or it'll never get freed.
+			 * This should really happen after the GPU has finished
+			 * the commands which are about to be submitted. */
+			drm_gem_object_unreference(obj);
+
+			gobj = obj->driver_private;
+			if ( gobj == NULL ) {
+				printk(KERN_WARNING "[glamo-drm] This object "
+				                    "has no private data!\n");
+				goto fail;
+			}
+
+			addr = GLAMO_OFFSET_WORK + gobj->block->start;
 		}
 
-		addr = GLAMO_OFFSET_WORK + gobj->block->start;
 		addr_low = addr & 0xffff;
 		addr_high = (addr >> 16) & 0x7f;
 		printk(KERN_INFO "Addr low 0x%x, high 0x%x\n",

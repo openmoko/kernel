@@ -452,10 +452,29 @@ int drm_get_platform_dev(struct platform_device *pdev,
 		printk(KERN_ERR "DRM: Fill_in_dev failed.\n");
 		goto err_g1;
 	}
-
 	dev->platform_dev = pdev;
+
+	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+		ret = drm_get_minor(dev, &dev->control, DRM_MINOR_CONTROL);
+		if (ret)
+			goto err_g2;
+	}
+
 	if ((ret = drm_get_minor(dev, &dev->primary, DRM_MINOR_LEGACY)))
-		goto err_g1;
+		goto err_g3;
+
+	if (dev->driver->load) {
+		ret = dev->driver->load(dev, 0);
+		if (ret)
+			goto err_g3;
+	}
+
+        /* setup the grouping for the legacy output */
+	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+		ret = drm_mode_group_init_legacy_group(dev, &dev->primary->mode_group);
+		if (ret)
+			goto err_g3;
+	}
 
 	list_add_tail(&dev->driver_item, &driver->device_list);
 
@@ -465,6 +484,9 @@ int drm_get_platform_dev(struct platform_device *pdev,
 
 	return 0;
 
+err_g3:
+	drm_put_minor(&dev->primary);
+err_g2:
 err_g1:
 	drm_free(dev, sizeof(*dev), DRM_MEM_STUB);
 	return ret;

@@ -61,6 +61,9 @@ config MFD_GLAMO_MCI
 config MFD_GLAMO_DRM
 	tristate "Glamo direct rendering and kernel modesetting support"
 	depends on MFD_GLAMO && DRM
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
 	help
 	  Direct Rendering Manager interface for the S-Media Glamo chip, as
 	  used in Openmoko FreeRunner (GTA02).

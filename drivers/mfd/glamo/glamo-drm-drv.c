@@ -1,4 +1,4 @@
-/* Smedia Glamo 336x/337x driver
+/* Smedia Glamo 336x/337x Graphics Driver
  *
  * Copyright (C) 2009 Openmoko, Inc. Jorge Luis Zapata <turran@openmoko.com>
  * Copyright (C) 2008-2009 Thomas White <taw@bitwiz.org.uk>
@@ -36,7 +36,7 @@
 #define DRIVER_AUTHOR           "Openmoko, Inc."
 #define DRIVER_NAME             "glamo-drm"
 #define DRIVER_DESC             "SMedia Glamo 3362"
-#define DRIVER_DATE             "20090426"
+#define DRIVER_DATE             "20090614"
 
 #define RESSIZE(ressource) (((ressource)->end - (ressource)->start)+1)
 
@@ -130,7 +130,6 @@ static void glamodrm_master_destroy(struct drm_device *dev,
 static int glamodrm_load(struct drm_device *dev, unsigned long flags)
 {
 	struct glamodrm_handle *gdrm;
-
 	gdrm = dev->dev_private;
 
 	glamo_buffer_init(gdrm);
@@ -200,7 +199,7 @@ static int glamodrm_probe(struct platform_device *pdev)
 	int rc;
 	struct glamodrm_handle *gdrm;
 
-	printk(KERN_INFO "[glamo-drm] SMedia Glamo Direct Rendering Support\n");
+	printk(KERN_CRIT "[glamo-drm] SMedia Glamo Direct Rendering Support\n");
 
 	gdrm = kmalloc(sizeof(*gdrm), GFP_KERNEL);
 	if ( !gdrm )
@@ -271,15 +270,41 @@ static int glamodrm_probe(struct platform_device *pdev)
 		goto out_release_vram;
 	}
 
+	/* Find the LCD controller */
+	gdrm->lcd_regs = platform_get_resource(pdev, IORESOURCE_MEM, 3);
+	if ( !gdrm->lcd_regs ) {
+		dev_err(&pdev->dev, "Unable to find LCD registers.\n");
+		rc = -ENOENT;
+		goto out_unmap_cmdq;
+	}
+	gdrm->lcd_regs = request_mem_region(gdrm->lcd_regs->start,
+	                                    RESSIZE(gdrm->lcd_regs),
+	                                    pdev->name);
+	if ( !gdrm->lcd_regs ) {
+		dev_err(&pdev->dev, "failed to request VRAM region\n");
+		rc = -ENOENT;
+		goto out_release_lcd;
+	}
+	gdrm->lcd_base = ioremap(gdrm->lcd_regs->start, RESSIZE(gdrm->lcd_regs));
+	if ( !gdrm->lcd_base ) {
+		dev_err(&pdev->dev, "failed to ioremap() VRAM\n");
+		rc = -ENOENT;
+		goto out_release_lcd;
+	}
+
 	gdrm->vram_size = GLAMO_FB_SIZE;
 	printk(KERN_INFO "[glamo-drm] %lli bytes of VRAM\n",
-					(long long int)gdrm->vram_size);
+	                 (long long int)gdrm->vram_size);
 
 	/* Initialise DRM */
 	drm_platform_init(&glamodrm_drm_driver, pdev, (void *)gdrm);
 
 	return 0;
 
+out_release_lcd:
+	release_mem_region(gdrm->lcd_regs->start, RESSIZE(gdrm->lcd_regs));
+out_unmap_cmdq:
+	iounmap(gdrm->cmdq_base);
 out_release_cmdq:
 	release_mem_region(gdrm->cmdq->start, RESSIZE(gdrm->cmdq));
 out_unmap_vram:
@@ -344,7 +369,7 @@ static struct platform_driver glamodrm_driver = {
 	.suspend	= glamodrm_suspend,
 	.resume		= glamodrm_resume,
 	.driver         = {
-		.name   = "glamo-cmdq",
+		.name   = "glamo-graphics",
 		.owner  = THIS_MODULE,
 	},
 };

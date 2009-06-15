@@ -1,7 +1,10 @@
-/* Smedia Glamo 336x/337x Display
+/*
+ * SMedia Glamo 336x/337x KMS framebuffer
  *
- * Copyright (c) 2008-2009 Thomas White <taw@bitwiz.org.uk>
+ * Copyright (C) 2009 Thomas White <taw@bitwiz.org.uk>
  *
+ * Based on glamo-fb.c (C) 2007-2008 by Openmoko, Inc.
+ * Author: Harald Welte <laforge@openmoko.org>
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -18,18 +21,17 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
  * MA 02111-1307 USA
+ *
  */
 
-#ifndef __GLAMO_DISPLAY_H
-#define __GLAMO_DISPLAY_H
+#ifndef __GLAMO_KMS_FB_H
+#define __GLAMO_KMS_FB_H
 
 #include <drm/drmP.h>
 
-extern int glamo_display_init(struct drm_device *dev);
+extern int glamofb_create(struct drm_device *dev, uint32_t fb_width,
+                          uint32_t fb_height, uint32_t surface_width,
+                          uint32_t surface_height,
+                          struct glamo_framebuffer **glamo_fb_p);
 
-extern int glamo_framebuffer_create(struct drm_device *dev,
-                                    struct drm_mode_fb_cmd *mode_cmd,
-                                    struct drm_framebuffer **fb,
-                                    struct drm_gem_object *obj);
-			     
-#endif /* __GLAMO_DISPLAY_H */
+#endif /* __GLAMO_KMS_FB_H */

@@ -52,6 +52,10 @@ struct glamodrm_handle {
 	struct resource *cmdq;
 	char __iomem *cmdq_base;
 
+	/* LCD controller registers */
+	struct resource *lcd_regs;
+	char __iomem *lcd_base;
+
 	ssize_t vram_size;
 
 	/* Memory management */
@@ -68,6 +72,10 @@ struct drm_glamo_gem_object {
 
 struct glamo_crtc {
 	struct drm_crtc base;
+	struct glamodrm_handle *gdrm;
+	/* a mode_set for fbdev users on this crtc */
+	struct drm_mode_set mode_set;
+	int blank_mode;
 };
 
 

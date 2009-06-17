@@ -263,12 +263,12 @@ static int glamodrm_probe(struct platform_device *pdev)
 		rc = -ENOENT;
 		goto out_unmap_regs;
 	}
-	gdrm->vram_base = ioremap(gdrm->vram->start, RESSIZE(gdrm->vram));
-	if ( !gdrm->vram_base ) {
-		dev_err(&pdev->dev, "failed to ioremap() VRAM\n");
-		rc = -ENOENT;
-		goto out_release_vram;
-	}
+//	gdrm->vram_base = ioremap(gdrm->vram->start, RESSIZE(gdrm->vram));
+//	if ( !gdrm->vram_base ) {
+//		dev_err(&pdev->dev, "failed to ioremap() VRAM\n");
+//		rc = -ENOENT;
+//		goto out_release_vram;
+//	}
 
 	/* Find the LCD controller */
 	gdrm->lcd_regs = platform_get_resource(pdev, IORESOURCE_MEM, 3);
@@ -308,7 +308,7 @@ out_unmap_cmdq:
 out_release_cmdq:
 	release_mem_region(gdrm->cmdq->start, RESSIZE(gdrm->cmdq));
 out_unmap_vram:
-	iounmap(gdrm->vram_base);
+//	iounmap(gdrm->vram_base);
 out_release_vram:
 	release_mem_region(gdrm->vram->start, RESSIZE(gdrm->vram));
 out_unmap_regs:
@@ -335,7 +335,7 @@ static int glamodrm_remove(struct platform_device *pdev)
 	release_mem_region(gdrm->reg->start, RESSIZE(gdrm->reg));
 
 	/* Release VRAM */
-	iounmap(gdrm->vram_base);
+//	iounmap(gdrm->vram_base);
 	release_mem_region(gdrm->vram->start, RESSIZE(gdrm->vram));
 
 	/* Release command queue  */

@@ -36,6 +36,9 @@ extern int glamodrm_gem_init_object(struct drm_gem_object *obj);
 
 extern void glamodrm_gem_free_object(struct drm_gem_object *obj);
 
+extern struct drm_gem_object *glamo_gem_object_alloc(struct drm_device *dev,
+                                                     int size, int alignment);
+
 extern int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
 				  struct drm_file *file_priv);
 

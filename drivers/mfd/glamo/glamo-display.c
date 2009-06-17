@@ -531,6 +531,30 @@ static const struct drm_mode_config_funcs glamo_mode_funcs = {
 };
 
 
+static struct drm_mode_set kernelfb_mode;
+
+
+/* Restore's the kernel's fbcon mode, used for panic path */
+void glamo_display_restore(void)
+{
+	drm_crtc_helper_set_config(&kernelfb_mode);
+}
+
+
+static int glamo_display_panic(struct notifier_block *n, unsigned long ununsed,
+                               void *panic_str)
+{
+	DRM_ERROR("panic occurred, switching back to text console\n");
+
+	glamo_display_restore();
+	return 0;
+}
+
+static struct notifier_block paniced = {
+	.notifier_call = glamo_display_panic,
+};
+
+
 int glamo_display_init(struct drm_device *dev)
 {
 	struct glamodrm_handle *gdrm;
@@ -538,6 +562,9 @@ int glamo_display_init(struct drm_device *dev)
 	struct glamo_output *glamo_output;
 	struct drm_connector *connector;
 	struct glamo_framebuffer *glamo_fb;
+	struct fb_info *info;
+	struct glamofb_par *par;
+	struct drm_mode_set *modeset;
 
 	gdrm = dev->dev_private;
 
@@ -550,7 +577,8 @@ int glamo_display_init(struct drm_device *dev)
 
 	dev->mode_config.funcs = (void *)&glamo_mode_funcs;
 
-	/* Initialise our CRTC object */
+	/* Initialise our CRTC object.
+	 * Only one connector per CRTC.  We know this: it's kind of soldered. */
 	glamo_crtc = kzalloc(sizeof(struct glamo_crtc)
 	                   + sizeof(struct drm_connector *), GFP_KERNEL);
 	if (glamo_crtc == NULL) return 1;
@@ -565,7 +593,7 @@ int glamo_display_init(struct drm_device *dev)
 	connector = &glamo_output->base;
 
 	/* Initialise the connector */
-	drm_connector_init(dev, &glamo_output->base, &glamo_connector_funcs,
+	drm_connector_init(dev, connector, &glamo_connector_funcs,
 	                   DRM_MODE_CONNECTOR_Unknown);
 	drm_sysfs_connector_add(connector);
 	connector->interlace_allowed = 0;
@@ -591,5 +619,32 @@ int glamo_display_init(struct drm_device *dev)
 		ret = glamofb_create(dev, 480, 640, 480, 640, &glamo_fb);
 		if (ret) return -EINVAL;
 	}
+	
+	info = glamo_fb->base.fbdev;
+	par = info->par;
+
+	modeset = &glamo_crtc->mode_set;
+	modeset->fb = &glamo_fb->base;
+//	modeset->connectors[0] = connector;
+	
+	//par->crtc_ids[0] = glamo_crtc->base.id;
+
+	modeset->num_connectors = 1;
+//	modeset->mode = modeset->crtc->desired_mode;
+
+	par->crtc_count = 1;
+
+	info->var.pixclock = -1;
+	if (register_framebuffer(info) < 0)
+		return -EINVAL;
+
+	printk(KERN_INFO "fb%d: %s frame buffer device\n", info->node,
+	       info->fix.id);
+
+	/* Switch back to kernel console on panic */
+	kernelfb_mode = *modeset;
+	atomic_notifier_chain_register(&panic_notifier_list, &paniced);
+	printk(KERN_INFO "registered panic notifier\n");
+
 	return 0;
 }

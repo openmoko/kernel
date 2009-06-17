@@ -62,6 +62,7 @@
 #include "glamo-drm-private.h"
 #include "glamo-regs.h"
 #include "glamo-display.h"
+#include "glamo-buffer.h"
 
 
 struct glamofb_par {
@@ -83,19 +84,6 @@ static int reg_read(struct glamodrm_handle *gdrm, u_int16_t reg)
 
 	return ioread16(gdrm->lcd_base + reg);
 }
-
-
-static void reg_write(struct glamodrm_handle *gdrm,
-                      u_int16_t reg, u_int16_t val)
-{
-	int i = 0;
-
-	for (i = 0; i != 2; i++)
-		nop();
-
-	iowrite16(val, gdrm->lcd_base + reg);
-}
-
 
 
 static int glamofb_setcolreg(unsigned regno, unsigned red, unsigned green,
@@ -374,6 +362,9 @@ static struct fb_ops glamofb_ops = {
 };
 
 
+#define RESSIZE(ressource) (((ressource)->end - (ressource)->start)+1)
+
+
 /* Here, we create a GEM object of the correct size, and then turn it into
  * /dev/fbX so that the kernel can put a console on it. */
 int glamofb_create(struct drm_device *dev, uint32_t fb_width,
@@ -392,8 +383,6 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	struct glamodrm_handle *gdrm;
 	int size, ret;
 	
-	printk(KERN_ERR "1\n");
-
 	gdrm = dev->dev_private;
 	
 	mode_cmd.width = surface_width;
@@ -403,43 +392,35 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	mode_cmd.pitch = ALIGN(mode_cmd.width * ((mode_cmd.bpp + 1) / 8), 64);
 	mode_cmd.depth = 16;
 
-	printk(KERN_ERR "2\n");
 	size = mode_cmd.pitch * mode_cmd.height;
 	size = ALIGN(size, PAGE_SIZE);
-	fbo = drm_gem_object_alloc(dev, size);
-	printk(KERN_ERR "3\n");
+	fbo = glamo_gem_object_alloc(dev, size, 2);
 	if (!fbo) {
 		printk(KERN_ERR "failed to allocate framebuffer\n");
 		ret = -ENOMEM;
 		goto out;
 	}
 	obj_priv = fbo->driver_private;
-	printk(KERN_ERR "4\n");
-
+	
 	mutex_lock(&dev->struct_mutex);
 
 	ret = glamo_framebuffer_create(dev, &mode_cmd, &fb, fbo);
-	printk(KERN_ERR "5\n");
 	if (ret) {
 		DRM_ERROR("failed to allocate fb.\n");
 		goto out_unref;
 	}
-	printk(KERN_ERR "6\n");
-
+	
 	list_add(&fb->filp_head, &dev->mode_config.fb_kernel_list);
 
 	glamo_fb = to_glamo_framebuffer(fb);
 	*glamo_fb_p = glamo_fb;
 
-	printk(KERN_ERR "7\n");
 	info = framebuffer_alloc(sizeof(struct glamofb_par), device);
-	printk(KERN_ERR "8\n");
 	if (!info) {
 		ret = -ENOMEM;
 		goto out_unref;
 	}
-	printk(KERN_ERR "9\n");
-
+	
 	par = info->par;
 
 	strcpy(info->fix.id, "glamodrmfb");
@@ -451,7 +432,6 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	info->fix.ywrapstep = 0;
 	info->fix.accel = FB_ACCEL_I830;
 	info->fix.type_aux = 0;
-	printk(KERN_ERR "10\n");
 	info->flags = FBINFO_DEFAULT;
 
 	info->fbops = &glamofb_ops;
@@ -463,7 +443,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 
 	info->flags = FBINFO_DEFAULT;
 
-	info->screen_base = ioremap_wc(gdrm->vram->start, size);
+	info->screen_base = ioremap(gdrm->vram->start, RESSIZE(gdrm->vram));
 	if (!info->screen_base) {
 		printk(KERN_ERR "[glamo-drm] Couldn't map framebuffer!\n");
 		ret = -ENOSPC;
@@ -480,7 +460,6 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	info->var.activate = FB_ACTIVATE_NOW;
 	info->var.height = -1;
 	info->var.width = -1;
-	printk(KERN_ERR "11\n");
 	info->var.xres = fb_width;
 	info->var.yres = fb_height;
 
@@ -495,7 +474,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 
 	switch (fb->depth) {
 	case 16:
-		switch (reg_read(gdrm, GLAMO_REG_LCD_MODE3) & 0xc000) {
+		switch (reg_read(gdrm, GLAMO_REG_LCD_MODE3) & 0xc000) {	/* FIXME */
 		case GLAMO_LCD_SRC_RGB565:
 			info->var.red.offset	= 11;
 			info->var.green.offset	= 5;
@@ -537,25 +516,19 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	}
 
 	fb->fbdev = info;
-printk(KERN_ERR "12\n");
 	par->glamo_fb = glamo_fb;
 	par->dev = dev;
 
 	/* To allow resizeing without swapping buffers */
 	printk("allocated %dx%d fb: bo %p\n", glamo_fb->base.width,
 	       glamo_fb->base.height, fbo);
-printk(KERN_ERR "13\n");
 	mutex_unlock(&dev->struct_mutex);
 	return 0;
 
 out_unref:
-	printk(KERN_ERR "14\n");
 	drm_gem_object_unreference(fbo);
-	printk(KERN_ERR "15\n");
 	mutex_unlock(&dev->struct_mutex);
-	printk(KERN_ERR "16\n");
 out:
-	printk(KERN_ERR "7\n");
 	return ret;
 }
 

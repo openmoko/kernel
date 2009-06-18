@@ -75,8 +75,8 @@ typedef struct drm_glamo_cmd_buffer {
 } drm_glamo_cmd_buffer_t;
 
 struct drm_glamo_gem_info {
+	uint64_t vram_start;
 	uint64_t vram_size;
-	uint32_t front_buffer_handle;
 };
 
 struct drm_glamo_gem_create {

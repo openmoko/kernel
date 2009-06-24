@@ -41,6 +41,7 @@ struct drm_gem_object *glamo_gem_object_alloc(struct drm_device *dev, int size,
 	obj = drm_gem_object_alloc(dev, size);
 	if (obj == NULL) return NULL;
 
+	/* See glamodrm_gem_init_object() below */
 	gobj = obj->driver_private;
 
 	/* Allocate memory for this object in VRAM */

@@ -388,7 +388,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	mode_cmd.width = surface_width;
 	mode_cmd.height = surface_height;
 
-	mode_cmd.bpp = 2;
+	mode_cmd.bpp = 16;
 	mode_cmd.pitch = ALIGN(mode_cmd.width * ((mode_cmd.bpp + 1) / 8), 64);
 	mode_cmd.depth = 16;
 
@@ -430,7 +430,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	info->fix.xpanstep = 1; /* doing it in hw */
 	info->fix.ypanstep = 1; /* doing it in hw */
 	info->fix.ywrapstep = 0;
-	info->fix.accel = FB_ACCEL_I830;
+	info->fix.accel = FB_ACCEL_GLAMO;
 	info->fix.type_aux = 0;
 	info->flags = FBINFO_DEFAULT;
 
@@ -511,15 +511,16 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	default:
 		/* The Smedia Glamo doesn't support anything but 16bit color */
 		printk(KERN_ERR
-		       "Smedia driver does not [yet?] support 24/32bpp\n");
+		       "Glamo driver does not [yet?] support 24/32bpp\n");
 		return -EINVAL;
 	}
 
 	fb->fbdev = info;
 	par->glamo_fb = glamo_fb;
 	par->dev = dev;
+	
+	info->var.pixclock = -1;
 
-	/* To allow resizeing without swapping buffers */
 	printk("allocated %dx%d fb: bo %p\n", glamo_fb->base.width,
 	       glamo_fb->base.height, fbo);
 	mutex_unlock(&dev->struct_mutex);

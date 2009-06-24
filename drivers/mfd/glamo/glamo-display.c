@@ -586,6 +586,10 @@ int glamo_display_init(struct drm_device *dev)
 	glamo_crtc->blank_mode = DRM_MODE_DPMS_OFF;
 	drm_crtc_init(dev, &glamo_crtc->base, &glamo_crtc_funcs);
 	drm_crtc_helper_add(&glamo_crtc->base, &glamo_crtc_helper_funcs);
+	
+	glamo_crtc->mode_set.crtc = &glamo_crtc->base;
+	glamo_crtc->mode_set.connectors = (struct drm_connector **)(glamo_crtc + 1);
+	glamo_crtc->mode_set.num_connectors = 0;
 
 	/* Create our "output" object: consists of an output and an encoder */
 	glamo_output = kzalloc(sizeof(struct glamo_output), GFP_KERNEL);
@@ -625,16 +629,15 @@ int glamo_display_init(struct drm_device *dev)
 
 	modeset = &glamo_crtc->mode_set;
 	modeset->fb = &glamo_fb->base;
-//	modeset->connectors[0] = connector;
+	modeset->connectors[0] = connector;
 	
 	//par->crtc_ids[0] = glamo_crtc->base.id;
 
 	modeset->num_connectors = 1;
-//	modeset->mode = modeset->crtc->desired_mode;
+	modeset->mode = modeset->crtc->desired_mode;
 
 	par->crtc_count = 1;
 
-	info->var.pixclock = -1;
 	if (register_framebuffer(info) < 0)
 		return -EINVAL;
 

@@ -379,7 +379,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	struct drm_mode_fb_cmd mode_cmd;
 	struct drm_gem_object *fbo = NULL;
 	struct drm_glamo_gem_object *obj_priv;
-	struct device *device = &dev->pdev->dev;
+	struct device *device = &dev->platform_dev->dev;
 	struct glamodrm_handle *gdrm;
 	int size, ret;
 	

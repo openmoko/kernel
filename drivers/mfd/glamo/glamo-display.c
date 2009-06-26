@@ -612,6 +612,8 @@ int glamo_display_init(struct drm_device *dev)
 	drm_encoder_helper_add(&glamo_output->enc, &glamo_encoder_helper_funcs);
 	drm_connector_helper_add(connector, &glamo_connector_helper_funcs);
 	
+	drm_helper_initial_config(dev, false);
+	
 	/* Initial setup of the LCD controller */
 	glamo_run_lcd_script(gdrm, lcd_init_script,
 	                           ARRAY_SIZE(lcd_init_script));

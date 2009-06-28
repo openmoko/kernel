@@ -148,7 +148,8 @@ static int glamofb_check_var(struct fb_var_screeninfo *var,
 
 	/* Need to resize the fb object !!! */
 	if (var->xres > fb->width || var->yres > fb->height) {
-		DRM_ERROR("Requested width/height is greater than current fb object %dx%d > %dx%d\n",var->xres,var->yres,fb->width,fb->height);
+		DRM_ERROR("Cannot resize framebuffer object (%dx%d > %dx%d)\n",
+		          var->xres,var->yres,fb->width,fb->height);
 		DRM_ERROR("Need resizing code.\n");
 		return -EINVAL;
 	}
@@ -191,6 +192,8 @@ static int glamofb_set_par(struct fb_info *info)
 	struct drm_device *dev = par->dev;
 	struct fb_var_screeninfo *var = &info->var;
 	int i;
+
+	printk(KERN_CRIT "glamofb_set_par\n");
 
 	DRM_DEBUG("%d %d\n", var->xres, var->pixclock);
 

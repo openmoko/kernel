@@ -297,8 +297,17 @@ static void glamo_connector_destroy(struct drm_connector *connector)
 
 static int glamo_connector_get_modes(struct drm_connector *connector)
 {
+	struct drm_display_mode *mode;
 	printk(KERN_CRIT "glamo_connector_get_modes\n");
-	return false;
+	
+	mode = drm_mode_create(connector->dev);
+	if (!mode)
+		return 0;
+	/* Fill in 'mode' here */
+	mode->type = DRM_MODE_TYPE_DEFAULT | DRM_MODE_TYPE_PREFERRED;
+	drm_mode_probed_add(connector, mode);
+
+	return 1;	/* one mode, for now */
 }
 
 
@@ -315,11 +324,12 @@ static int glamo_connector_mode_valid(struct drm_connector *connector,
                                       struct drm_display_mode *mode)
 {
 	printk(KERN_CRIT "glamo_connector_mode_valid\n");
-	if (mode->flags & DRM_MODE_FLAG_DBLSCAN)
+	if (mode->flags & DRM_MODE_FLAG_DBLSCAN) {
+		printk(KERN_CRIT "Doublescan is not allowed\n");
 		return MODE_NO_DBLESCAN;
-
-	if (mode->clock > 400000 || mode->clock < 25000)
-		return MODE_CLOCK_RANGE;
+	}
+	
+	printk(KERN_CRIT "Ok!\n");
 
 	return MODE_OK;
 }
@@ -606,6 +616,7 @@ int glamo_display_init(struct drm_device *dev)
 	/* Initialise the encoder */
 	drm_encoder_init(dev, &glamo_output->enc, &glamo_encoder_funcs,
 	                 DRM_MODE_ENCODER_DAC);
+	glamo_output->enc.possible_crtcs = 1 << 0;
 	drm_mode_connector_attach_encoder(&glamo_output->base,
 	                                  &glamo_output->enc);
 
@@ -633,7 +644,7 @@ int glamo_display_init(struct drm_device *dev)
 	modeset->fb = &glamo_fb->base;
 	modeset->connectors[0] = connector;
 	
-	//par->crtc_ids[0] = glamo_crtc->base.id;
+	par->crtc_ids[0] = glamo_crtc->base.base.id;
 
 	modeset->num_connectors = 1;
 	modeset->mode = modeset->crtc->desired_mode;

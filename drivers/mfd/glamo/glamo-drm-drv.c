@@ -206,6 +206,7 @@ static int glamodrm_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	platform_set_drvdata(pdev, gdrm);
 	gdrm->glamo_core = pdev->dev.platform_data;
+	gdrm->dev = &pdev->dev;
 
 	/* Find the command queue registers */
 	gdrm->reg = platform_get_resource(pdev, IORESOURCE_MEM, 0);

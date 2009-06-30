@@ -751,6 +751,9 @@ int glamo_display_init(struct drm_device *dev)
 
 	printk(KERN_CRIT "glamo_display_init\n");
 
+	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_LCD);
+	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_LCD);
+
 	drm_mode_config_init(dev);
 
 	dev->mode_config.min_width = 0;

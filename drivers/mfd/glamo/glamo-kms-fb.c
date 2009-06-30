@@ -237,6 +237,8 @@ static int glamofb_pan_display(struct fb_var_screeninfo *var,
 	struct glamo_crtc *glamo_crtc;
 	int ret = 0;
 	int i;
+	
+	printk(KERN_CRIT "glamofb_pan_display\n");
 
 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
 		for (i = 0; i < par->crtc_count; i++)
@@ -399,7 +401,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	size = ALIGN(size, PAGE_SIZE);
 	fbo = glamo_gem_object_alloc(dev, size, 2);
 	if (!fbo) {
-		printk(KERN_ERR "failed to allocate framebuffer\n");
+		printk(KERN_ERR "[glamo-drm] Failed to allocate framebuffer\n");
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -513,8 +515,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	case 32:
 	default:
 		/* The Smedia Glamo doesn't support anything but 16bit color */
-		printk(KERN_ERR
-		       "Glamo driver does not [yet?] support 24/32bpp\n");
+		printk(KERN_ERR "[glamo-drm] Only 16bpp is supported.\n");
 		return -EINVAL;
 	}
 
@@ -524,8 +525,8 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	
 	info->var.pixclock = -1;
 
-	printk("allocated %dx%d fb: bo %p\n", glamo_fb->base.width,
-	       glamo_fb->base.height, fbo);
+	printk(KERN_INFO "[glamo-drm] Allocated %dx%d fb: bo %p\n",
+	       glamo_fb->base.width, glamo_fb->base.height, fbo);
 	mutex_unlock(&dev->struct_mutex);
 	return 0;
 

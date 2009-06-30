@@ -63,6 +63,17 @@
 #include "glamo-drm-private.h"
 #include "glamo-regs.h"
 #include "glamo-kms-fb.h"
+#include <linux/glamofb.h>
+
+
+#define GLAMO_LCD_WIDTH_MASK 0x03FF
+#define GLAMO_LCD_HEIGHT_MASK 0x03FF
+#define GLAMO_LCD_PITCH_MASK 0x07FE
+#define GLAMO_LCD_HV_TOTAL_MASK 0x03FF
+#define GLAMO_LCD_HV_RETR_START_MASK 0x03FF
+#define GLAMO_LCD_HV_RETR_END_MASK 0x03FF
+#define GLAMO_LCD_HV_RETR_DISP_START_MASK 0x03FF
+#define GLAMO_LCD_HV_RETR_DISP_END_MASK 0x03FF
 
 
 struct glamofb_par {
@@ -75,8 +86,7 @@ struct glamofb_par {
 };
 
 
-#if 0
-static int reg_read(struct glamodrm_handle *gdrm, u_int16_t reg)
+static int reg_read_lcd(struct glamodrm_handle *gdrm, u_int16_t reg)
 {
 	int i = 0;
 
@@ -85,11 +95,10 @@ static int reg_read(struct glamodrm_handle *gdrm, u_int16_t reg)
 
 	return ioread16(gdrm->lcd_base + reg);
 }
-#endif
 
 
-static void reg_write(struct glamodrm_handle *gdrm,
-                      u_int16_t reg, u_int16_t val)
+static void reg_write_lcd(struct glamodrm_handle *gdrm,
+                          u_int16_t reg, u_int16_t val)
 {
 	int i = 0;
 
@@ -97,6 +106,96 @@ static void reg_write(struct glamodrm_handle *gdrm,
 		nop();
 
 	iowrite16(val, gdrm->lcd_base + reg);
+}
+
+
+static void reg_set_bit_mask_lcd(struct glamodrm_handle *gdrm,
+                                 u_int16_t reg, u_int16_t mask,
+                                 u_int16_t val)
+{
+	u_int16_t tmp;
+
+	val &= mask;
+
+	tmp = reg_read_lcd(gdrm, reg);
+	tmp &= ~mask;
+	tmp |= val;
+	reg_write_lcd(gdrm, reg, tmp);
+}
+
+
+/* Note that this has nothing at all to do with the engine command queue
+ * in glamo-cmdq.c */
+static inline int glamo_lcd_cmdq_empty(struct glamodrm_handle *gdrm)
+{
+	/* DGCMdQempty -- 1 == command queue is empty */
+	return reg_read_lcd(gdrm, GLAMO_REG_LCD_STATUS1) & (1 << 15);
+}
+
+
+/* call holding gfb->lock_cmd  when locking, until you unlock */
+int glamo_lcd_cmd_mode(struct glamodrm_handle *gdrm, int on)
+{
+	int timeout = 2000000;
+
+	if (gdrm->glamo_core->suspending) {
+		dev_err(&gdrm->glamo_core->pdev->dev,
+		                "IGNORING glamofb_cmd_mode while"
+		                " suspended\n");
+		return -EBUSY;
+	}
+
+	dev_dbg(gdrm->dev, "glamofb_cmd_mode(on=%d)\n", on);
+	if (on) {
+		dev_dbg(gdrm->dev, "%s: waiting for cmdq empty: ",
+			__func__);
+		while ((!glamo_lcd_cmdq_empty(gdrm)) && (timeout--))
+			/* yield() */;
+		if (timeout < 0) {
+			printk(KERN_ERR "*************"
+			                " LCD command queue never got empty "
+			                "*************\n");
+			return -EIO;
+		}
+		dev_dbg(gdrm->dev, "empty!\n");
+
+		/* display the entire frame then switch to command */
+		reg_write_lcd(gdrm, GLAMO_REG_LCD_COMMAND1,
+			  GLAMO_LCD_CMD_TYPE_DISP |
+			  GLAMO_LCD_CMD_DATA_FIRE_VSYNC);
+
+		/* wait until lcd idle */
+		dev_dbg(gdrm->dev, "waiting for LCD idle: ");
+		timeout = 2000000;
+		while ((!reg_read_lcd(gdrm, GLAMO_REG_LCD_STATUS2) & (1 << 12)) &&
+		      (timeout--))
+			/* yield() */;
+		if (timeout < 0) {
+			printk(KERN_ERR"*************"
+				       " LCD never idle "
+				       "*************\n");
+			return -EIO;
+		}
+
+		mdelay(100);
+
+		dev_dbg(gdrm->dev, "cmd mode entered\n");
+
+	} else {
+		/* RGB interface needs vsync/hsync */
+		int mode;
+		mode = reg_read_lcd(gdrm, GLAMO_REG_LCD_MODE3);
+		if ( mode & GLAMO_LCD_MODE3_RGB)
+			reg_write_lcd(gdrm, GLAMO_REG_LCD_COMMAND1,
+				  GLAMO_LCD_CMD_TYPE_DISP |
+				  GLAMO_LCD_CMD_DATA_DISP_SYNC);
+
+		reg_write_lcd(gdrm, GLAMO_REG_LCD_COMMAND1,
+			  GLAMO_LCD_CMD_TYPE_DISP |
+			  GLAMO_LCD_CMD_DATA_DISP_FIRE);
+	}
+
+	return 0;
 }
 
 
@@ -143,7 +242,7 @@ static int glamo_run_lcd_script(struct glamodrm_handle *gdrm,
 		else if (line->reg == 0xfffe)
 			msleep(line->val);
 		else
-			reg_write(gdrm, script[i].reg, script[i].val);
+			reg_write_lcd(gdrm, script[i].reg, script[i].val);
 	}
 
 	return 0;
@@ -216,7 +315,57 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
                                 int x, int y,
                                 struct drm_framebuffer *old_fb)
 {
+	struct glamodrm_handle *gdrm;
+	struct glamo_crtc *gcrtc;
+	int retr_end, disp_start, disp_end;
+	
 	printk(KERN_CRIT "glamo_crtc_mode_set\n");
+	
+	/* Dig out our handle */
+	gcrtc = to_glamo_crtc(crtc);
+	gdrm = gcrtc->gdrm;	/* Here it is! */
+
+	glamo_lcd_cmd_mode(gdrm, 1);
+	glamo_engine_reclock(gdrm->glamo_core, GLAMO_ENGINE_LCD, mode->clock);
+	
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_WIDTH,
+	                     GLAMO_LCD_WIDTH_MASK, mode->hdisplay);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HEIGHT,
+	                     GLAMO_LCD_HEIGHT_MASK, mode->vdisplay);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_PITCH,
+	                     GLAMO_LCD_PITCH_MASK, mode->hdisplay*2);
+	
+	/* Convert "X modeline timings" into "Glamo timings" */
+	retr_end = mode->hsync_end - mode->hsync_start;
+	disp_start = mode->htotal - mode->hsync_start;
+	disp_end = mode->hsync_start;
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_TOTAL,
+	                     GLAMO_LCD_HV_TOTAL_MASK, mode->htotal);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_START,
+	                     GLAMO_LCD_HV_RETR_START_MASK, 0);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_END,
+	                     GLAMO_LCD_HV_RETR_END_MASK, retr_end);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_DISP_START,
+	                     GLAMO_LCD_HV_RETR_DISP_START_MASK, disp_start);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_DISP_END,
+	                     GLAMO_LCD_HV_RETR_DISP_END_MASK, disp_end);
+
+	/* The same in the vertical direction */
+	retr_end = mode->vsync_end - mode->vsync_start;
+	disp_start = mode->vtotal - mode->vsync_start;
+	disp_end = mode->vsync_start;
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_TOTAL,
+	                     GLAMO_LCD_HV_TOTAL_MASK, mode->vtotal);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_RETR_START,
+	                     GLAMO_LCD_HV_RETR_START_MASK, 0);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_RETR_END,
+	                     GLAMO_LCD_HV_RETR_END_MASK, retr_end);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_DISP_START,
+	                     GLAMO_LCD_HV_RETR_DISP_START_MASK, disp_start);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_DISP_END,
+	                     GLAMO_LCD_HV_RETR_DISP_END_MASK, disp_end);
+
+	glamo_lcd_cmd_mode(gdrm, 0);
 }
 
 
@@ -224,7 +373,7 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
 static void glamo_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
                                      struct drm_framebuffer *old_fb)
 {
-	printk(KERN_CRIT "glamo_crtc_mode_set\n");
+	printk(KERN_CRIT "glamo_crtc_mode_set_base\n");
 }
 
 
@@ -298,6 +447,13 @@ static void glamo_connector_destroy(struct drm_connector *connector)
 static int glamo_connector_get_modes(struct drm_connector *connector)
 {
 	struct drm_display_mode *mode;
+	struct glamofb_platform_data *mach_info;
+	struct glamo_output *goutput = to_glamo_output(connector);
+	struct glamodrm_handle *gdrm = goutput->gdrm;
+	
+	/* Dig out the record which will tell us about the hardware */
+	mach_info = gdrm->glamo_core->pdev->dev.platform_data;
+	
 	printk(KERN_CRIT "glamo_connector_get_modes\n");
 	
 	mode = drm_mode_create(connector->dev);
@@ -305,6 +461,32 @@ static int glamo_connector_get_modes(struct drm_connector *connector)
 		return 0;
 	/* Fill in 'mode' here */
 	mode->type = DRM_MODE_TYPE_DEFAULT | DRM_MODE_TYPE_PREFERRED;
+	
+	/* Convert framebuffer timings into KMS timings */
+	mode->clock = 1000000 / mach_info->pixclock;	/* ps -> Hz */
+	mode->hdisplay = mach_info->xres.defval;
+	mode->hsync_start = mach_info->right_margin + mode->hdisplay;
+	mode->hsync_end = mode->hsync_start + mach_info->hsync_len;
+	mode->htotal = mode->hdisplay + mach_info->left_margin
+	                + mach_info->right_margin + mach_info->hsync_len;
+	
+	mode->hskew = 0;
+	mode->vdisplay = mach_info->yres.defval;
+	mode->vsync_start = mach_info->lower_margin + mode->vdisplay;
+	mode->vsync_end = mode->vsync_start + mach_info->vsync_len;
+	mode->vtotal = mode->vdisplay + mach_info->upper_margin
+	                + mach_info->lower_margin + mach_info->vsync_len;
+	mode->vscan = 0;
+	
+	mode->width_mm = mach_info->width;
+	mode->height_mm = mach_info->height;
+	
+	printk(KERN_CRIT "Modeline \"%ix%i\" %i   %i %i %i %i    %i %i %i %i\n",
+	       mode->hdisplay, mode->vdisplay, mode->clock,
+	       mode->hdisplay, mode->hsync_start, mode->hsync_end, mode->htotal,
+	       mode->vdisplay, mode->vsync_start, mode->vsync_end, mode->vtotal);
+	
+	drm_mode_set_name(mode);
 	drm_mode_probed_add(connector, mode);
 
 	return 1;	/* one mode, for now */
@@ -324,13 +506,9 @@ static int glamo_connector_mode_valid(struct drm_connector *connector,
                                       struct drm_display_mode *mode)
 {
 	printk(KERN_CRIT "glamo_connector_mode_valid\n");
-	if (mode->flags & DRM_MODE_FLAG_DBLSCAN) {
-		printk(KERN_CRIT "Doublescan is not allowed\n");
+	if (mode->flags & DRM_MODE_FLAG_DBLSCAN)
 		return MODE_NO_DBLESCAN;
-	}
 	
-	printk(KERN_CRIT "Ok!\n");
-
 	return MODE_OK;
 }
 
@@ -605,6 +783,7 @@ int glamo_display_init(struct drm_device *dev)
 	glamo_output = kzalloc(sizeof(struct glamo_output), GFP_KERNEL);
 	if (glamo_output == NULL) return 1;
 	connector = &glamo_output->base;
+	glamo_output->gdrm = gdrm;
 
 	/* Initialise the connector */
 	drm_connector_init(dev, connector, &glamo_connector_funcs,
@@ -631,8 +810,6 @@ int glamo_display_init(struct drm_device *dev)
 
 	if (list_empty(&dev->mode_config.fb_kernel_list)) {
 		int ret;
-		printk(KERN_CRIT "creating new fb (console size %dx%d, "
-		                 "buffer size %dx%d)\n", 480, 640, 480, 640);
 		ret = glamofb_create(dev, 480, 640, 480, 640, &glamo_fb);
 		if (ret) return -EINVAL;
 	}
@@ -654,13 +831,13 @@ int glamo_display_init(struct drm_device *dev)
 	if (register_framebuffer(info) < 0)
 		return -EINVAL;
 
-	printk(KERN_INFO "fb%d: %s frame buffer device\n", info->node,
-	       info->fix.id);
+	printk(KERN_INFO "[glamo-drm] fb%d: %s frame buffer device\n",
+	       info->node, info->fix.id);
 
 	/* Switch back to kernel console on panic */
 	kernelfb_mode = *modeset;
 	atomic_notifier_chain_register(&panic_notifier_list, &paniced);
-	printk(KERN_INFO "registered panic notifier\n");
+	printk(KERN_INFO "[glamo-drm] registered panic notifier\n");
 
 	return 0;
 }

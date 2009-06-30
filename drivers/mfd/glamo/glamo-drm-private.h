@@ -88,6 +88,7 @@ struct glamo_framebuffer {
 struct glamo_output {
 	struct drm_connector base;
 	struct drm_encoder enc;
+	struct glamodrm_handle *gdrm;
 };
 
 

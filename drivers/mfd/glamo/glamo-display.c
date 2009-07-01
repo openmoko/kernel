@@ -310,7 +310,7 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
 {
 	struct glamodrm_handle *gdrm;
 	struct glamo_crtc *gcrtc;
-	int retr_end, disp_start, disp_end;
+	int retr_start, retr_end, disp_start, disp_end;
 
 	printk(KERN_CRIT "glamo_crtc_mode_set\n");
 
@@ -329,13 +329,14 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
 	                     GLAMO_LCD_PITCH_MASK, mode->hdisplay*2);
 
 	/* Convert "X modeline timings" into "Glamo timings" */
-	retr_end = mode->hsync_end - mode->hsync_start;
+	retr_start = 0;
+	retr_end = retr_start + mode->hsync_end - mode->hsync_start;
 	disp_start = mode->htotal - mode->hsync_start;
-	disp_end = mode->hsync_start;
+	disp_end = disp_start + mode->hdisplay;
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_TOTAL,
 	                     GLAMO_LCD_HV_TOTAL_MASK, mode->htotal);
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_START,
-	                     GLAMO_LCD_HV_RETR_START_MASK, 0);
+	                     GLAMO_LCD_HV_RETR_START_MASK, retr_start);
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_END,
 	                     GLAMO_LCD_HV_RETR_END_MASK, retr_end);
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_DISP_START,
@@ -344,13 +345,14 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
 	                     GLAMO_LCD_HV_RETR_DISP_END_MASK, disp_end);
 
 	/* The same in the vertical direction */
-	retr_end = mode->vsync_end - mode->vsync_start;
+	retr_start = 0;
+	retr_end = retr_start + mode->vsync_end - mode->vsync_start;
 	disp_start = mode->vtotal - mode->vsync_start;
-	disp_end = mode->vsync_start;
+	disp_end = disp_start + mode->vdisplay;
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_TOTAL,
 	                     GLAMO_LCD_HV_TOTAL_MASK, mode->vtotal);
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_RETR_START,
-	                     GLAMO_LCD_HV_RETR_START_MASK, 0);
+	                     GLAMO_LCD_HV_RETR_START_MASK, retr_start);
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_RETR_END,
 	                     GLAMO_LCD_HV_RETR_END_MASK, retr_end);
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_DISP_START,
@@ -459,15 +461,13 @@ static int glamo_connector_get_modes(struct drm_connector *connector)
 	mode->hdisplay = mach_info->xres.defval;
 	mode->hsync_start = mach_info->right_margin + mode->hdisplay;
 	mode->hsync_end = mode->hsync_start + mach_info->hsync_len;
-	mode->htotal = mode->hdisplay + mach_info->left_margin
-	                + mach_info->right_margin + mach_info->hsync_len;
-
+	mode->htotal = mode->hsync_end + mach_info->left_margin;
 	mode->hskew = 0;
+	
 	mode->vdisplay = mach_info->yres.defval;
 	mode->vsync_start = mach_info->lower_margin + mode->vdisplay;
 	mode->vsync_end = mode->vsync_start + mach_info->vsync_len;
-	mode->vtotal = mode->vdisplay + mach_info->upper_margin
-	                + mach_info->lower_margin + mach_info->vsync_len;
+	mode->vtotal = mode->vsync_end + mach_info->upper_margin;
 	mode->vscan = 0;
 
 	mode->width_mm = mach_info->width;

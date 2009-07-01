@@ -622,6 +622,21 @@ static int fb_notifier_callback(struct notifier_block *self,
 	return 0;
 }
 
+struct jbt_info *jbt_global;
+void jbt6k74_action(int val)
+{
+	if ( !jbt_global ) {
+		printk(KERN_CRIT "JBT not initialised!!!\n");
+		return;
+	}
+	if ( val == 0 ) {
+		jbt6k74_enter_state(jbt_global, JBT_STATE_SLEEP);
+	} else {
+		jbt6k74_enter_state(jbt_global, jbt_global->normal_state);
+	}
+}
+EXPORT_SYMBOL_GPL(jbt6k74_action);
+
 /* linux device model infrastructure */
 
 static int __devinit jbt_probe(struct spi_device *spi)
@@ -645,6 +660,8 @@ static int __devinit jbt_probe(struct spi_device *spi)
 	jbt = kzalloc(sizeof(*jbt), GFP_KERNEL);
 	if (!jbt)
 		return -ENOMEM;
+
+	jbt_global = jbt;
 
 	jbt->spi_dev = spi;
 	jbt->normal_state = JBT_STATE_NORMAL;

@@ -256,6 +256,9 @@ static void notify_blank(struct drm_crtc *crtc, int mode)
 #endif
 
 
+extern void jbt6k74_action(int val);
+
+
 /* Power on/off */
 static void glamo_crtc_dpms(struct drm_crtc *crtc, int mode)
 {
@@ -267,31 +270,26 @@ static void glamo_crtc_dpms(struct drm_crtc *crtc, int mode)
 
 	switch (mode) {
 	case DRM_MODE_DPMS_OFF:
-		/* Simulating FB_BLANK_NORMAL allow turning off backlight */
-		//if (gfb->blank_mode != FB_BLANK_NORMAL)
-		//	notify_blank(info, FB_BLANK_NORMAL);
-
 		/* LCM need notification before pixel clock is stopped */
-		//notify_blank(crtc, blank_mode);
+		//jbt6k74_action(0);
 
 		/* disable the pixel clock */
-		glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_LCD,
-					GLAMO_CLOCK_LCD_EN_DCLK, 0);
+//		glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_LCD,
+//					GLAMO_CLOCK_LCD_EN_DCLK, 0);
 		glamo_crtc->blank_mode = mode;
 		break;
 	case DRM_MODE_DPMS_ON:
 		/* enable the pixel clock if off */
 		if (glamo_crtc->blank_mode == DRM_MODE_DPMS_OFF)
 			glamo_engine_clkreg_set(gdrm->glamo_core,
-					GLAMO_ENGINE_LCD,
-					GLAMO_CLOCK_LCD_EN_DCLK,
-					GLAMO_CLOCK_LCD_EN_DCLK);
+			                        GLAMO_ENGINE_LCD,
+			                        GLAMO_CLOCK_LCD_EN_DCLK,
+			                        GLAMO_CLOCK_LCD_EN_DCLK);
 
-		//notify_blank(info, blank_mode);
+		//jbt6k74_action(1);
 		glamo_crtc->blank_mode = mode;
 		break;
 	}
-
 }
 
 

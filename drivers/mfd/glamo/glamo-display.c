@@ -271,7 +271,7 @@ static void glamo_crtc_dpms(struct drm_crtc *crtc, int mode)
 	switch (mode) {
 	case DRM_MODE_DPMS_OFF:
 		/* LCM need notification before pixel clock is stopped */
-		//jbt6k74_action(0);
+		jbt6k74_action(0);
 
 		/* disable the pixel clock */
 		glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_LCD,
@@ -285,8 +285,7 @@ static void glamo_crtc_dpms(struct drm_crtc *crtc, int mode)
 			                        GLAMO_ENGINE_LCD,
 			                        GLAMO_CLOCK_LCD_EN_DCLK,
 			                        GLAMO_CLOCK_LCD_EN_DCLK);
-
-		//jbt6k74_action(1);
+		jbt6k74_action(1);
 		glamo_crtc->blank_mode = mode;
 		break;
 	}

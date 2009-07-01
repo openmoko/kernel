@@ -104,7 +104,7 @@ static void reg_write_lcd(struct glamodrm_handle *gdrm,
 
 	for (i = 0; i != 2; i++)
 		nop();
-	printk(KERN_CRIT "LCD %i -> %x\n", val, reg);
+	
 	iowrite16(val, gdrm->lcd_base + reg);
 }
 

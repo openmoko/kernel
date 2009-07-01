@@ -107,7 +107,6 @@ static struct glamo_core *glamo_handle;
 static inline void __reg_write(struct glamo_core *glamo,
 				u_int16_t reg, u_int16_t val)
 {
-	printk(KERN_CRIT "Core %i -> %x\n", val, reg);
 	writew(val, glamo->base + reg);
 }
 

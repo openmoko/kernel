@@ -274,8 +274,8 @@ static void glamo_crtc_dpms(struct drm_crtc *crtc, int mode)
 		//jbt6k74_action(0);
 
 		/* disable the pixel clock */
-//		glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_LCD,
-//					GLAMO_CLOCK_LCD_EN_DCLK, 0);
+		glamo_engine_clkreg_set(gdrm->glamo_core, GLAMO_ENGINE_LCD,
+					GLAMO_CLOCK_LCD_EN_DCLK, 0);
 		glamo_crtc->blank_mode = mode;
 		break;
 	case DRM_MODE_DPMS_ON:
@@ -373,17 +373,13 @@ static void glamo_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 
 static void glamo_crtc_prepare(struct drm_crtc *crtc)
 {
-	struct drm_crtc_helper_funcs *crtc_funcs = crtc->helper_private;
 	printk(KERN_CRIT "glamo_crtc_prepare\n");
-	crtc_funcs->dpms(crtc, DRM_MODE_DPMS_OFF);
 }
 
 
 static void glamo_crtc_commit(struct drm_crtc *crtc)
 {
-	struct drm_crtc_helper_funcs *crtc_funcs = crtc->helper_private;
 	printk(KERN_CRIT "glamo_crtc_commit\n");
-	crtc_funcs->dpms(crtc, DRM_MODE_DPMS_ON);
 }
 
 

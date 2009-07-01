@@ -26,6 +26,7 @@
 #include <linux/platform_device.h>
 #include <drm/drmP.h>
 #include <drm/glamo_drm.h>
+#include <linux/glamofb.h>
 
 #include "glamo-core.h"
 #include "glamo-cmdq.h"
@@ -198,6 +199,7 @@ static int glamodrm_probe(struct platform_device *pdev)
 {
 	int rc;
 	struct glamodrm_handle *gdrm;
+	struct glamofb_platform_data *mach_info;
 
 	printk(KERN_CRIT "[glamo-drm] SMedia Glamo Direct Rendering Support\n");
 
@@ -205,7 +207,8 @@ static int glamodrm_probe(struct platform_device *pdev)
 	if ( !gdrm )
 		return -ENOMEM;
 	platform_set_drvdata(pdev, gdrm);
-	gdrm->glamo_core = pdev->dev.platform_data;
+	mach_info = pdev->dev.platform_data;
+	gdrm->glamo_core = mach_info->glamo;
 	gdrm->dev = &pdev->dev;
 
 	/* Find the command queue registers */
@@ -370,7 +373,7 @@ static struct platform_driver glamodrm_driver = {
 	.suspend	= glamodrm_suspend,
 	.resume		= glamodrm_resume,
 	.driver         = {
-		.name   = "glamo-graphics",
+		.name   = "glamo-fb",
 		.owner  = THIS_MODULE,
 	},
 };

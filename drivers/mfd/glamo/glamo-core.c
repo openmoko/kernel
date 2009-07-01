@@ -202,7 +202,7 @@ static struct resource glamo_graphics_resources[] = {
 };
 
 static struct platform_device glamo_graphics_dev = {
-	.name           = "glamo-graphics",
+	.name           = "glamo-fb",
 	.resource       = glamo_graphics_resources,
 	.num_resources  = ARRAY_SIZE(glamo_graphics_resources),
 };
@@ -1244,7 +1244,7 @@ static int __init glamo_probe(struct platform_device *pdev)
 
 	/* Command queue device (for DRM) */
 	glamo_graphics_dev.dev.parent = &pdev->dev;
-	glamo_graphics_dev.dev.platform_data = glamo;
+	glamo_graphics_dev.dev.platform_data = glamo->pdata;
 	mangle_mem_resources(glamo_graphics_dev.resource,
 			     glamo_graphics_dev.num_resources, glamo->mem);
 	platform_device_register(&glamo_graphics_dev);

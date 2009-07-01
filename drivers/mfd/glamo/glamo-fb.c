@@ -996,6 +996,14 @@ static int __init glamofb_probe(struct platform_device *pdev)
 		goto out_free;
 	}
 
+	glamofb->fb_res = request_mem_region(glamofb->fb_res->start,
+					     mach_info->fb_mem_size,
+					     pdev->name);
+	if (!glamofb->fb_res) {
+		dev_err(&pdev->dev, "failed to request vram region\n");
+		goto out_release_reg;
+	}
+
 	/* we want to remap only the registers required for this core
 	 * driver. */
 	glamofb->base = ioremap(glamofb->reg->start, RESSIZE(glamofb->reg));

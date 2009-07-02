@@ -104,7 +104,7 @@ static void reg_write_lcd(struct glamodrm_handle *gdrm,
 
 	for (i = 0; i != 2; i++)
 		nop();
-	
+
 	iowrite16(val, gdrm->lcd_base + reg);
 }
 
@@ -458,7 +458,7 @@ static int glamo_connector_get_modes(struct drm_connector *connector)
 	mode->hsync_end = mode->hsync_start + mach_info->hsync_len;
 	mode->htotal = mode->hsync_end + mach_info->left_margin;
 	mode->hskew = 0;
-	
+
 	mode->vdisplay = mach_info->yres.defval;
 	mode->vsync_start = mach_info->lower_margin + mode->vdisplay;
 	mode->vsync_end = mode->vsync_start + mach_info->vsync_len;

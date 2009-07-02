@@ -387,9 +387,9 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	struct device *device = &dev->platform_dev->dev;
 	struct glamodrm_handle *gdrm;
 	int size, ret;
-	
+
 	gdrm = dev->dev_private;
-	
+
 	mode_cmd.width = surface_width;
 	mode_cmd.height = surface_height;
 
@@ -406,7 +406,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 		goto out;
 	}
 	obj_priv = fbo->driver_private;
-	
+
 	mutex_lock(&dev->struct_mutex);
 
 	ret = glamo_framebuffer_create(dev, &mode_cmd, &fb, fbo);
@@ -414,7 +414,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 		DRM_ERROR("failed to allocate fb.\n");
 		goto out_unref;
 	}
-	
+
 	list_add(&fb->filp_head, &dev->mode_config.fb_kernel_list);
 
 	glamo_fb = to_glamo_framebuffer(fb);
@@ -425,7 +425,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 		ret = -ENOMEM;
 		goto out_unref;
 	}
-	
+
 	par = info->par;
 
 	strcpy(info->fix.id, "glamodrmfb");
@@ -522,7 +522,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	fb->fbdev = info;
 	par->glamo_fb = glamo_fb;
 	par->dev = dev;
-	
+
 	info->var.pixclock = -1;
 
 	printk(KERN_INFO "[glamo-drm] Allocated %dx%d fb: bo %p\n",
@@ -536,4 +536,3 @@ out_unref:
 out:
 	return ret;
 }
-

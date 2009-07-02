@@ -103,7 +103,7 @@ static void reg_write(struct glamofb_handle *glamo,
 
 	for (i = 0; i != 2; i++)
 		nop();
-	
+
 	writew(val, glamo->base + reg);
 }
 

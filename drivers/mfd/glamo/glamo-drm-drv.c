@@ -33,6 +33,7 @@
 #include "glamo-buffer.h"
 #include "glamo-drm-private.h"
 #include "glamo-display.h"
+#include "glamo-kms-fb.h"
 
 #define DRIVER_AUTHOR           "Openmoko, Inc."
 #define DRIVER_NAME             "glamo-drm"
@@ -354,7 +355,14 @@ static int glamodrm_remove(struct platform_device *pdev)
 
 static int glamodrm_suspend(struct platform_device *pdev, pm_message_t state)
 {
+	struct glamodrm_handle *gdrm = platform_get_drvdata(pdev);
+
+	glamo_kmsfb_suspend(gdrm);
+	glamo_display_suspend(gdrm);
+	glamo_cmdq_suspend(gdrm);
+
 	/* glamo_core.c will suspend the engines for us */
+
 	return 0;
 }
 
@@ -362,7 +370,11 @@ static int glamodrm_suspend(struct platform_device *pdev, pm_message_t state)
 static int glamodrm_resume(struct platform_device *pdev)
 {
 	struct glamodrm_handle *gdrm = platform_get_drvdata(pdev);
-	glamo_cmdq_init(gdrm);
+
+	glamo_cmdq_resume(gdrm);
+	glamo_display_resume(gdrm);
+	glamo_kmsfb_resume(gdrm);
+
 	return 0;
 }
 

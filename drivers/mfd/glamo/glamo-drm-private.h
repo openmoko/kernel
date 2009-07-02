@@ -37,8 +37,12 @@ struct glamodrm_handle {
 
 	/* This device */
 	struct device *dev;
+
 	/* The parent device handle */
 	struct glamo_core *glamo_core;
+
+	/* Framebuffer handle for the console (i.e. /dev/fb0) */
+	struct fb_info *fb;
 
 	/* Command queue registers */
 	struct resource *reg;
@@ -60,6 +64,22 @@ struct glamodrm_handle {
 
 	/* Memory management */
 	struct drm_mm *mmgr;
+
+	/* Saved state */
+	u_int16_t saved_clock;
+	u_int16_t saved_width;
+	u_int16_t saved_height;
+	u_int16_t saved_pitch;
+	u_int16_t saved_htotal;
+	u_int16_t saved_hrtrst;
+	u_int16_t saved_hrtren;
+	u_int16_t saved_hdspst;
+	u_int16_t saved_hdspen;
+	u_int16_t saved_vtotal;
+	u_int16_t saved_vrtrst;
+	u_int16_t saved_vrtren;
+	u_int16_t saved_vdspst;
+	u_int16_t saved_vdspen;
 };
 
 

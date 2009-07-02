@@ -522,6 +522,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	fb->fbdev = info;
 	par->glamo_fb = glamo_fb;
 	par->dev = dev;
+	gdrm->fb = info;
 
 	info->var.pixclock = -1;
 
@@ -535,4 +536,16 @@ out_unref:
 	mutex_unlock(&dev->struct_mutex);
 out:
 	return ret;
+}
+
+
+void glamo_kmsfb_suspend(struct glamodrm_handle *gdrm)
+{
+	fb_set_suspend(gdrm->fb, 1);
+}
+
+
+void glamo_kmsfb_resume(struct glamodrm_handle *gdrm)
+{
+	fb_set_suspend(gdrm->fb, 0);
 }

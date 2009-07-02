@@ -24,6 +24,7 @@
 #define __GLAMO_DISPLAY_H
 
 #include <drm/drmP.h>
+#include "glamo-drm-private.h"
 
 extern int glamo_display_init(struct drm_device *dev);
 
@@ -31,5 +32,8 @@ extern int glamo_framebuffer_create(struct drm_device *dev,
                                     struct drm_mode_fb_cmd *mode_cmd,
                                     struct drm_framebuffer **fb,
                                     struct drm_gem_object *obj);
-			     
+
+extern void glamo_display_suspend(struct glamodrm_handle *gdrm);
+extern void glamo_display_resume(struct glamodrm_handle *gdrm);
+
 #endif /* __GLAMO_DISPLAY_H */

@@ -319,6 +319,7 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
 
 	glamo_lcd_cmd_mode(gdrm, 1);
 	glamo_engine_reclock(gdrm->glamo_core, GLAMO_ENGINE_LCD, mode->clock);
+	gdrm->saved_clock = mode->clock;
 
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_WIDTH,
 	                     GLAMO_LCD_WIDTH_MASK, mode->hdisplay);
@@ -830,4 +831,69 @@ int glamo_display_init(struct drm_device *dev)
 	printk(KERN_INFO "[glamo-drm] registered panic notifier\n");
 
 	return 0;
+}
+
+
+void glamo_display_suspend(struct glamodrm_handle *gdrm)
+{
+	jbt6k74_action(0);
+
+	gdrm->saved_width = reg_read_lcd(gdrm, GLAMO_REG_LCD_WIDTH);
+	gdrm->saved_height = reg_read_lcd(gdrm, GLAMO_REG_LCD_HEIGHT);
+	gdrm->saved_pitch = reg_read_lcd(gdrm, GLAMO_REG_LCD_PITCH);
+	gdrm->saved_htotal = reg_read_lcd(gdrm, GLAMO_REG_LCD_HORIZ_TOTAL);
+	gdrm->saved_hrtrst = reg_read_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_START);
+	gdrm->saved_hrtren = reg_read_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_END);
+	gdrm->saved_hdspst = reg_read_lcd(gdrm, GLAMO_REG_LCD_HORIZ_DISP_START);
+	gdrm->saved_hdspen = reg_read_lcd(gdrm, GLAMO_REG_LCD_HORIZ_DISP_END);
+	gdrm->saved_vtotal = reg_read_lcd(gdrm, GLAMO_REG_LCD_VERT_TOTAL);
+	gdrm->saved_vrtrst = reg_read_lcd(gdrm, GLAMO_REG_LCD_VERT_RETR_START);
+	gdrm->saved_vrtren = reg_read_lcd(gdrm, GLAMO_REG_LCD_VERT_RETR_END);
+	gdrm->saved_vdspst = reg_read_lcd(gdrm, GLAMO_REG_LCD_VERT_DISP_START);
+	gdrm->saved_vdspen = reg_read_lcd(gdrm, GLAMO_REG_LCD_VERT_DISP_END);
+}
+
+
+void glamo_display_resume(struct glamodrm_handle *gdrm)
+{
+	/* Reinitialise the LCD controller */
+	jbt6k74_action(0);
+	mdelay(5);
+
+	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_LCD);
+	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_LCD);
+	glamo_run_lcd_script(gdrm, lcd_init_script,
+	                           ARRAY_SIZE(lcd_init_script));
+
+	/* Restore timings */
+	glamo_lcd_cmd_mode(gdrm, 1);
+	glamo_engine_reclock(gdrm->glamo_core, GLAMO_ENGINE_LCD,
+	                     gdrm->saved_clock);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_TOTAL,
+	                     GLAMO_LCD_HV_TOTAL_MASK, gdrm->saved_htotal);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_START,
+	                     GLAMO_LCD_HV_RETR_START_MASK, gdrm->saved_vrtrst);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_END,
+	                     GLAMO_LCD_HV_RETR_END_MASK, gdrm->saved_vrtren);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_DISP_START,
+	                     GLAMO_LCD_HV_RETR_DISP_START_MASK,
+	                     gdrm->saved_hdspst);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_DISP_END,
+	                     GLAMO_LCD_HV_RETR_DISP_END_MASK,
+	                     gdrm->saved_hdspen);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_TOTAL,
+	                     GLAMO_LCD_HV_TOTAL_MASK, gdrm->saved_vtotal);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_RETR_START,
+	                     GLAMO_LCD_HV_RETR_START_MASK, gdrm->saved_vrtrst);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_RETR_END,
+	                     GLAMO_LCD_HV_RETR_END_MASK, gdrm->saved_vrtren);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_DISP_START,
+	                     GLAMO_LCD_HV_RETR_DISP_START_MASK,
+	                     gdrm->saved_vdspst);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_DISP_END,
+	                     GLAMO_LCD_HV_RETR_DISP_END_MASK,
+	                     gdrm->saved_vdspen);
+	glamo_lcd_cmd_mode(gdrm, 0);
+
+	jbt6k74_action(1);
 }

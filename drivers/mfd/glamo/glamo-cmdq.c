@@ -385,3 +385,15 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 
 	return 0;
 }
+
+
+void glamo_cmdq_suspend(struct glamodrm_handle *gdrm)
+{
+	/* Placeholder... */
+}
+
+
+void glamo_cmdq_resume(struct glamodrm_handle *gdrm)
+{
+	glamo_cmdq_init(gdrm);
+}

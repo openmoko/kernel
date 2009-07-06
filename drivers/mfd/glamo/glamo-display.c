@@ -865,16 +865,28 @@ void glamo_display_resume(struct glamodrm_handle *gdrm)
 	glamo_run_lcd_script(gdrm, lcd_init_script,
 	                           ARRAY_SIZE(lcd_init_script));
 
+	/* Enable pixel clock */
+	glamo_engine_clkreg_set(gdrm->glamo_core,
+	                        GLAMO_ENGINE_LCD,
+	                        GLAMO_CLOCK_LCD_EN_DCLK,
+	                        GLAMO_CLOCK_LCD_EN_DCLK);
+
 	/* Restore timings */
 	glamo_lcd_cmd_mode(gdrm, 1);
 	glamo_engine_reclock(gdrm->glamo_core, GLAMO_ENGINE_LCD,
 	                     gdrm->saved_clock);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_WIDTH, GLAMO_LCD_WIDTH_MASK,
+	                     gdrm->saved_width);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HEIGHT, GLAMO_LCD_HEIGHT_MASK,
+	                     gdrm->saved_height);
+	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_PITCH, GLAMO_LCD_PITCH_MASK,
+	                     gdrm->saved_pitch);
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_TOTAL,
 	                     GLAMO_LCD_HV_TOTAL_MASK, gdrm->saved_htotal);
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_START,
-	                     GLAMO_LCD_HV_RETR_START_MASK, gdrm->saved_vrtrst);
+	                     GLAMO_LCD_HV_RETR_START_MASK, gdrm->saved_hrtrst);
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_END,
-	                     GLAMO_LCD_HV_RETR_END_MASK, gdrm->saved_vrtren);
+	                     GLAMO_LCD_HV_RETR_END_MASK, gdrm->saved_hrtren);
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_DISP_START,
 	                     GLAMO_LCD_HV_RETR_DISP_START_MASK,
 	                     gdrm->saved_hdspst);

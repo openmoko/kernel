@@ -396,7 +396,12 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 
 	size = mode_cmd.pitch * mode_cmd.height;
 	size = ALIGN(size, PAGE_SIZE);
-	fbo = glamo_gem_object_alloc(dev, size, 2);
+	if ( size > GLAMO_FRAMEBUFFER_ALLOCATION ) {
+		printk(KERN_ERR "[glamo-drm] Not enough memory for fb\n");
+		ret = -ENOMEM;
+		goto out;
+	}
+	fbo = glamo_gem_object_alloc(dev, GLAMO_FRAMEBUFFER_ALLOCATION, 2);
 	if (!fbo) {
 		printk(KERN_ERR "[glamo-drm] Failed to allocate framebuffer\n");
 		ret = -ENOMEM;

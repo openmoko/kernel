@@ -33,6 +33,11 @@
 #include "glamo-core.h"
 
 
+/* Memory to allocate for the framebuffer.
+ * The rest is reserved for the DRM memory manager */
+#define GLAMO_FRAMEBUFFER_ALLOCATION (4*1024*1024)
+
+
 struct glamodrm_handle {
 
 	/* This device */

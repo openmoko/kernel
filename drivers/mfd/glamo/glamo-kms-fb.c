@@ -143,9 +143,6 @@ static int glamofb_check_var(struct fb_var_screeninfo *var,
 	struct drm_framebuffer *fb = &glamo_fb->base;
 	int depth;
 
-	if (var->pixclock == -1 || !var->pixclock)
-		return -EINVAL;
-
 	/* Need to resize the fb object !!! */
 	if (var->xres > fb->width || var->yres > fb->height) {
 		DRM_ERROR("Cannot resize framebuffer object (%dx%d > %dx%d)\n",

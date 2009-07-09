@@ -234,8 +234,8 @@ static int glamofb_pan_display(struct fb_var_screeninfo *var,
 	struct glamo_crtc *glamo_crtc;
 	int ret = 0;
 	int i;
-	
-	printk(KERN_CRIT "glamofb_pan_display\n");
+
+	printk(KERN_CRIT "glamofb_pan_display (%i,%i)\n", var->xoffset, var->yoffset);
 
 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
 		for (i = 0; i < par->crtc_count; i++)

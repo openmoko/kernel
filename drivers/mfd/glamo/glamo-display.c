@@ -310,6 +310,7 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
 	struct glamodrm_handle *gdrm;
 	struct glamo_crtc *gcrtc;
 	int retr_start, retr_end, disp_start, disp_end;
+	int ps;
 
 	printk(KERN_CRIT "glamo_crtc_mode_set\n");
 
@@ -318,8 +319,11 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
 	gdrm = gcrtc->gdrm;	/* Here it is! */
 
 	glamo_lcd_cmd_mode(gdrm, 1);
-	glamo_engine_reclock(gdrm->glamo_core, GLAMO_ENGINE_LCD, mode->clock);
-	gdrm->saved_clock = mode->clock;
+	ps = mode->clock / 1000;	/* Hz -> kHz */
+	ps = 1000000000UL / ps;		/* kHz -> ps */
+	printk(KERN_INFO "[glamo-drm] Reclocking LCD engine to %i ps\n", ps);
+	glamo_engine_reclock(gdrm->glamo_core, GLAMO_ENGINE_LCD, ps);
+	gdrm->saved_clock = ps;
 
 	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_WIDTH,
 	                     GLAMO_LCD_WIDTH_MASK, mode->hdisplay);
@@ -453,7 +457,8 @@ static int glamo_connector_get_modes(struct drm_connector *connector)
 	mode->type = DRM_MODE_TYPE_DEFAULT | DRM_MODE_TYPE_PREFERRED;
 
 	/* Convert framebuffer timings into KMS timings */
-	mode->clock = 1000000 / mach_info->pixclock;	/* ps -> Hz */
+	mode->clock = 1000000000UL / mach_info->pixclock;	/* ps -> kHz */
+	mode->clock *= 1000;	/* kHz -> Hz */
 	mode->hdisplay = mach_info->xres.defval;
 	mode->hsync_start = mach_info->right_margin + mode->hdisplay;
 	mode->hsync_end = mode->hsync_start + mach_info->hsync_len;

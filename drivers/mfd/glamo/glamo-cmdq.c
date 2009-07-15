@@ -70,6 +70,7 @@ static inline u16 reg_read(struct glamodrm_handle *gdrm, u_int16_t reg)
 	return ioread16(gdrm->reg_base + reg);
 }
 
+
 static u32 glamo_get_read(struct glamodrm_handle *gdrm)
 {
 	/* we could turn off clock here */
@@ -80,6 +81,7 @@ static u32 glamo_get_read(struct glamodrm_handle *gdrm)
 	return ring_read;
 }
 
+
 static u32 glamo_get_write(struct glamodrm_handle *gdrm)
 {
 	u32 ring_write = reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL);
@@ -89,59 +91,6 @@ static u32 glamo_get_write(struct glamodrm_handle *gdrm)
 	return ring_write;
 }
 
-#if 0
-
-/* hopefully we will never need that again */
-
-static void
-glamo_cmdq_wait(struct glamodrm_handle *gdrm, enum glamo_engine engine)
-{
-	u16 mask, val, status;
-	int i;
-
-	switch (engine)
-	{
-		case GLAMO_ENGINE_CMDQ:
-			mask = 0x3;
-			val  = mask;
-			break;
-		case GLAMO_ENGINE_ISP:
-			mask = 0x3 | (1 << 8);
-			val  = 0x3;
-			break;
-		case GLAMO_ENGINE_2D:
-			mask = 0x3 | (1 << 4);
-			val  = 0x3;
-			break;
-		case GLAMO_ENGINE_3D:
-			mask = 0x3 | (1 << 5);
-			val  = 0x3;
-			break;
-		case GLAMO_ENGINE_ALL:
-		default:
-			mask = 1 << 2;
-			val  = mask;
-			break;
-	}
-
-	for ( i=0; i<1000; i++ ) {
-		status = reg_read(gdrm, GLAMO_REG_CMDQ_STATUS);
-		if ((status & mask) == val) break;
-		mdelay(1);
-	}
-	if ( i == 1000 ) {
-		size_t ring_read;
-		printk(KERN_WARNING "[glamo-drm] CmdQ timeout!\n");
-		printk(KERN_WARNING "[glamo-drm] status = %x\n", status);
-		ring_read = reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRL);
-		ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
-				& 0x7) << 16);
-		printk(KERN_INFO "[glamo-drm] ring_read now 0x%x\n",
-				 ring_read);
-	}
-}
-#endif
-
 
 /* Add commands to the ring buffer */
 static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
@@ -150,7 +99,8 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 	size_t ring_write, ring_read;
 	size_t new_ring_write;
 
-	printk( KERN_INFO "[glamo-drm] glamo add to ring %d bytes, ring_read: %d\n", count, glamo_get_read(gdrm));
+	printk(KERN_INFO "[glamo-drm] glamo add to ring %d bytes,"
+	                 "  ring_read: %d\n", count, glamo_get_read(gdrm));
 
 	up(&gdrm->add_to_ring);
 
@@ -185,7 +135,8 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 		memcpy_toio(gdrm->cmdq_base+ring_write, addr, rest_size);
 
 		/* Write from start */
-		memcpy_toio(gdrm->cmdq_base, addr+(rest_size>>1), count - rest_size);
+		memcpy_toio(gdrm->cmdq_base, addr+(rest_size>>1),
+		            count - rest_size);
 
 		/* ring_write being 0 will result in a deadlock because the
 		 * cmdq read will never stop. To avoid such an behaviour insert
@@ -219,14 +170,16 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 
 	down(&gdrm->add_to_ring);
 
-	printk( KERN_INFO "[glamo-drm] IOCTL2 CMDQ at: %d-%d, CMDQ CTRL: %d, CMDQ STATUS: %d\n",
-			glamo_get_read(gdrm), glamo_get_write(gdrm),
-			reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL),
-			reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) );
+	printk(KERN_INFO "[glamo-drm] IOCTL2 CMDQ at: %d-%d, CMDQ CTRL: %d,"
+	                 " CMDQ STATUS: %d\n",
+	                 glamo_get_read(gdrm), glamo_get_write(gdrm),
+	                 reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL),
+	                 reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) );
 
 
 	return 0;
 }
+
 
 /* Return true for a legal sequence of commands, otherwise false */
 static int glamo_sanitize_buffer(u16 *cmds, unsigned int count)
@@ -329,11 +282,11 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 
 	gdrm = dev->dev_private;
 
-	printk( KERN_INFO "[glamo-drm] IOCTL CMDQ at: %d-%d, CMDQ CTRL: %d, CMDQ STATUS: %d\n",
-			glamo_get_read(gdrm), glamo_get_write(gdrm),
-			reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL),
-			reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) );
-
+	printk(KERN_INFO "[glamo-drm] IOCTL CMDQ at: %d-%d, CMDQ CTRL: %d,"
+	                  " CMDQ STATUS: %d\n",
+	                  glamo_get_read(gdrm), glamo_get_write(gdrm),
+	                  reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL),
+	                  reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) );
 
 	count = cbuf->bufsz;
 
@@ -342,14 +295,14 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 	cmds = drm_alloc(count, DRM_MEM_DRIVER);
 	if ( cmds == NULL ) return -ENOMEM;
 	if ( copy_from_user(cmds, cbuf->buf, count) ) 	{
-		printk( KERN_WARNING "[glamo-drm] copy from user failed\n");
+		printk(KERN_WARNING "[glamo-drm] copy from user failed\n");
 		ret = -EINVAL;
 		goto cleanup;
 	}
 
 	/* Check the buffer isn't going to tell Glamo to enact naughtiness */
 	if ( !glamo_sanitize_buffer(cmds, count) ) {
-		printk( KERN_WARNING "[glamo-drm] sanitize buffer failed\n");
+		printk(KERN_WARNING "[glamo-drm] sanitize buffer failed\n");
 		ret = -EINVAL;
 		goto cleanup;
 	}
@@ -358,7 +311,7 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 	if ( cbuf->nobjs ) {
 		if ( glamo_do_relocation(gdrm, cbuf, cmds, dev, file_priv) )
 		{
-			printk( KERN_WARNING "[glamo-drm] Relocation failed\n");
+			printk(KERN_WARNING "[glamo-drm] Relocation failed\n");
 			ret = -EINVAL;
 			goto cleanup;
 		}
@@ -407,10 +360,11 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 					 5 << 8 |	/* no interrupt */
 					 8 << 4);	/* HQ threshold */
 
-	printk( KERN_INFO "[glamo-drm] INIT CMDQ at: %d-%d, CMDQ CTRL: %d, CMDQ STATUS: %d\n",
-			glamo_get_read(gdrm), glamo_get_write(gdrm),
-			reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL),
-			reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) );
+	printk(KERN_INFO "[glamo-drm] INIT CMDQ at: %d-%d, CMDQ CTRL: %d,"
+	                 " CMDQ STATUS: %d\n",
+	                 glamo_get_read(gdrm), glamo_get_write(gdrm),
+	                 reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL),
+	                 reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) );
 
 	return 0;
 }

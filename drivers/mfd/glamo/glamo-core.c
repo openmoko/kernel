@@ -175,17 +175,11 @@ static inline void glamo_vmem_read(struct glamo_core *glamo, u_int16_t *buf,
 /***********************************************************************
  * resources of sibling devices
  ***********************************************************************/
-static struct resource glamo_cmdq_resources[] = {
+static struct resource glamo_graphics_resources[] = {
 	{
 		.name	= "glamo-cmdq-regs",
 		.start  = GLAMO_REGOFS_CMDQUEUE,
 		.end    = GLAMO_REGOFS_RISC - 1,
-		.flags  = IORESOURCE_MEM,
-	}, {
-		.name   = "glamo-work-mem",
-		.start  = GLAMO_MEM_BASE + GLAMO_OFFSET_WORK,
-		.end    = GLAMO_MEM_BASE + GLAMO_OFFSET_WORK +
-			  GLAMO_WORK_SIZE - 1,
 		.flags  = IORESOURCE_MEM,
 	}, {
 		.name	= "glamo-command-queue",
@@ -193,40 +187,30 @@ static struct resource glamo_cmdq_resources[] = {
 		.end    = GLAMO_MEM_BASE + GLAMO_OFFSET_CMDQ +
 			  GLAMO_CMDQ_SIZE - 1,
 		.flags  = IORESOURCE_MEM,
-	},
-};
-
-static struct platform_device glamo_cmdq_dev = {
-	.name           = "glamo-cmdq",
-	.resource       = glamo_cmdq_resources,
-	.num_resources  = ARRAY_SIZE(glamo_cmdq_resources),
-};
-
-static struct platform_device glamo_spigpio_dev = {
-	.name		= "glamo-spi-gpio",
-};
-
-static struct resource glamo_fb_resources[] = {
-	/* FIXME: those need to be incremented by parent base */
-	{
-		.name	= "glamo-fb-regs",
-		.start	= GLAMO_REGOFS_LCD,
-		.end	= GLAMO_REGOFS_MMC - 1,
-		.flags	= IORESOURCE_MEM,
 	}, {
 		.name	= "glamo-fb-mem",
 		.start	= GLAMO_MEM_BASE + GLAMO_OFFSET_FB,
 		.end	= GLAMO_MEM_BASE + GLAMO_OFFSET_FB +
 			  GLAMO_FB_SIZE - 1,
 		.flags	= IORESOURCE_MEM,
-	},
+	}, {
+		.name	= "glamo-fb-regs",
+		.start	= GLAMO_REGOFS_LCD,
+		.end	= GLAMO_REGOFS_MMC - 1,
+		.flags	= IORESOURCE_MEM,
+	}
 };
 
-static struct platform_device glamo_fb_dev = {
-	.name		= "glamo-fb",
-	.resource	= glamo_fb_resources,
-	.num_resources	= ARRAY_SIZE(glamo_fb_resources),
+static struct platform_device glamo_graphics_dev = {
+	.name           = "glamo-fb",
+	.resource       = glamo_graphics_resources,
+	.num_resources  = ARRAY_SIZE(glamo_graphics_resources),
 };
+
+static struct platform_device glamo_spigpio_dev = {
+	.name		= "glamo-spi-gpio",
+};
+
 
 static struct resource glamo_mmc_resources[] = {
 	{
@@ -1259,18 +1243,11 @@ static int __init glamo_probe(struct platform_device *pdev)
 	glamo->pdata->glamo = glamo;
 
 	/* Command queue device (for DRM) */
-	glamo_cmdq_dev.dev.parent = &pdev->dev;
-	glamo_cmdq_dev.dev.platform_data = glamo;
-	mangle_mem_resources(glamo_cmdq_dev.resource,
-			     glamo_cmdq_dev.num_resources, glamo->mem);
-	platform_device_register(&glamo_cmdq_dev);
-
-	/* Frambuffer device */
-	glamo_fb_dev.dev.parent = &pdev->dev;
-	glamo_fb_dev.dev.platform_data = glamo->pdata;
-	mangle_mem_resources(glamo_fb_dev.resource,
-			     glamo_fb_dev.num_resources, glamo->mem);
-	platform_device_register(&glamo_fb_dev);
+	glamo_graphics_dev.dev.parent = &pdev->dev;
+	glamo_graphics_dev.dev.platform_data = glamo->pdata;
+	mangle_mem_resources(glamo_graphics_dev.resource,
+			     glamo_graphics_dev.num_resources, glamo->mem);
+	platform_device_register(&glamo_graphics_dev);
 
 	/* GPIO */
 	glamo->pdata->spigpio_info->glamo = glamo;
@@ -1331,8 +1308,10 @@ static int glamo_remove(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, NULL);
-	platform_device_unregister(&glamo_fb_dev);
 	platform_device_unregister(glamo->pdata->mmc_dev);
+	/* FIXME: Don't we need to unregister these as well?
+	 * platform_device_unregister(glamo->pdata->graphics_dev);
+	 * platform_device_unregister(glamo->pdata->gpio_dev); */
 	iounmap(glamo->base);
 	release_mem_region(glamo->mem->start, GLAMO_REGOFS_VIDCAP);
 	glamo_handle = NULL;

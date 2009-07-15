@@ -995,8 +995,6 @@ static int __init glamofb_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to request mmio region\n");
 		goto out_free;
 	}
-	if (mach_info->fb_mem_size != RESSIZE(glamofb->fb_res))
-		dev_warn(&pdev->dev, "different vram sizes\n");
 
 	glamofb->fb_res = request_mem_region(glamofb->fb_res->start,
 					     mach_info->fb_mem_size,

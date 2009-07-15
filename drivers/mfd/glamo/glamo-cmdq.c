@@ -89,7 +89,7 @@ static u32 glamo_get_write(struct glamodrm_handle *gdrm)
 	return ring_write;
 }
 
-#if 0 
+#if 0
 
 /* hopefully we will never need that again */
 
@@ -219,9 +219,9 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 
 	down(&gdrm->add_to_ring);
 
-	printk( KERN_INFO "[glamo-drm] IOCTL2 CMDQ at: %d-%d, CMDQ CTRL: %d, CMDQ STATUS: %d\n", 
+	printk( KERN_INFO "[glamo-drm] IOCTL2 CMDQ at: %d-%d, CMDQ CTRL: %d, CMDQ STATUS: %d\n",
 			glamo_get_read(gdrm), glamo_get_write(gdrm),
-			reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL), 
+			reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL),
 			reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) );
 
 
@@ -292,7 +292,7 @@ static int glamo_do_relocation(struct glamodrm_handle *gdrm,
 			goto fail;
 		}
 
-		addr = GLAMO_OFFSET_WORK + gobj->block->start;
+		addr = GLAMO_OFFSET_FB + gobj->block->start;
 		addr_low = addr & 0xffff;
 		addr_high = (addr >> 16) & 0x7f;
 		printk(KERN_INFO "Addr low 0x%x, high 0x%x\n",
@@ -329,9 +329,9 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 
 	gdrm = dev->dev_private;
 
-	printk( KERN_INFO "[glamo-drm] IOCTL CMDQ at: %d-%d, CMDQ CTRL: %d, CMDQ STATUS: %d\n", 
+	printk( KERN_INFO "[glamo-drm] IOCTL CMDQ at: %d-%d, CMDQ CTRL: %d, CMDQ STATUS: %d\n",
 			glamo_get_read(gdrm), glamo_get_write(gdrm),
-			reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL), 
+			reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL),
 			reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) );
 
 
@@ -390,7 +390,7 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 	}
 
 	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_CMDQ);
-	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_CMDQ); 
+	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_CMDQ);
 
 	/* Set up command queue location */
 	reg_write(gdrm, GLAMO_REG_CMDQ_BASE_ADDRL,
@@ -407,15 +407,28 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 					 5 << 8 |	/* no interrupt */
 					 8 << 4);	/* HQ threshold */
 
-	printk( KERN_INFO "[glamo-drm] INIT CMDQ at: %d-%d, CMDQ CTRL: %d, CMDQ STATUS: %d\n", 
+	printk( KERN_INFO "[glamo-drm] INIT CMDQ at: %d-%d, CMDQ CTRL: %d, CMDQ STATUS: %d\n",
 			glamo_get_read(gdrm), glamo_get_write(gdrm),
-			reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL), 
+			reg_read(gdrm, GLAMO_REG_CMDQ_CONTROL),
 			reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) );
 
 	return 0;
 }
 
+
 int glamo_cmdq_shutdown(struct glamodrm_handle *gdrm)
 {
 	return 0;
+}
+
+
+void glamo_cmdq_suspend(struct glamodrm_handle *gdrm)
+{
+	/* Placeholder... */
+}
+
+
+void glamo_cmdq_resume(struct glamodrm_handle *gdrm)
+{
+	glamo_cmdq_init(gdrm);
 }

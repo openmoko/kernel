@@ -1,12 +1,15 @@
 config MFD_GLAMO
-	bool "Smedia Glamo 336x/337x support"
+	bool "SMedia Glamo 336x/337x support"
 	help
 	  This enables the core driver for the Smedia Glamo 336x/337x
 	  multi-function device.  It includes irq_chip demultiplex as
 	  well as clock / power management and GPIO support.
 
+menu "SMedia Glamo 336x/337x engine drivers"
+	depends on MFD_GLAMO
+
 config MFD_GLAMO_FB
-	tristate "Smedia Glamo 336x/337x framebuffer support"
+	tristate "SMedia Glamo 336x/337x framebuffer support"
 	depends on FB && MFD_GLAMO
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
@@ -30,7 +33,6 @@ config MFD_GLAMO_FB_XGLAMO_WORKAROUND
 	  in Xglamo and not in kernel space.
 
 	  If unsure, say N.
-
 
 config MFD_GLAMO_SPI_GPIO
 	tristate "Glamo GPIO SPI bitbang support"
@@ -59,10 +61,18 @@ config MFD_GLAMO_MCI
 	  If unsure, say N.
 
 config MFD_GLAMO_DRM
-	tristate "Glamo DRM support"
+	tristate "Glamo direct rendering and kernel modesetting support"
 	depends on MFD_GLAMO && DRM
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
 	help
-	  Direct Rendering Manager interface for the S-Media GLAMO chip, as
-	  used in Openmoko neo1973 GTA-02.
+	  Direct Rendering Manager interface for the S-Media Glamo chip, as
+	  used in Openmoko FreeRunner (GTA02).
+
+	  This DRM driver includes kernel modesetting (KMS) support.  As such,
+	  do not select MFD_GLAMO_FB above if you choose to enable this option.
 
 	  If unsure, say N.
+
+endmenu

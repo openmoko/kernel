@@ -1,4 +1,4 @@
-/* Smedia Glamo 336x/337x driver
+/* Smedia Glamo 336x/337x Graphics Driver
  *
  * Copyright (C) 2009 Openmoko, Inc. Jorge Luis Zapata <turran@openmoko.com>
  * Copyright (C) 2008-2009 Thomas White <taw@bitwiz.org.uk>
@@ -27,16 +27,19 @@
 #include <linux/platform_device.h>
 #include <drm/drmP.h>
 #include <drm/glamo_drm.h>
+#include <linux/glamofb.h>
 
 #include "glamo-core.h"
 #include "glamo-cmdq.h"
 #include "glamo-buffer.h"
 #include "glamo-drm-private.h"
+#include "glamo-display.h"
+#include "glamo-kms-fb.h"
 
 #define DRIVER_AUTHOR           "Openmoko, Inc."
 #define DRIVER_NAME             "glamo-drm"
 #define DRIVER_DESC             "SMedia Glamo 3362"
-#define DRIVER_DATE             "20090426"
+#define DRIVER_DATE             "20090614"
 
 #define RESSIZE(ressource) (((ressource)->end - (ressource)->start)+1)
 
@@ -127,13 +130,42 @@ static void glamodrm_master_destroy(struct drm_device *dev,
 }
 
 
+static int glamodrm_load(struct drm_device *dev, unsigned long flags)
+{
+	struct glamodrm_handle *gdrm;
+	gdrm = dev->dev_private;
+
+	glamo_buffer_init(gdrm);
+	glamo_cmdq_init(gdrm);
+	glamo_display_init(dev);
+
+	return 0;
+}
+
+
+static int glamodrm_unload(struct drm_device *dev)
+{
+	struct glamodrm_handle *gdrm;
+
+	gdrm = dev->dev_private;
+
+	glamo_engine_disable(gdrm->glamo_core, GLAMO_ENGINE_2D);
+	glamo_engine_disable(gdrm->glamo_core, GLAMO_ENGINE_3D);
+	glamo_buffer_final(gdrm);
+
+	return 0;
+}
+
+
 static struct vm_operations_struct glamodrm_gem_vm_ops = {
 	.fault = glamodrm_gem_fault,
 };
 
 static struct drm_driver glamodrm_drm_driver = {
-	.driver_features = DRIVER_IS_PLATFORM | DRIVER_GEM,
+	.driver_features = DRIVER_IS_PLATFORM | DRIVER_GEM | DRIVER_MODESET,
 	.firstopen = glamodrm_firstopen,
+	.load = glamodrm_load,
+	.unload = glamodrm_unload,
 	.open = glamodrm_open,
 	.preclose = glamodrm_preclose,
 	.postclose = glamodrm_postclose,
@@ -169,14 +201,17 @@ static int glamodrm_probe(struct platform_device *pdev)
 {
 	int rc;
 	struct glamodrm_handle *gdrm;
+	struct glamofb_platform_data *mach_info;
 
-	printk(KERN_INFO "[glamo-drm] SMedia Glamo Direct Rendering Support\n");
+	printk(KERN_CRIT "[glamo-drm] SMedia Glamo Direct Rendering Support\n");
 
 	gdrm = kmalloc(sizeof(*gdrm), GFP_KERNEL);
 	if ( !gdrm )
 		return -ENOMEM;
 	platform_set_drvdata(pdev, gdrm);
-	gdrm->glamo_core = pdev->dev.platform_data;
+	mach_info = pdev->dev.platform_data;
+	gdrm->glamo_core = mach_info->glamo;
+	gdrm->dev = &pdev->dev;
 
 	/* Find the command queue registers */
 	gdrm->reg = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -199,33 +234,8 @@ static int glamodrm_probe(struct platform_device *pdev)
 		goto out_release_regs;
 	}
 
-	/* Find the working VRAM */
-	gdrm->vram = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	if ( !gdrm->vram ) {
-		dev_err(&pdev->dev, "Unable to find work VRAM.\n");
-		rc = -ENOENT;
-		goto out_unmap_regs;
-	}
-	gdrm->vram = request_mem_region(gdrm->vram->start,
-					  RESSIZE(gdrm->vram), pdev->name);
-	if ( !gdrm->vram ) {
-		dev_err(&pdev->dev, "failed to request VRAM region\n");
-		rc = -ENOENT;
-		goto out_unmap_regs;
-	}
-	gdrm->vram_base = ioremap(gdrm->vram->start, RESSIZE(gdrm->vram));
-	if ( !gdrm->vram_base ) {
-		dev_err(&pdev->dev, "failed to ioremap() VRAM\n");
-		rc = -ENOENT;
-		goto out_release_vram;
-	}
-
-	gdrm->vram_size = GLAMO_WORK_SIZE;
-	printk(KERN_INFO "[glamo-drm] %lli bytes of Glamo RAM to work with\n",
-					(long long int)gdrm->vram_size);
-
 	/* Find the command queue itself */
-	gdrm->cmdq = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	gdrm->cmdq = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if ( !gdrm->cmdq ) {
 		dev_err(&pdev->dev, "Unable to find command queue.\n");
 		rc = -ENOENT;
@@ -245,18 +255,66 @@ static int glamodrm_probe(struct platform_device *pdev)
 		goto out_release_cmdq;
 	}
 
+	/* Find the VRAM */
+	gdrm->vram = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	if ( !gdrm->vram ) {
+		dev_err(&pdev->dev, "Unable to find VRAM.\n");
+		rc = -ENOENT;
+		goto out_unmap_regs;
+	}
+	gdrm->vram = request_mem_region(gdrm->vram->start,
+					  RESSIZE(gdrm->vram), pdev->name);
+	if ( !gdrm->vram ) {
+		dev_err(&pdev->dev, "failed to request VRAM region\n");
+		rc = -ENOENT;
+		goto out_unmap_regs;
+	}
+//	gdrm->vram_base = ioremap(gdrm->vram->start, RESSIZE(gdrm->vram));
+//	if ( !gdrm->vram_base ) {
+//		dev_err(&pdev->dev, "failed to ioremap() VRAM\n");
+//		rc = -ENOENT;
+//		goto out_release_vram;
+//	}
+
+	/* Find the LCD controller */
+	gdrm->lcd_regs = platform_get_resource(pdev, IORESOURCE_MEM, 3);
+	if ( !gdrm->lcd_regs ) {
+		dev_err(&pdev->dev, "Unable to find LCD registers.\n");
+		rc = -ENOENT;
+		goto out_unmap_cmdq;
+	}
+	gdrm->lcd_regs = request_mem_region(gdrm->lcd_regs->start,
+	                                    RESSIZE(gdrm->lcd_regs),
+	                                    pdev->name);
+	if ( !gdrm->lcd_regs ) {
+		dev_err(&pdev->dev, "failed to request VRAM region\n");
+		rc = -ENOENT;
+		goto out_release_lcd;
+	}
+	gdrm->lcd_base = ioremap(gdrm->lcd_regs->start, RESSIZE(gdrm->lcd_regs));
+	if ( !gdrm->lcd_base ) {
+		dev_err(&pdev->dev, "failed to ioremap() VRAM\n");
+		rc = -ENOENT;
+		goto out_release_lcd;
+	}
+
+	gdrm->vram_size = GLAMO_FB_SIZE;
+	printk(KERN_INFO "[glamo-drm] %lli bytes of VRAM\n",
+	                 (long long int)gdrm->vram_size);
+
 	/* Initialise DRM */
 	drm_platform_init(&glamodrm_drm_driver, pdev, (void *)gdrm);
 
-	glamo_buffer_init(gdrm);
-	glamo_cmdq_init(gdrm);
-
 	return 0;
 
+out_release_lcd:
+	release_mem_region(gdrm->lcd_regs->start, RESSIZE(gdrm->lcd_regs));
+out_unmap_cmdq:
+	iounmap(gdrm->cmdq_base);
 out_release_cmdq:
 	release_mem_region(gdrm->cmdq->start, RESSIZE(gdrm->cmdq));
 out_unmap_vram:
-	iounmap(gdrm->vram_base);
+//	iounmap(gdrm->vram_base);
 out_release_vram:
 	release_mem_region(gdrm->vram->start, RESSIZE(gdrm->vram));
 out_unmap_regs:
@@ -273,13 +331,10 @@ out_free:
 static int glamodrm_remove(struct platform_device *pdev)
 {
 	struct glamodrm_handle *gdrm = platform_get_drvdata(pdev);
-	struct glamo_core *glamocore = pdev->dev.platform_data;
-
-	glamo_engine_disable(glamocore, GLAMO_ENGINE_2D);
-	glamo_engine_disable(glamocore, GLAMO_ENGINE_3D);
 
 	glamo_buffer_final(gdrm);
 	glamo_cmdq_shutdown(gdrm);
+
 	drm_exit(&glamodrm_drm_driver);
 
 	platform_set_drvdata(pdev, NULL);
@@ -289,7 +344,7 @@ static int glamodrm_remove(struct platform_device *pdev)
 	release_mem_region(gdrm->reg->start, RESSIZE(gdrm->reg));
 
 	/* Release VRAM */
-	iounmap(gdrm->vram_base);
+//	iounmap(gdrm->vram_base);
 	release_mem_region(gdrm->vram->start, RESSIZE(gdrm->vram));
 
 	/* Release command queue  */
@@ -304,7 +359,14 @@ static int glamodrm_remove(struct platform_device *pdev)
 
 static int glamodrm_suspend(struct platform_device *pdev, pm_message_t state)
 {
+	struct glamodrm_handle *gdrm = platform_get_drvdata(pdev);
+
+	glamo_kmsfb_suspend(gdrm);
+	glamo_display_suspend(gdrm);
+	glamo_cmdq_suspend(gdrm);
+
 	/* glamo_core.c will suspend the engines for us */
+
 	return 0;
 }
 
@@ -312,7 +374,11 @@ static int glamodrm_suspend(struct platform_device *pdev, pm_message_t state)
 static int glamodrm_resume(struct platform_device *pdev)
 {
 	struct glamodrm_handle *gdrm = platform_get_drvdata(pdev);
-	glamo_cmdq_init(gdrm);
+
+	glamo_cmdq_resume(gdrm);
+	glamo_display_resume(gdrm);
+	glamo_kmsfb_resume(gdrm);
+
 	return 0;
 }
 
@@ -323,7 +389,7 @@ static struct platform_driver glamodrm_driver = {
 	.suspend	= glamodrm_suspend,
 	.resume		= glamodrm_resume,
 	.driver         = {
-		.name   = "glamo-cmdq",
+		.name   = "glamo-fb",
 		.owner  = THIS_MODULE,
 	},
 };

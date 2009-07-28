@@ -371,7 +371,37 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
 static void glamo_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
                                      struct drm_framebuffer *old_fb)
 {
+	struct glamodrm_handle *gdrm;
+	struct glamo_crtc *gcrtc;
+	struct glamo_framebuffer *gfb;
+	struct drm_gem_object *obj;
+	struct drm_glamo_gem_object *gobj;
+	u32 addr;
+	u16 addr_low, addr_high;
+
 	printk(KERN_CRIT "glamo_crtc_mode_set_base\n");
+
+	if (!crtc->fb) {
+		DRM_DEBUG("No FB bound\n");
+		return;
+	}
+
+	/* Dig out our handle */
+	gcrtc = to_glamo_crtc(crtc);
+	gdrm = gcrtc->gdrm;	/* Here it is! */
+
+	gfb = to_glamo_framebuffer(crtc->fb);
+	obj = gfb->obj;
+	gobj = obj->driver_private;
+
+	addr = GLAMO_OFFSET_FB + gobj->block->start;
+	addr_low = addr & 0xffff;
+	addr_high = (addr >> 16) & 0x7f;
+
+	glamo_lcd_cmd_mode(gdrm, 1);
+	reg_write_lcd(gdrm, GLAMO_REG_LCD_A_BASE1, addr_low);
+	reg_write_lcd(gdrm, GLAMO_REG_LCD_A_BASE2, addr_high);
+	glamo_lcd_cmd_mode(gdrm, 0);
 }
 
 

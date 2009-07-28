@@ -755,8 +755,10 @@ int glamo_display_init(struct drm_device *dev)
 
 	drm_mode_config_init(dev);
 
-	dev->mode_config.min_width = 0;
-	dev->mode_config.min_height = 0;
+	dev->mode_config.min_width = 240;
+	dev->mode_config.min_height = 320;
+	dev->mode_config.max_width = 480;
+	dev->mode_config.max_height = 640;
 
 	dev->mode_config.funcs = (void *)&glamo_mode_funcs;
 

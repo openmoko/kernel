@@ -88,11 +88,8 @@ struct drm_glamo_gem_create {
 };
 
 struct drm_glamo_gem_mmap {
-	uint32_t handle;
-	uint32_t pad;
-	uint64_t offset;
-	uint64_t size;
-	uint64_t addr_ptr;
+	uint32_t handle;	/* Handle goes in... */
+	uint64_t offset;	/* ...offset comes out */
 };
 
 struct drm_glamo_gem_wait_rendering {

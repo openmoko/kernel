@@ -84,12 +84,12 @@ int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
 	drm_gem_object_handle_unreference(obj);
 	mutex_unlock(&dev->struct_mutex);
 	if (ret) goto fail;
-	
+
 	/* Watchpoint */
 	gobj = obj->driver_private;
 	printk(KERN_INFO "[glamo-drm] GEM object %i: %li bytes at 0x%lx\n",
 			  handle, gobj->block->size, gobj->block->start);
-	
+
 	/* Return */
 	args->handle = handle;
 	return 0;
@@ -103,32 +103,128 @@ fail:
 }
 
 
+int glamodrm_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+{
+	struct drm_gem_object *obj = vma->vm_private_data;
+	struct drm_device *dev = obj->dev;
+	struct drm_glamo_gem_object *gobj = obj->driver_private;
+	struct glamodrm_handle *gdrm = dev->dev_private;
+	pgoff_t page_offset;
+	unsigned long pfn;
+	int ret = 0;
+
+	/* We don't use vmf->pgoff since that has the fake offset */
+	page_offset = ((unsigned long)vmf->virtual_address - vma->vm_start) >>
+	               PAGE_SHIFT;
+
+	mutex_lock(&dev->struct_mutex);
+	printk(KERN_INFO "[glamo-drm] Mapping: %8llx + %8llx\n",
+	       (long long int)gdrm->vram->start,
+	       (long long int)gobj->block->start);
+	pfn = ((gdrm->vram->start + gobj->block->start) >> PAGE_SHIFT)
+	       + page_offset;
+	ret = vm_insert_pfn(vma, (unsigned long)vmf->virtual_address, pfn);
+	mutex_unlock(&dev->struct_mutex);
+
+	switch (ret) {
+	case -ENOMEM:
+	case -EAGAIN:
+		return VM_FAULT_OOM;
+	case -EFAULT:
+	case -EBUSY:
+		DRM_ERROR("can't insert pfn??  fault or busy...\n");
+		return VM_FAULT_SIGBUS;
+	default:
+		return VM_FAULT_NOPAGE;
+	}
+}
+
+
+static int glamo_gem_create_mmap_offset(struct drm_gem_object *obj)
+{
+	struct drm_device *dev = obj->dev;
+	struct drm_gem_mm *mm = dev->mm_private;
+	struct drm_glamo_gem_object *gobj = obj->driver_private;
+	struct drm_map_list *list;
+	struct drm_map *map;
+	int ret = 0;
+
+	/* Set the object up for mmap'ing */
+	list = &obj->map_list;
+	list->map = drm_calloc(1, sizeof(struct drm_map_list), DRM_MEM_DRIVER);
+	if (!list->map)
+		return -ENOMEM;
+
+	map = list->map;
+	map->type = _DRM_GEM;
+	map->size = obj->size;
+	map->handle = obj;
+
+	/* Get a DRM GEM mmap offset allocated... */
+	list->file_offset_node = drm_mm_search_free(&mm->offset_manager,
+						    obj->size / PAGE_SIZE, 0, 0);
+	if (!list->file_offset_node) {
+		DRM_ERROR("failed to allocate offset for bo %d\n", obj->name);
+		ret = -ENOMEM;
+		goto out_free_list;
+	}
+
+	list->file_offset_node = drm_mm_get_block(list->file_offset_node,
+						  obj->size / PAGE_SIZE, 0);
+	if (!list->file_offset_node) {
+		ret = -ENOMEM;
+		goto out_free_list;
+	}
+
+	list->hash.key = list->file_offset_node->start;
+	if (drm_ht_insert_item(&mm->offset_hash, &list->hash)) {
+		DRM_ERROR("failed to add to map hash\n");
+		goto out_free_mm;
+	}
+
+	/* By now we should be all set, any drm_mmap request on the offset
+	 * below will get to our mmap & fault handler */
+	gobj->mmap_offset = ((uint64_t) list->hash.key) << PAGE_SHIFT;
+
+	printk(KERN_INFO "[glamo-drm] Created offset %8llx\n",
+	                 (long long int)gobj->mmap_offset);
+
+	return 0;
+
+out_free_mm:
+	drm_mm_put_block(list->file_offset_node);
+out_free_list:
+	drm_free(list->map, sizeof(struct drm_map_list), DRM_MEM_DRIVER);
+
+	return ret;
+}
+
+
 int glamo_ioctl_gem_mmap(struct drm_device *dev, void *data,
 			 struct drm_file *file_priv)
 {
 	struct drm_glamo_gem_mmap *args = data;
 	struct drm_gem_object *obj;
-	loff_t offset;
-	unsigned long addr;
+	struct drm_glamo_gem_object *gobj;
+	int ret;
 
 	obj = drm_gem_object_lookup(dev, file_priv, args->handle);
 	if (obj == NULL)
 		return -EBADF;
 
-	offset = args->offset;
-
-	down_write(&current->mm->mmap_sem);
-	addr = do_mmap(obj->filp, 0, args->size,
-		       PROT_READ | PROT_WRITE, MAP_SHARED,
-		       args->offset);
-	up_write(&current->mm->mmap_sem);
 	mutex_lock(&dev->struct_mutex);
+
+	gobj = obj->driver_private;
+	if (!gobj->mmap_offset) {
+		ret = glamo_gem_create_mmap_offset(obj);
+		if (ret)
+			return ret;
+	}
+
+	args->offset = gobj->mmap_offset;
+
 	drm_gem_object_unreference(obj);
 	mutex_unlock(&dev->struct_mutex);
-	if (IS_ERR((void *)addr))
-		return addr;
-
-	args->addr_ptr = (uint64_t) addr;
 
 	return 0;
 }
@@ -163,12 +259,6 @@ int glamo_ioctl_gem_pwrite(struct drm_device *dev, void *data,
 {
 	printk(KERN_INFO "glamo_ioctl_gem_pwrite\n");
 	return 0;
-}
-
-
-int glamodrm_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
-{
-	return VM_FAULT_SIGBUS;
 }
 
 

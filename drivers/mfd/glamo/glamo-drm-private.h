@@ -97,6 +97,7 @@ struct glamodrm_handle {
 struct drm_glamo_gem_object {
 	struct drm_gem_object *obj;	/* The GEM object this refers to */
 	struct drm_mm_node *block;	/* Block handle for drm_mm */
+	uint64_t mmap_offset;
 };
 
 

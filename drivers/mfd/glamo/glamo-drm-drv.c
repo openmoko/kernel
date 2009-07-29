@@ -184,7 +184,7 @@ static struct drm_driver glamodrm_drm_driver = {
 		.open = drm_open,
 		.release = drm_release,
 		.ioctl = drm_ioctl,
-		.mmap = drm_mmap,
+		.mmap = drm_gem_mmap,
 		.poll = drm_poll,
 		.fasync = drm_fasync,
 	},

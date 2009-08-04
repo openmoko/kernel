@@ -18,6 +18,33 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
  * MA 02111-1307 USA
  *
+ *
+ * Memory mapping functions based on i915_gem.c, to which the following
+ * notice applies:
+ *
+ * Copyright © 2008 Intel Corporation
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the next
+ * paragraph) shall be included in all copies or substantial portions of the
+ * Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ * Authors:
+ *    Eric Anholt <eric@anholt.net>
  */
 
 
@@ -87,8 +114,6 @@ int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
 
 	/* Watchpoint */
 	gobj = obj->driver_private;
-	printk(KERN_INFO "[glamo-drm] GEM object %i: %li bytes at 0x%lx\n",
-			  handle, gobj->block->size, gobj->block->start);
 
 	/* Return */
 	args->handle = handle;
@@ -118,9 +143,6 @@ int glamodrm_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	               PAGE_SHIFT;
 
 	mutex_lock(&dev->struct_mutex);
-	printk(KERN_INFO "[glamo-drm] Mapping: %8llx + %8llx\n",
-	       (long long int)gdrm->vram->start,
-	       (long long int)gobj->block->start);
 	pfn = ((gdrm->vram->start + gobj->block->start) >> PAGE_SHIFT)
 	       + page_offset;
 	ret = vm_insert_pfn(vma, (unsigned long)vmf->virtual_address, pfn);
@@ -185,9 +207,6 @@ static int glamo_gem_create_mmap_offset(struct drm_gem_object *obj)
 	/* By now we should be all set, any drm_mmap request on the offset
 	 * below will get to our mmap & fault handler */
 	gobj->mmap_offset = ((uint64_t) list->hash.key) << PAGE_SHIFT;
-
-	printk(KERN_INFO "[glamo-drm] Created offset %8llx\n",
-	                 (long long int)gobj->mmap_offset);
 
 	return 0;
 

@@ -37,7 +37,7 @@
 
 /* Memory to allocate for the framebuffer.
  * The rest is reserved for the DRM memory manager */
-#define GLAMO_FRAMEBUFFER_ALLOCATION (4*1024*1024)
+#define GLAMO_FRAMEBUFFER_ALLOCATION (2*480*640)
 
 
 struct glamodrm_handle {

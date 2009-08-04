@@ -239,14 +239,14 @@ static int glamodrm_probe(struct platform_device *pdev)
 	if ( !gdrm->cmdq ) {
 		dev_err(&pdev->dev, "Unable to find command queue.\n");
 		rc = -ENOENT;
-		goto out_unmap_vram;
+		goto out_unmap_regs;
 	}
 	gdrm->cmdq = request_mem_region(gdrm->cmdq->start,
 					  RESSIZE(gdrm->cmdq), pdev->name);
 	if ( !gdrm->cmdq ) {
 		dev_err(&pdev->dev, "failed to request command queue region\n");
 		rc = -ENOENT;
-		goto out_unmap_vram;
+		goto out_unmap_regs;
 	}
 	gdrm->cmdq_base = ioremap(gdrm->cmdq->start, RESSIZE(gdrm->cmdq));
 	if ( !gdrm->cmdq_base ) {
@@ -260,40 +260,34 @@ static int glamodrm_probe(struct platform_device *pdev)
 	if ( !gdrm->vram ) {
 		dev_err(&pdev->dev, "Unable to find VRAM.\n");
 		rc = -ENOENT;
-		goto out_unmap_regs;
+		goto out_unmap_cmdq;
 	}
 	gdrm->vram = request_mem_region(gdrm->vram->start,
 					  RESSIZE(gdrm->vram), pdev->name);
 	if ( !gdrm->vram ) {
 		dev_err(&pdev->dev, "failed to request VRAM region\n");
 		rc = -ENOENT;
-		goto out_unmap_regs;
+		goto out_unmap_cmdq;
 	}
-//	gdrm->vram_base = ioremap(gdrm->vram->start, RESSIZE(gdrm->vram));
-//	if ( !gdrm->vram_base ) {
-//		dev_err(&pdev->dev, "failed to ioremap() VRAM\n");
-//		rc = -ENOENT;
-//		goto out_release_vram;
-//	}
 
 	/* Find the LCD controller */
 	gdrm->lcd_regs = platform_get_resource(pdev, IORESOURCE_MEM, 3);
 	if ( !gdrm->lcd_regs ) {
 		dev_err(&pdev->dev, "Unable to find LCD registers.\n");
 		rc = -ENOENT;
-		goto out_unmap_cmdq;
+		goto out_release_vram;
 	}
 	gdrm->lcd_regs = request_mem_region(gdrm->lcd_regs->start,
 	                                    RESSIZE(gdrm->lcd_regs),
 	                                    pdev->name);
 	if ( !gdrm->lcd_regs ) {
-		dev_err(&pdev->dev, "failed to request VRAM region\n");
+		dev_err(&pdev->dev, "failed to request LCD registers\n");
 		rc = -ENOENT;
-		goto out_release_lcd;
+		goto out_release_vram;
 	}
 	gdrm->lcd_base = ioremap(gdrm->lcd_regs->start, RESSIZE(gdrm->lcd_regs));
 	if ( !gdrm->lcd_base ) {
-		dev_err(&pdev->dev, "failed to ioremap() VRAM\n");
+		dev_err(&pdev->dev, "failed to ioremap() LCD registers\n");
 		rc = -ENOENT;
 		goto out_release_lcd;
 	}
@@ -313,8 +307,6 @@ out_unmap_cmdq:
 	iounmap(gdrm->cmdq_base);
 out_release_cmdq:
 	release_mem_region(gdrm->cmdq->start, RESSIZE(gdrm->cmdq));
-out_unmap_vram:
-//	iounmap(gdrm->vram_base);
 out_release_vram:
 	release_mem_region(gdrm->vram->start, RESSIZE(gdrm->vram));
 out_unmap_regs:

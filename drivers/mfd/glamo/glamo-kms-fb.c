@@ -368,10 +368,11 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	struct glamo_framebuffer *glamo_fb;
 	struct drm_mode_fb_cmd mode_cmd;
 	struct drm_gem_object *fbo = NULL;
-	struct drm_glamo_gem_object *obj_priv;
+	struct drm_glamo_gem_object *gobj;
 	struct device *device = &dev->platform_dev->dev;
 	struct glamodrm_handle *gdrm;
 	int size, ret;
+	unsigned long offs;
 
 	gdrm = dev->dev_private;
 
@@ -395,7 +396,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 		ret = -ENOMEM;
 		goto out;
 	}
-	obj_priv = fbo->driver_private;
+	gobj = fbo->driver_private;
 
 	mutex_lock(&dev->struct_mutex);
 
@@ -438,7 +439,9 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 
 	info->flags = FBINFO_DEFAULT;
 
-	info->screen_base = ioremap(gdrm->vram->start, RESSIZE(gdrm->vram));
+	offs = gobj->block->start;
+	info->screen_base = ioremap(gdrm->vram->start + offs,
+	                            GLAMO_FRAMEBUFFER_ALLOCATION);
 	if (!info->screen_base) {
 		printk(KERN_ERR "[glamo-drm] Couldn't map framebuffer!\n");
 		ret = -ENOSPC;

@@ -837,8 +837,20 @@ int glamo_display_init(struct drm_device *dev)
 	                           ARRAY_SIZE(lcd_init_script));
 
 	if (list_empty(&dev->mode_config.fb_kernel_list)) {
-		int ret;
-		ret = glamofb_create(dev, 480, 640, 480, 640, &glamo_fb);
+		int ret, cols, cols_g;
+		cols_g = reg_read_lcd(gdrm, GLAMO_REG_LCD_MODE3) & 0xc000;
+		switch ( cols_g ) {
+		case GLAMO_LCD_SRC_RGB565 :
+			cols = GLAMO_FB_RGB565; break;
+		case GLAMO_LCD_SRC_ARGB1555 :
+			cols = GLAMO_FB_ARGB1555; break;
+		case GLAMO_LCD_SRC_ARGB4444 :
+			cols = GLAMO_FB_ARGB4444; break;
+		default :
+			printk(KERN_WARNING "Unrecognised LCD colour mode\n");
+			cols = GLAMO_FB_RGB565; break; /* Take a guess */
+		}
+		ret = glamofb_create(dev, 480, 640, 480, 640, cols, &glamo_fb);
 		if (ret) return -EINVAL;
 	}
 

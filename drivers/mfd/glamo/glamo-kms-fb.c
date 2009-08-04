@@ -60,7 +60,6 @@
 
 #include "glamo-core.h"
 #include "glamo-drm-private.h"
-#include "glamo-regs.h"
 #include "glamo-display.h"
 #include "glamo-buffer.h"
 
@@ -73,17 +72,6 @@ struct glamofb_par {
 	/* crtc currently bound to this */
 	uint32_t crtc_ids[2];
 };
-
-
-static int reg_read(struct glamodrm_handle *gdrm, u_int16_t reg)
-{
-	int i = 0;
-
-	for (i = 0; i != 2; i++)
-		nop();
-
-	return ioread16(gdrm->lcd_base + reg);
-}
 
 
 static int glamofb_setcolreg(unsigned regno, unsigned red, unsigned green,
@@ -371,7 +359,7 @@ static struct fb_ops glamofb_ops = {
  * /dev/fbX so that the kernel can put a console on it. */
 int glamofb_create(struct drm_device *dev, uint32_t fb_width,
                    uint32_t fb_height, uint32_t surface_width,
-                   uint32_t surface_height,
+                   uint32_t surface_height, int colour_mode,
                    struct glamo_framebuffer **glamo_fb_p)
 {
 	struct fb_info *info;
@@ -481,8 +469,8 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 
 	switch (fb->depth) {
 	case 16:
-		switch (reg_read(gdrm, GLAMO_REG_LCD_MODE3) & 0xc000) {	/* FIXME */
-		case GLAMO_LCD_SRC_RGB565:
+		switch ( colour_mode ) {
+		case GLAMO_FB_RGB565:
 			info->var.red.offset	= 11;
 			info->var.green.offset	= 5;
 			info->var.blue.offset	= 0;
@@ -491,7 +479,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 			info->var.blue.length	= 5;
 			info->var.transp.length	= 0;
 			break;
-		case GLAMO_LCD_SRC_ARGB1555:
+		case GLAMO_FB_ARGB1555:
 			info->var.transp.offset	= 15;
 			info->var.red.offset	= 10;
 			info->var.green.offset	= 5;
@@ -501,7 +489,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 			info->var.green.length	= 5;
 			info->var.blue.length	= 5;
 			break;
-		case GLAMO_LCD_SRC_ARGB4444:
+		case GLAMO_FB_ARGB4444:
 			info->var.transp.offset	= 12;
 			info->var.red.offset	= 8;
 			info->var.green.offset	= 4;

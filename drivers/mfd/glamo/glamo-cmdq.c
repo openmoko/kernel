@@ -102,7 +102,7 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 	printk(KERN_INFO "[glamo-drm] glamo add to ring %d bytes,"
 	                 "  ring_read: %d\n", count, glamo_get_read(gdrm));
 
-	up(&gdrm->add_to_ring);
+	down(&gdrm->add_to_ring);
 
 	ring_write = glamo_get_write(gdrm);
 
@@ -168,7 +168,7 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL,
 			new_ring_write & 0xffff);
 
-	down(&gdrm->add_to_ring);
+	up(&gdrm->add_to_ring);
 
 	printk(KERN_INFO "[glamo-drm] IOCTL2 CMDQ at: %d-%d, CMDQ CTRL: %d,"
 	                 " CMDQ STATUS: %d\n",

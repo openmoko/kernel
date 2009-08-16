@@ -96,7 +96,6 @@ int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
 {
 	struct drm_glamo_gem_create *args = data;
 	struct drm_gem_object *obj;
-	struct drm_glamo_gem_object *gobj;
 	int handle, ret;
 
 	/* Create an object */
@@ -109,9 +108,6 @@ int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
 	drm_gem_object_handle_unreference(obj);
 	mutex_unlock(&dev->struct_mutex);
 	if (ret) goto fail;
-
-	/* Watchpoint */
-	gobj = obj->driver_private;
 
 	/* Return */
 	args->handle = handle;

@@ -230,8 +230,10 @@ int glamo_ioctl_gem_mmap(struct drm_device *dev, void *data,
 	gobj = obj->driver_private;
 	if (!gobj->mmap_offset) {
 		ret = glamo_gem_create_mmap_offset(obj);
-		if (ret)
+		if (ret) {
+			mutex_unlock(&dev->struct_mutex);
 			return ret;
+		}
 	}
 
 	args->offset = gobj->mmap_offset;

@@ -124,7 +124,7 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 	if (ring_write >= new_ring_write) {
 
 		u32 rest_size;
-		printk(KERN_INFO "[glamo-drm] CmdQ wrap-around...\n");
+
 		/* Wrap around */
 		rest_size = GLAMO_CMDQ_SIZE - ring_write; /* Space left */
 

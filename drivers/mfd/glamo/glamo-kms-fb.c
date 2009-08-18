@@ -178,8 +178,6 @@ static int glamofb_set_par(struct fb_info *info)
 	struct fb_var_screeninfo *var = &info->var;
 	int i;
 
-	printk(KERN_CRIT "glamofb_set_par\n");
-
 	DRM_DEBUG("%d %d\n", var->xres, var->pixclock);
 
 	if (var->pixclock != -1) {
@@ -222,8 +220,6 @@ static int glamofb_pan_display(struct fb_var_screeninfo *var,
 	struct glamo_crtc *glamo_crtc;
 	int ret = 0;
 	int i;
-
-	printk(KERN_CRIT "glamofb_pan_display (%i,%i)\n", var->xoffset, var->yoffset);
 
 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
 		for (i = 0; i < par->crtc_count; i++)

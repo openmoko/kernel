@@ -203,7 +203,7 @@ static int glamodrm_probe(struct platform_device *pdev)
 	struct glamodrm_handle *gdrm;
 	struct glamofb_platform_data *mach_info;
 
-	printk(KERN_CRIT "[glamo-drm] SMedia Glamo Direct Rendering Support\n");
+	printk(KERN_INFO "[glamo-drm] SMedia Glamo Direct Rendering Support\n");
 
 	gdrm = kmalloc(sizeof(*gdrm), GFP_KERNEL);
 	if ( !gdrm )

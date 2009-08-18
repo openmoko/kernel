@@ -265,7 +265,6 @@ static void glamo_crtc_dpms(struct drm_crtc *crtc, int mode)
 	struct glamodrm_handle *gdrm;
 	struct glamo_crtc *glamo_crtc = to_glamo_crtc(crtc);
 
-	printk(KERN_CRIT "glamo_crtc_dpms(%u)\n", mode);
 	gdrm = glamo_crtc->gdrm;
 
 	switch (mode) {
@@ -296,7 +295,6 @@ static bool glamo_crtc_mode_fixup(struct drm_crtc *crtc,
                                   struct drm_display_mode *mode,
                                   struct drm_display_mode *adjusted_mode)
 {
-	printk(KERN_CRIT "glamo_crtc_mode_fixup\n");
 	return true;
 }
 
@@ -312,8 +310,6 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
 	int retr_start, retr_end, disp_start, disp_end;
 	int ps;
 
-	printk(KERN_CRIT "glamo_crtc_mode_set\n");
-
 	/* Dig out our handle */
 	gcrtc = to_glamo_crtc(crtc);
 	gdrm = gcrtc->gdrm;	/* Here it is! */
@@ -321,7 +317,7 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
 	glamo_lcd_cmd_mode(gdrm, 1);
 	ps = mode->clock / 1000;	/* Hz -> kHz */
 	ps = 1000000000UL / ps;		/* kHz -> ps */
-	printk(KERN_INFO "[glamo-drm] Reclocking LCD engine to %i ps\n", ps);
+
 	glamo_engine_reclock(gdrm->glamo_core, GLAMO_ENGINE_LCD, ps);
 	gdrm->saved_clock = ps;
 
@@ -379,8 +375,6 @@ static void glamo_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 	u32 addr;
 	u16 addr_low, addr_high;
 
-	printk(KERN_CRIT "glamo_crtc_mode_set_base\n");
-
 	if (!crtc->fb) {
 		DRM_DEBUG("No FB bound\n");
 		return;
@@ -407,13 +401,11 @@ static void glamo_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 
 static void glamo_crtc_prepare(struct drm_crtc *crtc)
 {
-	printk(KERN_CRIT "glamo_crtc_prepare\n");
 }
 
 
 static void glamo_crtc_commit(struct drm_crtc *crtc)
 {
-	printk(KERN_CRIT "glamo_crtc_commit\n");
 }
 
 
@@ -422,14 +414,12 @@ static int glamo_crtc_cursor_set(struct drm_crtc *crtc,
                                  uint32_t handle,
                                  uint32_t width, uint32_t height)
 {
-	printk(KERN_CRIT "glamo_crtc_cursor_set\n");
 	return 0;
 }
 
 
 static int glamo_crtc_cursor_move(struct drm_crtc *crtc, int x, int y)
 {
-	printk(KERN_CRIT "glamo_crtc_cursor_move\n");
 	return 0;
 }
 
@@ -437,14 +427,12 @@ static int glamo_crtc_cursor_move(struct drm_crtc *crtc, int x, int y)
 static void glamo_crtc_gamma_set(struct drm_crtc *crtc, u16 *red, u16 *green,
                                  u16 *blue, uint32_t size)
 {
-	printk(KERN_CRIT "glamo_crtc_gamma_set\n");
 }
 
 
 static void glamo_crtc_destroy(struct drm_crtc *crtc)
 {
 	struct glamo_crtc *glamo_crtc = to_glamo_crtc(crtc);
-	printk(KERN_CRIT "glamo_crtc_destroy\n");
 	drm_crtc_cleanup(crtc);
 	kfree(glamo_crtc);
 }
@@ -454,14 +442,12 @@ static enum drm_connector_status
 glamo_connector_detect(struct drm_connector *connector)
 {
 	/* One hopes it hasn't been de-soldered... */
-	printk(KERN_CRIT "glamo_connector_detect\n");
 	return connector_status_connected;
 }
 
 
 static void glamo_connector_destroy(struct drm_connector *connector)
 {
-	printk(KERN_CRIT "glamo_connector_destroy\n");
 	drm_sysfs_connector_remove(connector);
 	drm_connector_cleanup(connector);
 	kfree(connector);
@@ -477,8 +463,6 @@ static int glamo_connector_get_modes(struct drm_connector *connector)
 
 	/* Dig out the record which will tell us about the hardware */
 	mach_info = gdrm->glamo_core->pdev->dev.platform_data;
-
-	printk(KERN_CRIT "glamo_connector_get_modes\n");
 
 	mode = drm_mode_create(connector->dev);
 	if (!mode)
@@ -504,11 +488,6 @@ static int glamo_connector_get_modes(struct drm_connector *connector)
 	mode->width_mm = mach_info->width;
 	mode->height_mm = mach_info->height;
 
-	printk(KERN_CRIT "Modeline \"%ix%i\" %i   %i %i %i %i    %i %i %i %i\n",
-	       mode->hdisplay, mode->vdisplay, mode->clock,
-	       mode->hdisplay, mode->hsync_start, mode->hsync_end, mode->htotal,
-	       mode->vdisplay, mode->vsync_start, mode->vsync_end, mode->vtotal);
-
 	drm_mode_set_name(mode);
 	drm_mode_probed_add(connector, mode);
 
@@ -520,7 +499,6 @@ static int glamo_connector_set_property(struct drm_connector *connector,
 				  struct drm_property *property,
 				  uint64_t value)
 {
-	printk(KERN_CRIT "glamo_connector_set_property\n");
 	return 0;
 }
 
@@ -528,7 +506,6 @@ static int glamo_connector_set_property(struct drm_connector *connector,
 static int glamo_connector_mode_valid(struct drm_connector *connector,
                                       struct drm_display_mode *mode)
 {
-	printk(KERN_CRIT "glamo_connector_mode_valid\n");
 	if (mode->flags & DRM_MODE_FLAG_DBLSCAN)
 		return MODE_NO_DBLESCAN;
 
@@ -540,14 +517,12 @@ struct drm_encoder *
 glamo_connector_best_encoder(struct drm_connector *connector)
 {
 	struct glamo_output *glamo_output = to_glamo_output(connector);
-	printk(KERN_CRIT "glamo_connector_best_encoder\n");
 	return &glamo_output->enc;
 }
 
 
 static void glamo_encoder_dpms(struct drm_encoder *encoder, int mode)
 {
-	printk(KERN_CRIT "glamo_encoder_dpms\n");
 }
 
 
@@ -555,20 +530,17 @@ static bool glamo_encoder_mode_fixup(struct drm_encoder *encoder,
                                  struct drm_display_mode *mode,
                                  struct drm_display_mode *adjusted_mode)
 {
-	printk(KERN_CRIT "glamo_encoder_mode_fixup\n");
 	return true;
 }
 
 
 void glamo_encoder_prepare(struct drm_encoder *encoder)
 {
-	printk(KERN_CRIT "glamo_encoder_prepare\n");
 }
 
 
 void glamo_encoder_commit(struct drm_encoder *encoder)
 {
-	printk(KERN_CRIT "glamo_encoder_commit\n");
 }
 
 
@@ -576,13 +548,11 @@ static void glamo_encoder_mode_set(struct drm_encoder *encoder,
                                struct drm_display_mode *mode,
                                struct drm_display_mode *adjusted_mode)
 {
-	printk(KERN_CRIT "glamo_encoder_mode_set\n");
 }
 
 
 static void glamo_encoder_destroy(struct drm_encoder *encoder)
 {
-	printk(KERN_CRIT "glamo_encoder_destroy\n");
 	drm_encoder_cleanup(encoder);
 }
 
@@ -591,7 +561,6 @@ static void glamo_framebuffer_destroy(struct drm_framebuffer *fb)
 {
 	struct glamo_framebuffer *glamo_fb = to_glamo_framebuffer(fb);
 	struct drm_device *dev = fb->dev;
-	printk(KERN_CRIT "glamo_user_framebuffer_destroy\n");
 
 	drm_framebuffer_cleanup(fb);
 	mutex_lock(&dev->struct_mutex);
@@ -607,7 +576,6 @@ static int glamo_framebuffer_create_handle(struct drm_framebuffer *fb,
 {
 	struct glamo_framebuffer *glamo_fb = to_glamo_framebuffer(fb);
 	struct drm_gem_object *object = glamo_fb->obj;
-	printk(KERN_CRIT "glamo_user_framebuffer_create_handle\n");
 
 	return drm_gem_handle_create(file_priv, object, handle);
 }
@@ -627,7 +595,6 @@ int glamo_framebuffer_create(struct drm_device *dev,
 	struct glamo_framebuffer *glamo_fb;
 	int ret;
 
-	printk(KERN_CRIT "glamo_framebuffer_create\n");
 	glamo_fb = kzalloc(sizeof(*glamo_fb), GFP_KERNEL);
 	if (!glamo_fb)
 		return -ENOMEM;
@@ -656,7 +623,6 @@ glamo_user_framebuffer_create(struct drm_device *dev,
 	struct drm_gem_object *obj;
 	struct drm_framebuffer *fb;
 	int ret;
-	printk(KERN_CRIT "glamo_user_framebuffer_create\n");
 
 	obj = drm_gem_object_lookup(dev, filp, mode_cmd->handle);
 	if (!obj)
@@ -674,7 +640,6 @@ glamo_user_framebuffer_create(struct drm_device *dev,
 
 int glamo_fbchanged(struct drm_device *dev)
 {
-	printk(KERN_CRIT "glamo_fb_changed\n");
 	return 0;
 }
 
@@ -778,8 +743,6 @@ int glamo_display_init(struct drm_device *dev)
 
 	gdrm = dev->dev_private;
 
-	printk(KERN_CRIT "glamo_display_init\n");
-
 	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_LCD);
 	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_LCD);
 
@@ -877,7 +840,7 @@ int glamo_display_init(struct drm_device *dev)
 	/* Switch back to kernel console on panic */
 	kernelfb_mode = *modeset;
 	atomic_notifier_chain_register(&panic_notifier_list, &paniced);
-	printk(KERN_INFO "[glamo-drm] registered panic notifier\n");
+	printk(KERN_INFO "[glamo-drm] Registered panic notifier\n");
 
 	return 0;
 }

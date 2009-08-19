@@ -50,6 +50,7 @@
  * OF THIS SOFTWARE.
  */
 
+
 #include <drm/drmP.h>
 #include <drm/glamo_drm.h>
 
@@ -59,7 +60,7 @@
 
 
 static inline void reg_write(struct glamodrm_handle *gdrm,
-		      u_int16_t reg, u_int16_t val)
+                             u_int16_t reg, u_int16_t val)
 {
 	iowrite16(val, gdrm->reg_base + reg);
 }
@@ -75,8 +76,7 @@ static u32 glamo_get_read(struct glamodrm_handle *gdrm)
 {
 	/* we could turn off clock here */
 	u32 ring_read = reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRL);
-	ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
-				& 0x7) << 16);
+	ring_read |= (reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH) & 0x7) << 16;
 
 	return ring_read;
 }
@@ -85,8 +85,7 @@ static u32 glamo_get_read(struct glamodrm_handle *gdrm)
 static u32 glamo_get_write(struct glamodrm_handle *gdrm)
 {
 	u32 ring_write = reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL);
-	ring_write |= ((reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH)
-				& 0x7) << 16);
+	ring_write |= (reg_read(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH) & 0x7) << 16;
 
 	return ring_write;
 }
@@ -94,7 +93,7 @@ static u32 glamo_get_write(struct glamodrm_handle *gdrm)
 
 /* Add commands to the ring buffer */
 static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
-			     unsigned int count)
+                             unsigned int count)
 {
 	size_t ring_write, ring_read;
 	size_t new_ring_write;
@@ -181,9 +180,9 @@ static int glamo_sanitize_buffer(u16 *cmds, unsigned int count)
 
 /* Substitute the real addresses in VRAM for any required buffer objects */
 static int glamo_do_relocation(struct glamodrm_handle *gdrm,
-			       drm_glamo_cmd_buffer_t *cbuf, u16 *cmds,
-			       struct drm_device *dev,
-			       struct drm_file *file_priv)
+                               drm_glamo_cmd_buffer_t *cbuf, u16 *cmds,
+                               struct drm_device *dev,
+                               struct drm_file *file_priv)
 {
 	u32 *handles;
 	int *offsets;
@@ -212,8 +211,8 @@ static int glamo_do_relocation(struct glamodrm_handle *gdrm,
 		u16 addr_low, addr_high;
 
 		if ( offset > cbuf->bufsz ) {
-			printk(KERN_WARNING "[glamo-drm] Offset out of range "
-					    "for this relocation!\n");
+			printk(KERN_WARNING "[glamo-drm] Offset out of range"
+			                    " for this relocation!\n");
 			goto fail;
 		}
 
@@ -227,8 +226,8 @@ static int glamo_do_relocation(struct glamodrm_handle *gdrm,
 
 		gobj = obj->driver_private;
 		if ( gobj == NULL ) {
-			printk(KERN_WARNING "[glamo-drm] This object has no "
-					    "private data!\n");
+			printk(KERN_WARNING "[glamo-drm] This object has no"
+			                     " private data!\n");
 			goto fail;
 		}
 
@@ -257,7 +256,7 @@ fail:
 
 /* This is DRM_IOCTL_GLAMO_CMDBUF */
 int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
-		       struct drm_file *file_priv)
+                       struct drm_file *file_priv)
 {
 	int ret = 0;
 	struct glamodrm_handle *gdrm;
@@ -335,9 +334,9 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRH, 0);
 	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL, 0);
 	reg_write(gdrm, GLAMO_REG_CMDQ_CONTROL,
-					 1 << 12 |	/* Turbo flip (?) */
-					 5 << 8 |	/* no interrupt */
-					 8 << 4);	/* HQ threshold */
+	                                 1 << 12 |   /* Turbo flip (?) */
+	                                 5 << 8  |   /* no interrupt */
+	                                 8 << 4);    /* HQ threshold */
 
 	return 0;
 }

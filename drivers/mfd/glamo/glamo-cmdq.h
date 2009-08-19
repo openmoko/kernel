@@ -33,6 +33,8 @@
 
 extern int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 			      struct drm_file *file_priv);
+extern int glamo_ioctl_gem_wait_rendering(struct drm_device *dev, void *data,
+                                          struct drm_file *file_priv);
 
 extern int glamo_cmdq_init(struct glamodrm_handle *gdrm);
 extern int glamo_cmdq_shutdown(struct glamodrm_handle *gdrm);

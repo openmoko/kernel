@@ -60,14 +60,6 @@ static int glamo_ioctl_gem_info(struct drm_device *dev, void *data,
 }
 
 
-static int glamo_ioctl_gem_wait_rendering(struct drm_device *dev, void *data,
-					  struct drm_file *file_priv)
-{
-	printk(KERN_INFO "glamo_ioctl_gem_wait_rendering\n");
-	return 0;
-}
-
-
 struct drm_ioctl_desc glamo_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_GLAMO_CMDBUF, glamo_ioctl_cmdbuf, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_GLAMO_SWAP, glamo_ioctl_swap, DRM_AUTH),

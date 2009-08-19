@@ -305,6 +305,13 @@ cleanup:
 }
 
 
+int glamo_ioctl_gem_wait_rendering(struct drm_device *dev, void *data,
+                                   struct drm_file *file_priv)
+{
+	return 0;
+}
+
+
 int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 {
 	unsigned int i;

@@ -94,6 +94,7 @@ struct drm_glamo_gem_mmap {
 
 struct drm_glamo_gem_wait_rendering {
 	uint32_t handle;
+	int have_handle;
 };
 
 struct drm_glamo_gem_pin {

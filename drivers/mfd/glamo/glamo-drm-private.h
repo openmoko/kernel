@@ -57,7 +57,6 @@ struct glamodrm_handle {
 
 	/* VRAM region */
 	struct resource *vram;
-	char __iomem *vram_base;
 
 	/* Command queue region */
 	struct resource *cmdq;

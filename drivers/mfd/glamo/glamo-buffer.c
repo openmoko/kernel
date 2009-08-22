@@ -50,6 +50,7 @@
 #include <drm/glamo_drm.h>
 
 #include "glamo-drm-private.h"
+#include "glamo-cmdq.h"	/* For glamo_cmdq_blank() */
 
 
 struct drm_gem_object *glamo_gem_object_alloc(struct drm_device *dev, int size,
@@ -78,6 +79,9 @@ struct drm_gem_object *glamo_gem_object_alloc(struct drm_device *dev, int size,
 	if (!gobj->block) {
 		goto fail;
 	}
+
+	/* Arrange for the contents to be set to zero */
+	glamo_cmdq_blank(gdrm, obj);
 
 	return obj;
 

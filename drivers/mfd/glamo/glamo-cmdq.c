@@ -440,3 +440,21 @@ void glamo_cmdq_resume(struct glamodrm_handle *gdrm)
 {
 	glamo_cmdq_init(gdrm);
 }
+
+
+/* Initialise an object's contents to zero.
+ * This is in glamo-cmdq.c in the hope that we can accelerate it later. */
+void glamo_cmdq_blank(struct glamodrm_handle *gdrm, struct drm_gem_object *obj)
+{
+	char __iomem *cookie;
+	struct drm_glamo_gem_object *gobj;
+	int i;
+
+	gobj = obj->driver_private;
+
+	cookie = ioremap(gdrm->vram->start + gobj->block->start, obj->size);
+	for ( i=0; i<obj->size; i+=2 ) {
+		iowrite16(0, cookie+i);
+	}
+	iounmap(cookie);
+}

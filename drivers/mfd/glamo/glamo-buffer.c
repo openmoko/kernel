@@ -299,11 +299,30 @@ int glamodrm_gem_init_object(struct drm_gem_object *obj)
 void glamodrm_gem_free_object(struct drm_gem_object *obj)
 {
 	struct drm_glamo_gem_object *gobj;
+	struct drm_map_list *list;
+	struct drm_device *dev;
+	struct drm_gem_mm *mm;
+	struct drm_map *map;
 
+	dev = obj->dev;
+	mm = dev->mm_private;
 	gobj = obj->driver_private;
 
 	/* Free the VRAM */
 	drm_mm_put_block(gobj->block);
+
+	/* Release mappings */
+	list = &obj->map_list;
+	drm_ht_remove_item(&mm->offset_hash, &list->hash);
+	if (list->file_offset_node) {
+		drm_mm_put_block(list->file_offset_node);
+		list->file_offset_node = NULL;
+	}
+	map = list->map;
+	if (map) {
+		drm_free(map, sizeof(*map), DRM_MEM_DRIVER);
+		list->map = NULL;
+	}
 
 	/* Free the private structure */
 	drm_free(obj->driver_private, 1, DRM_MEM_DRIVER);

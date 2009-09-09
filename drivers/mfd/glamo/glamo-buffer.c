@@ -100,10 +100,20 @@ int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
 {
 	struct drm_glamo_gem_create *args = data;
 	struct drm_gem_object *obj;
-	int handle, ret;
+	int handle, ret, alignment, size;
+
+	/* Alignment must be a non-zero multiple of 2 */
+	alignment = args->alignment;
+	if ( alignment == 2 ) alignment = 2;
+	if ( alignment % 2 ) alignment *= 2;
+
+	/* Size must be similarly sanitised */
+	size = args->size;
+	if ( size < 2 ) size = 2;
+	if ( size % 2 ) size += 1;
 
 	/* Create an object */
-	obj = glamo_gem_object_alloc(dev, args->size, args->alignment);
+	obj = glamo_gem_object_alloc(dev, size, alignment);
 	if ( obj == NULL ) return -ENOMEM;
 
 	/* Create a handle for it */

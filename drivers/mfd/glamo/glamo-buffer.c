@@ -104,7 +104,7 @@ int glamo_ioctl_gem_create(struct drm_device *dev, void *data,
 
 	/* Alignment must be a non-zero multiple of 2 */
 	alignment = args->alignment;
-	if ( alignment == 2 ) alignment = 2;
+	if ( alignment < 2 ) alignment = 2;
 	if ( alignment % 2 ) alignment *= 2;
 
 	/* Size must be similarly sanitised */

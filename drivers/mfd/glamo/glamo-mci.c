@@ -616,7 +616,7 @@ static void glamo_mci_send_request(struct mmc_host *mmc)
 	int insanity_timeout = 1000000;
 
 	if (host->suspending) {
-		dev_err(&host->pdev->dev, "IGNORING glamo_mci_send_request while "
+		dev_dbg(&host->pdev->dev, "REFUSING glamo_mci_send_request while "
 								 "suspended\n");
 		cmd->error = -EIO;
 		if (cmd->data)

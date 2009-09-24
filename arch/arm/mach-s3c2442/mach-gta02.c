@@ -60,6 +60,8 @@
 
 #include <linux/gpio_keys.h>
 
+#include <linux/leds.h>
+
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 #include <asm/mach/irq.h>
@@ -583,6 +585,35 @@ static struct platform_device gta02_buttons_device = {
 	},
 };
 
+/* LEDs */
+static struct gpio_led gta02_gpio_leds[] = {
+	{
+		.name	= "gta02:orange:power",
+		.gpio	= GTA02_GPIO_PWR_LED1,
+	},
+	{
+		.name	= "gta02:blue:power",
+		.gpio	= GTA02_GPIO_PWR_LED2,
+	},
+	{
+		.name	= "gta02:red:aux",
+		.gpio	= GTA02_GPIO_AUX_LED,
+	},
+};
+
+static struct gpio_led_platform_data gta02_gpio_leds_pdata = {
+	.leds = gta02_gpio_leds,
+	.num_leds = ARRAY_SIZE(gta02_gpio_leds),
+};
+
+static struct platform_device gta02_leds_device = {
+	.name = "leds-gpio",
+	.id   = -1,
+	.dev = {
+		.platform_data = &gta02_gpio_leds_pdata,
+	},
+};
+
 static void __init gta02_map_io(void)
 {
 	s3c24xx_init_io(gta02_iodesc, ARRAY_SIZE(gta02_iodesc));
@@ -604,6 +635,7 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&s3c_device_iis,
 	&s3c_device_i2c0,
 	&gta02_buttons_device,
+	&gta02_leds_device,
 };
 
 /* These guys DO need to be children of PMU. */

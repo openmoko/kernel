@@ -45,7 +45,8 @@ struct s3c_adc_client {
 	unsigned char		 channel;
 
 	void	(*select_cb)(unsigned selected);
-	void	(*convert_cb)(unsigned val1, unsigned val2);
+	void	(*convert_cb)(unsigned val1, unsigned val2,
+			      unsigned *samples_left);
 };
 
 struct adc_device {
@@ -57,6 +58,7 @@ struct adc_device {
 	void __iomem		*regs;
 
 	unsigned int		 prescale;
+	unsigned int		 delay;
 
 	int			 irq;
 };
@@ -67,9 +69,18 @@ static LIST_HEAD(adc_pending);
 
 #define adc_dbg(_adc, msg...) dev_dbg(&(_adc)->pdev->dev, msg)
 
+#define AUTOPST	(S3C2410_ADCTSC_YM_SEN | S3C2410_ADCTSC_YP_SEN | \
+		 S3C2410_ADCTSC_XP_SEN | S3C2410_ADCTSC_AUTO_PST | \
+		 S3C2410_ADCTSC_XY_PST(0))
+
+
 static inline void s3c_adc_convert(struct adc_device *adc)
 {
 	unsigned con = readl(adc->regs + S3C2410_ADCCON);
+
+	if (adc->cur->is_ts)
+		writel(S3C2410_ADCTSC_PULL_UP_DISABLE | AUTOPST,
+		       adc->regs + S3C2410_ADCTSC);
 
 	con |= S3C2410_ADCCON_ENABLE_START;
 	writel(con, adc->regs + S3C2410_ADCCON);
@@ -158,7 +169,8 @@ static void s3c_adc_default_select(unsigned select)
 
 struct s3c_adc_client *s3c_adc_register(struct platform_device *pdev,
 					void (*select)(unsigned int selected),
-					void (*conv)(unsigned d0, unsigned d1),
+					void (*conv)(unsigned d0, unsigned d1,
+						     unsigned *samples_left),
 					unsigned int is_ts)
 {
 	struct s3c_adc_client *client;
@@ -210,9 +222,10 @@ static irqreturn_t s3c_adc_irq(int irq, void *pw)
 	data1 = readl(adc->regs + S3C2410_ADCDAT1);
 	adc_dbg(adc, "read %d: 0x%04x, 0x%04x\n", client->nr_samples, data0, data1);
 
-	(client->convert_cb)(data0 & 0x3ff, data1 & 0x3ff);
+	client->nr_samples--;
+	(client->convert_cb)(data0 & 0x3ff, data1 & 0x3ff, &client->nr_samples);
 
-	if (--client->nr_samples > 0) {
+	if (client->nr_samples > 0) {
 		/* fire another conversion for this */
 
 		client->select_cb(1);
@@ -244,6 +257,7 @@ static int s3c_adc_probe(struct platform_device *pdev)
 
 	adc->pdev = pdev;
 	adc->prescale = S3C2410_ADCCON_PRSCVL(49);
+	adc->delay = 0x2710;
 
 	adc->irq = platform_get_irq(pdev, 1);
 	if (adc->irq <= 0) {
@@ -283,6 +297,7 @@ static int s3c_adc_probe(struct platform_device *pdev)
 
 	writel(adc->prescale | S3C2410_ADCCON_PRSCEN,
 	       adc->regs + S3C2410_ADCCON);
+	writel(adc->delay, adc->regs + S3C2410_ADCDLY);
 
 	dev_info(dev, "attached adc driver\n");
 
@@ -338,6 +353,7 @@ static int s3c_adc_resume(struct platform_device *pdev)
 
 	writel(adc->prescale | S3C2410_ADCCON_PRSCEN,
 	       adc->regs + S3C2410_ADCCON);
+	writel(adc->delay, adc->regs + S3C2410_ADCDLY);
 
 	return 0;
 }

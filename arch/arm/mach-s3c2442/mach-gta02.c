@@ -1562,6 +1562,7 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&s3c_device_usbgadget,
 	&s3c_device_nand,
 	&gta02_nor_flash,
+	&s3c_device_adc,
 
 	&s3c24xx_pwm_device,
 	&gta02_led_dev,

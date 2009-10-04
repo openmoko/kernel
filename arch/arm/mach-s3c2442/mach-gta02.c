@@ -58,6 +58,7 @@
 #include <linux/mfd/pcf50633/gpio.h>
 #include <linux/mfd/pcf50633/pmic.h>
 
+#include <linux/input.h>
 #include <linux/gpio_keys.h>
 
 #include <linux/leds.h>
@@ -92,7 +93,10 @@
 #include <plat/gpio-core.h>
 #include <plat/iic.h>
 
-static struct pcf50633 *gta02_pcf;
+#include <mach/gta02-pm-gps.h>
+#include <mach/gta02-pm-wlan.h>
+
+struct pcf50633 *gta02_pcf;
 
 /*
  * This gets called every 1ms when we paniced.
@@ -615,6 +619,22 @@ static struct platform_device gta02_leds_device = {
 	},
 };
 
+static struct platform_device gta02_pm_gps_dev = {
+	.name = "gta02-pm-gps",
+};
+
+static struct platform_device gta02_pm_bt_dev = {
+	.name = "gta02-pm-bt",
+};
+
+static struct platform_device gta02_pm_gsm_dev = {
+	.name = "gta02-pm-gsm",
+};
+
+static struct platform_device gta02_pm_wlan_dev = {
+	.name = "gta02-pm-wlan",
+};
+
 static void __init gta02_map_io(void)
 {
 	s3c24xx_init_io(gta02_iodesc, ARRAY_SIZE(gta02_iodesc));
@@ -637,6 +657,10 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&s3c_device_i2c0,
 	&gta02_buttons_device,
 	&gta02_leds_device,
+	&gta02_pm_gps_dev,
+	&gta02_pm_bt_dev,
+	&gta02_pm_gsm_dev,
+	&gta02_pm_wlan_dev,
 };
 
 /* These guys DO need to be children of PMU. */

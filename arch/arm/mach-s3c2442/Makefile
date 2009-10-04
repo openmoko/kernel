@@ -12,7 +12,10 @@ obj-				:=
 obj-$(CONFIG_CPU_S3C2442)	+= s3c2442.o
 obj-$(CONFIG_CPU_S3C2442)	+= clock.o
 
-obj-$(CONFIG_MACH_NEO1973_GTA02) += mach-gta02.o
-
+obj-$(CONFIG_MACH_NEO1973_GTA02) += mach-gta02.o \
+	gta02-pm-bt.o \
+	gta02-pm-gps.o \
+	gta02-pm-gsm.o \
+	gta02-pm-wlan.o
 # Machine support
 

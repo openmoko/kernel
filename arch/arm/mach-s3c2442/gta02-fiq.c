@@ -21,6 +21,11 @@
 extern int hdq_fiq_handler(void);
 #endif
 
+#ifdef CONFIG_LEDS_GTA02_VIBRATOR
+#define FIQ_DIVISOR_VIBRATOR DIVISOR_FROM_US(100)
+extern int gta02_vibrator_fiq_handler(void);
+#endif
+
 /* Global data related to our fiq source */
 static uint32_t gta02_fiq_ack_mask;
 static struct s3c2410_pwm gta02_fiq_pwm_timer;
@@ -42,6 +47,11 @@ void gta02_fiq_handler(void)
 #ifdef CONFIG_HDQ_GPIO_BITBANG
 	if (hdq_fiq_handler())
 		divisor = FIQ_DIVISOR_HDQ;
+#endif
+
+#ifdef CONFIG_LEDS_GTA02_VIBRATOR
+	if (gta02_vibrator_fiq_handler())
+		divisor = FIQ_DIVISOR_VIBRATOR;
 #endif
 
 	if (divisor == 0xffff) /* mask the fiq irq source */

@@ -288,6 +288,22 @@ static struct platform_device gta02_glamo_dev = {
 	},
 };
 
+static struct platform_device gta02_pm_gps_dev = {
+	.name = "gta02-pm-gps",
+};
+
+static struct platform_device gta02_pm_bt_dev = {
+	.name = "gta02-pm-bt",
+};
+
+static struct platform_device gta02_pm_gsm_dev = {
+	.name = "gta02-pm-gsm",
+};
+
+static struct platform_device gta02_pm_wlan_dev = {
+	.name = "gta02-pm-wlan",
+};
+
 #ifdef CONFIG_CHARGER_PCF50633
 /*
  * On GTA02 the 1A charger features a 48K resistor to 0V on the ID pin.
@@ -409,6 +425,40 @@ static char *gta02_batteries[] = {
 	"battery",
 };
 
+static struct regulator_consumer_supply ldo4_consumers[] = {
+	{
+		.dev = &gta02_pm_bt_dev.dev,
+		.supply = "BT_3V2",
+	},
+};
+
+static struct regulator_consumer_supply ldo5_consumers[] = {
+	{
+		.dev = &gta02_pm_gps_dev.dev,
+		.supply = "RF_3V",
+	},
+};
+
+static struct regulator_consumer_supply hcldo_consumers[] = {
+	{
+		.dev = &gta02_glamo_dev.dev,
+		.supply = "SD_3V3",
+	},
+};
+
+#if 0
+/* This will come with 2.6.32. Don't forget to uncomment it then. */
+static struct regulator_consumer_supply ldo6_consumers[] = {
+	REGULATOR_SUPPLY("VDC", "jbt6k74"),
+	REGULATOR_SUPPLY("VDDIO", "jbt6k74"),
+};
+#else
+static struct regulator_consumer_supply ldo6_consumers[] = {
+	{ .supply = "VDC", },
+	{ .supply = "VDDIO", },
+};
+#endif
+
 struct pcf50633_platform_data gta02_pcf_pdata = {
 	.resumers = {
 		[0] =	PCF50633_INT1_USBINS |
@@ -465,6 +515,8 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
 				.always_on = 1,
 			},
+			.num_consumer_supplies = ARRAY_SIZE(hcldo_consumers),
+			.consumer_supplies = hcldo_consumers,
 		},
 		[PCF50633_REGULATOR_LDO1] = {
 			.constraints = {
@@ -500,6 +552,8 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
 				.apply_uV = 1,
 			},
+			.num_consumer_supplies = ARRAY_SIZE(ldo4_consumers),
+			.consumer_supplies = ldo4_consumers,
 		},
 		[PCF50633_REGULATOR_LDO5] = {
 			.constraints = {
@@ -511,6 +565,8 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 					.enabled = 1,
 				},
 			},
+			.num_consumer_supplies = ARRAY_SIZE(ldo5_consumers),
+			.consumer_supplies = ldo5_consumers,
 		},
 		[PCF50633_REGULATOR_LDO6] = {
 			.constraints = {
@@ -518,6 +574,8 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.max_uV = 3000000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
 			},
+			.num_consumer_supplies = ARRAY_SIZE(ldo6_consumers),
+			.consumer_supplies = ldo6_consumers,
 		},
 		[PCF50633_REGULATOR_MEMLDO] = {
 			.constraints = {
@@ -630,8 +688,6 @@ static struct s3c2410_udc_mach_info gta02_udc_cfg = {
 
 };
 
-
-
 static void gta02_bl_set_intensity(int intensity)
 {
 	struct pcf50633 *pcf = gta02_pcf;
@@ -692,8 +748,6 @@ static struct platform_device gta02_bl_dev = {
 		.platform_data = &gta02_bl_info,
 	},
 };
-
-
 
 /* USB */
 static struct s3c2410_hcd_info gta02_usb_info = {
@@ -763,22 +817,6 @@ static struct platform_device gta02_leds_device = {
 	.dev = {
 		.platform_data = &gta02_gpio_leds_pdata,
 	},
-};
-
-static struct platform_device gta02_pm_gps_dev = {
-	.name = "gta02-pm-gps",
-};
-
-static struct platform_device gta02_pm_bt_dev = {
-	.name = "gta02-pm-bt",
-};
-
-static struct platform_device gta02_pm_gsm_dev = {
-	.name = "gta02-pm-gsm",
-};
-
-static struct platform_device gta02_pm_wlan_dev = {
-	.name = "gta02-pm-wlan",
 };
 
 /* JBT6k74 display controller */

@@ -79,6 +79,9 @@
 #define GTA02_PCB_ID2_0		S3C2410_GPD(3)
 #define GTA02_PCB_ID2_1		S3C2410_GPD(4)
 
+#define GTA02_GPIO_GLAMO_BASE S3C_GPIO_END
+#define GTA02_GPIO_GLAMO(x) (GTA02_GPIO_GLAMO_BASE + (x))
+
 int gta02_get_pcb_revision(void);
 
 #endif /* _GTA02_H */

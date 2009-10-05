@@ -88,6 +88,7 @@
 #include <plat/gpio-cfg.h>
 #include <plat/iic.h>
 
+#include <linux/jbt6k74.h>
 #include <linux/glamofb.h>
 #include <linux/mfd/glamo.h>
 
@@ -672,6 +673,36 @@ static struct s3c2410_hcd_info gta02_usb_info = {
 	},
 };
 
+/* JBT6k74 display controller */
+static void gta02_jbt6k74_probe_completed(struct device *dev)
+{
+	struct pcf50633 *pcf = gta02_pcf;
+	/* Switch on backlight. Qi does not do it for us */
+	pcf50633_reg_write(pcf, PCF50633_REG_LEDOUT, 0x01);
+	pcf50633_reg_write(pcf, PCF50633_REG_LEDENA, 0x00);
+	pcf50633_reg_write(pcf, PCF50633_REG_LEDDIM, 0x01);
+	pcf50633_reg_write(pcf, PCF50633_REG_LEDENA, 0x01);
+
+	gta02_bl_dev.dev.parent = dev;
+	platform_device_register(&gta02_bl_dev);
+}
+
+const struct jbt6k74_platform_data jbt6k74_pdata = {
+	.probe_completed = gta02_jbt6k74_probe_completed,
+	.gpio_reset = GTA02_GPIO_GLAMO(4),
+};
+
+static struct spi_board_info gta02_spi_board_info[] = {
+	{
+		.modalias	= "jbt6k74",
+		.platform_data	= &jbt6k74_pdata,
+		.controller_data = (void*)GTA02_GPIO_GLAMO(12),
+		/* irq */
+		.max_speed_hz	= 100 * 1000,
+		.bus_num	= 2,
+		.chip_select = 0
+	},
+};
 
 static void __init gta02_map_io(void)
 {
@@ -698,7 +729,6 @@ static struct platform_device *gta02_devices[] __initdata = {
 /* These guys DO need to be children of PMU. */
 
 static struct platform_device *gta02_devices_pmu_children[] = {
-	&gta02_bl_dev,
 	&gta02_glamo_dev,
 };
 
@@ -750,6 +780,8 @@ static void __init gta02_machine_init(void)
 	s3c_i2c0_set_platdata(NULL);
 
 	i2c_register_board_info(0, gta02_i2c_devs, ARRAY_SIZE(gta02_i2c_devs));
+	spi_register_board_info(gta02_spi_board_info,
+				ARRAY_SIZE(gta02_spi_board_info));
 
 	platform_add_devices(gta02_devices, ARRAY_SIZE(gta02_devices));
 	pm_power_off = gta02_poweroff;

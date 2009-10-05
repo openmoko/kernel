@@ -5,6 +5,7 @@
 #include <mach/regs-irq.h>
 #include <mach/irqs.h>
 #include <linux/io.h>
+#include <linux/hdq.h>
 
 /* -------------------------------------------------------------------------------
  * GTA02 FIQ related
@@ -14,6 +15,11 @@
  */
 
 #define DIVISOR_FROM_US(x) ((x) << 3)
+
+#ifdef CONFIG_HDQ_GPIO_BITBANG
+#define FIQ_DIVISOR_HDQ DIVISOR_FROM_US(HDQ_SAMPLE_PERIOD_US)
+extern int hdq_fiq_handler(void);
+#endif
 
 /* Global data related to our fiq source */
 static uint32_t gta02_fiq_ack_mask;
@@ -32,6 +38,11 @@ void gta02_fiq_handler(void)
 	 * its own non-atomic S3C2410_INTMSK changes... not common
 	 * thankfully and taken care of by the fiq-basis patch
 	 */
+
+#ifdef CONFIG_HDQ_GPIO_BITBANG
+	if (hdq_fiq_handler())
+		divisor = FIQ_DIVISOR_HDQ;
+#endif
 
 	if (divisor == 0xffff) /* mask the fiq irq source */
 		__raw_writel(__raw_readl(S3C2410_INTMSK) | gta02_fiq_ack_mask,

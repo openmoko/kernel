@@ -94,6 +94,9 @@
 
 #include <mach/gta02-fiq.h>
 
+#include <linux/hdq.h>
+#include <linux/bq27000_battery.h>
+
 struct pcf50633 *gta02_pcf;
 
 /*
@@ -286,6 +289,20 @@ static struct platform_device gta02_glamo_dev = {
 #define ADC_NOM_CHG_DETECT_1A 6
 #define ADC_NOM_CHG_DETECT_USB 43
 
+static int gta02_get_charger_online_status(void)
+{
+	struct pcf50633 *pcf = gta02_pcf;
+
+	return pcf50633_mbc_get_status(pcf) & PCF50633_MBC_USB_ONLINE;
+}
+
+static int gta02_get_charger_active_status(void)
+{
+	struct pcf50633 *pcf = gta02_pcf;
+
+	return pcf50633_mbc_get_status(pcf) & PCF50633_MBC_USB_ACTIVE;
+}
+
 static void
 gta02_configure_pmu_for_charger(struct pcf50633 *pcf, void *unused, int res)
 {
@@ -362,6 +379,8 @@ static void gta02_udc_vbus_draw(unsigned int ma)
 #else /* !CONFIG_CHARGER_PCF50633 */
 #define gta02_pmu_event_callback	NULL
 #define gta02_udc_vbus_draw		NULL
+#define gta02_get_charger_online_status	NULL
+#define gta02_get_charger_active_status	NULL
 #endif
 
 /*
@@ -700,6 +719,84 @@ static struct spi_board_info gta02_spi_board_info[] = {
 	},
 };
 
+/* BQ27000 Battery */
+
+struct bq27000_platform_data bq27000_pdata = {
+	.name = "battery",
+	.rsense_mohms = 20,
+	.hdq_read = hdq_read,
+	.hdq_write = hdq_write,
+	.hdq_initialized = hdq_initialized,
+	.get_charger_online_status = gta02_get_charger_online_status,
+	.get_charger_active_status = gta02_get_charger_active_status
+};
+
+struct platform_device bq27000_battery_device = {
+	.name 		= "bq27000-battery",
+	.dev = {
+		.platform_data = &bq27000_pdata,
+	},
+};
+
+/* HDQ */
+
+static void gta02_hdq_attach_child_devices(struct device *parent_device)
+{
+	bq27000_battery_device.dev.parent = parent_device;
+	platform_device_register(&bq27000_battery_device);
+}
+
+static void gta02_hdq_gpio_direction_out(void)
+{
+	s3c2410_gpio_cfgpin(GTA02v5_GPIO_HDQ, S3C2410_GPIO_OUTPUT);
+}
+
+static void gta02_hdq_gpio_direction_in(void)
+{
+	s3c2410_gpio_cfgpin(GTA02v5_GPIO_HDQ, S3C2410_GPIO_INPUT);
+}
+
+static void gta02_hdq_gpio_set_value(int val)
+{
+
+	s3c2410_gpio_setpin(GTA02v5_GPIO_HDQ, val);
+}
+
+static int gta02_hdq_gpio_get_value(void)
+{
+	return s3c2410_gpio_getpin(GTA02v5_GPIO_HDQ);
+}
+
+static struct resource gta02_hdq_resources[] = {
+	[0] = {
+		.start	= GTA02v5_GPIO_HDQ,
+		.end	= GTA02v5_GPIO_HDQ,
+	},
+};
+
+struct hdq_platform_data gta02_hdq_platform_data = {
+	.attach_child_devices = gta02_hdq_attach_child_devices,
+	.gpio_dir_out = gta02_hdq_gpio_direction_out,
+	.gpio_dir_in = gta02_hdq_gpio_direction_in,
+	.gpio_set = gta02_hdq_gpio_set_value,
+	.gpio_get = gta02_hdq_gpio_get_value,
+
+	.enable_fiq = gta02_fiq_enable,
+	.disable_fiq = gta02_fiq_disable,
+	.kick_fiq = gta02_fiq_kick,
+
+};
+
+struct platform_device gta02_hdq_device = {
+	.name 		= "hdq",
+	.num_resources	= 1,
+	.resource	= gta02_hdq_resources,
+	.dev		= {
+		.platform_data = &gta02_hdq_platform_data,
+		.parent = &s3c_device_timer[2].dev,
+	},
+};
+
 static void __init gta02_map_io(void)
 {
 	s3c24xx_init_io(gta02_iodesc, ARRAY_SIZE(gta02_iodesc));
@@ -717,7 +814,6 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&s3c_device_usbgadget,
 	&s3c_device_nand,
 	&gta02_nor_flash,
-	&s3c_device_timer,
 	&s3c_device_iis,
 	&s3c_device_i2c0,
 };
@@ -726,6 +822,8 @@ static struct platform_device *gta02_devices[] __initdata = {
 
 static struct platform_device *gta02_devices_pmu_children[] = {
 	&gta02_glamo_dev,
+	&s3c_device_timer[2],
+	&gta02_hdq_device,
 };
 
 

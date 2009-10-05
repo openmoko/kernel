@@ -101,6 +101,8 @@
 #include <linux/glamofb.h>
 #include <linux/mfd/glamo.h>
 
+#include <mach/gta02-fiq.h>
+
 struct pcf50633 *gta02_pcf;
 
 /*

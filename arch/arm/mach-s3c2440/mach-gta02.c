@@ -451,11 +451,11 @@ static void gta02_udc_command(enum s3c2410_udc_cmd_e cmd)
 	switch (cmd) {
 	case S3C2410_UDC_P_ENABLE:
 		pr_debug("%s S3C2410_UDC_P_ENABLE\n", __func__);
-		gpio_direction_output(GTA02_GPIO_USB_PULLUP, 1);
+		gpio_set_value(GTA02_GPIO_USB_PULLUP, 1);
 		break;
 	case S3C2410_UDC_P_DISABLE:
 		pr_debug("%s S3C2410_UDC_P_DISABLE\n", __func__);
-		gpio_direction_output(GTA02_GPIO_USB_PULLUP, 0);
+		gpio_set_value(GTA02_GPIO_USB_PULLUP, 0);
 		break;
 	case S3C2410_UDC_P_RESET:
 		pr_debug("%s S3C2410_UDC_P_RESET\n", __func__);
@@ -570,10 +570,23 @@ static void gta02_poweroff(void)
 	pcf50633_reg_set_bit_mask(gta02_pcf, PCF50633_REG_OOCSHDWN, 1, 1);
 }
 
+static void gta02_request_gpios(void)
+{
+	int ret;
+	ret = gpio_request_one(GTA02_GPIO_USB_PULLUP, GPIOF_OUT_INIT_LOW,
+				"USB pullup");
+	if (ret) {
+		printk(KERN_ERR "Failed to request USB pullup gpio pin: %d\n",
+			ret);
+	}
+}
+
 static void __init gta02_machine_init(void)
 {
 	/* Set the panic callback to turn AUX LED on or off. */
 	panic_blink = gta02_panic_blink;
+
+	gta02_request_gpios();
 
 	s3c_pm_init();
 

@@ -31,6 +31,7 @@ obj-$(CONFIG_LEDS_PWM)			+= leds-pwm.o
 
 # LED SPI Drivers
 obj-$(CONFIG_LEDS_DAC124S085)		+= leds-dac124s085.o
+obj-$(CONFIG_LEDS_GTA02_VIBRATOR)	+= leds-gta02-vibrator.o
 
 # LED Triggers
 obj-$(CONFIG_LEDS_TRIGGER_TIMER)	+= ledtrig-timer.o

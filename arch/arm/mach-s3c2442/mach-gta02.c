@@ -58,6 +58,11 @@
 #include <linux/mfd/pcf50633/gpio.h>
 #include <linux/mfd/pcf50633/pmic.h>
 
+#include <linux/input.h>
+#include <linux/gpio_keys.h>
+
+#include <linux/leds.h>
+
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 #include <asm/mach/irq.h>
@@ -85,9 +90,13 @@
 #include <plat/pm.h>
 #include <plat/udc.h>
 #include <plat/gpio-cfg.h>
+#include <plat/gpio-core.h>
 #include <plat/iic.h>
 
-static struct pcf50633 *gta02_pcf;
+#include <mach/gta02-pm-gps.h>
+#include <mach/gta02-pm-wlan.h>
+
+struct pcf50633 *gta02_pcf;
 
 /*
  * This gets called every 1ms when we paniced.
@@ -456,11 +465,11 @@ static void gta02_udc_command(enum s3c2410_udc_cmd_e cmd)
 	switch (cmd) {
 	case S3C2410_UDC_P_ENABLE:
 		pr_debug("%s S3C2410_UDC_P_ENABLE\n", __func__);
-		gpio_direction_output(GTA02_GPIO_USB_PULLUP, 1);
+		gpio_set_value(GTA02_GPIO_USB_PULLUP, 1);
 		break;
 	case S3C2410_UDC_P_DISABLE:
 		pr_debug("%s S3C2410_UDC_P_DISABLE\n", __func__);
-		gpio_direction_output(GTA02_GPIO_USB_PULLUP, 0);
+		gpio_set_value(GTA02_GPIO_USB_PULLUP, 0);
 		break;
 	case S3C2410_UDC_P_RESET:
 		pr_debug("%s S3C2410_UDC_P_RESET\n", __func__);
@@ -550,6 +559,81 @@ static struct s3c2410_hcd_info gta02_usb_info = {
 	},
 };
 
+/* Buttons */
+static struct gpio_keys_button gta02_buttons[] = {
+	{
+		.gpio = GTA02_GPIO_AUX_KEY,
+		.code = KEY_PHONE,
+		.desc = "Aux",
+		.type = EV_KEY,
+		.debounce_interval = 100,
+	},
+	{
+		.gpio = GTA02_GPIO_HOLD_KEY,
+		.code = KEY_PAUSE,
+		.desc = "Hold",
+		.type = EV_KEY,
+		.debounce_interval = 100,
+	},
+};
+
+static struct gpio_keys_platform_data gta02_buttons_pdata = {
+	.buttons = gta02_buttons,
+	.nbuttons = ARRAY_SIZE(gta02_buttons),
+};
+
+static struct platform_device gta02_buttons_device = {
+	.name = "gpio-keys",
+	.id = -1,
+	.dev = {
+		.platform_data = &gta02_buttons_pdata,
+	},
+};
+
+/* LEDs */
+static struct gpio_led gta02_gpio_leds[] = {
+	{
+		.name	= "gta02-power:orange",
+		.gpio	= GTA02_GPIO_PWR_LED1,
+	},
+	{
+		.name	= "gta02-power:blue",
+		.gpio	= GTA02_GPIO_PWR_LED2,
+	},
+	{
+		.name	= "gta02-aux:red",
+		.gpio	= GTA02_GPIO_AUX_LED,
+	},
+};
+
+static struct gpio_led_platform_data gta02_gpio_leds_pdata = {
+	.leds = gta02_gpio_leds,
+	.num_leds = ARRAY_SIZE(gta02_gpio_leds),
+};
+
+static struct platform_device gta02_leds_device = {
+	.name	= "leds-gpio",
+	.id		= -1,
+	.dev = {
+		.platform_data = &gta02_gpio_leds_pdata,
+	},
+};
+
+static struct platform_device gta02_pm_gps_dev = {
+	.name = "gta02-pm-gps",
+};
+
+static struct platform_device gta02_pm_bt_dev = {
+	.name = "gta02-pm-bt",
+};
+
+static struct platform_device gta02_pm_gsm_dev = {
+	.name = "gta02-pm-gsm",
+};
+
+static struct platform_device gta02_pm_wlan_dev = {
+	.name = "gta02-pm-wlan",
+};
 
 static void __init gta02_map_io(void)
 {
@@ -571,6 +655,12 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&s3c24xx_pwm_device,
 	&s3c_device_iis,
 	&s3c_device_i2c0,
+	&gta02_buttons_device,
+	&gta02_leds_device,
+	&gta02_pm_gps_dev,
+	&gta02_pm_bt_dev,
+	&gta02_pm_gsm_dev,
+	&gta02_pm_wlan_dev,
 };
 
 /* These guys DO need to be children of PMU. */
@@ -609,10 +699,84 @@ static void gta02_poweroff(void)
 	pcf50633_reg_set_bit_mask(gta02_pcf, PCF50633_REG_OOCSHDWN, 1, 1);
 }
 
+/* On hardware rev 5 and earlier the leds are missing a resistor and reading
+ * from their gpio pins will always return 0, so we have to shadow the
+ * led states software */
+static unsigned long gpb_shadow;
+extern struct s3c_gpio_chip s3c24xx_gpios[];
+
+static void gta02_gpb_set(struct gpio_chip *chip,
+				unsigned offset, int value)
+{
+	void __iomem *base = S3C24XX_GPIO_BASE(S3C2410_GPB(0));
+	unsigned long flags;
+	unsigned long dat;
+
+	local_irq_save(flags);
+
+	dat = __raw_readl(base + 0x04) | gpb_shadow;
+	dat &= ~(1 << offset);
+	gpb_shadow &= ~(1 << offset);
+	if (value) {
+		dat |= 1 << offset;
+		switch (offset) {
+		case 0 ... 2:
+			gpb_shadow |= 1 << offset;
+			break;
+		default:
+			break;
+		}
+	}
+	__raw_writel(dat, base + 0x04);
+
+	local_irq_restore(flags);
+}
+
+static int gta02_gpb_get(struct gpio_chip *chip, unsigned offset)
+{
+	void __iomem *base = S3C24XX_GPIO_BASE(S3C2410_GPB(0));
+	unsigned long val;
+
+	val = __raw_readl(base + 0x04) | gpb_shadow;
+	val >>= offset;
+	val &= 1;
+
+	return val;
+}
+
+static void gta02_hijack_gpb(void)
+{
+/* Uncomment this, once support for S3C_SYSTEM_REV_ATAG has been merged
+ * upstream.
+	if (S3C_SYSTEM_REV_ATAG > GTA02v5_SYSTEM_REV)
+		return;
+*/
+
+	s3c24xx_gpios[1].chip.set = gta02_gpb_set;
+	s3c24xx_gpios[1].chip.get = gta02_gpb_get;
+}
+
+static void gta02_request_gpios(void)
+{
+	int ret;
+	ret = gpio_request(GTA02_GPIO_USB_PULLUP, "USB pullup");
+	if (ret) {
+		printk(KERN_ERR "Failed to request USB pullup gpio pin: %d\n", ret);
+	} else {
+		ret = gpio_direction_output(GTA02_GPIO_USB_PULLUP, 0);
+		if (ret)
+			printk(KERN_ERR "Failed to set USB pullup gpio direction: %d\n", ret);
+    }
+}
+
 static void __init gta02_machine_init(void)
 {
 	/* Set the panic callback to make AUX LED blink at ~5Hz. */
 	panic_blink = gta02_panic_blink;
+
+	gta02_hijack_gpb();
+
+	gta02_request_gpios();
 
 	s3c_pm_init();
 

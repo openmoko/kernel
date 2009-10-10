@@ -167,20 +167,21 @@ static void glamo_mci_disable_timer(unsigned long data)
 
 static void do_pio_read(struct glamo_mci_host *host, struct mmc_data *data)
 {
-	struct scatterlist *sg;
+	struct sg_mapping_iter miter;
 	uint16_t __iomem *from_ptr = host->data_base;
-	void *sg_pointer;
 
 	dev_dbg(&host->pdev->dev, "pio_read():\n");
-	for (sg = data->sg; sg; sg = sg_next(sg)) {
-		sg_pointer = page_address(sg_page(sg)) + sg->offset;
 
+	sg_miter_start(&miter, data->sg, data->sg_len, SG_MITER_TO_SG);
 
-		memcpy(sg_pointer, from_ptr, sg->length);
-		from_ptr += sg->length >> 1;
+	while (sg_miter_next(&miter)) {
+		memcpy(miter.addr, from_ptr, miter.length);
+		from_ptr += miter.length >> 1;
 
-		data->bytes_xfered += sg->length;
+		data->bytes_xfered += miter.length;
 	}
+
+	sg_miter_stop(&miter);
 
 	dev_dbg(&host->pdev->dev, "pio_read(): "
 			"complete (no more data).\n");
@@ -188,20 +189,20 @@ static void do_pio_read(struct glamo_mci_host *host, struct mmc_data *data)
 
 static void do_pio_write(struct glamo_mci_host *host, struct mmc_data *data)
 {
-	struct scatterlist *sg;
+	struct sg_mapping_iter miter;
 	uint16_t __iomem *to_ptr = host->data_base;
-	void *sg_pointer;
 
 	dev_dbg(&host->pdev->dev, "pio_write():\n");
-	for (sg = data->sg; sg; sg = sg_next(sg)) {
-		sg_pointer = page_address(sg_page(sg)) + sg->offset;
+	sg_miter_start(&miter, data->sg, data->sg_len, SG_MITER_FROM_SG);
 
-		data->bytes_xfered += sg->length;
+	while (sg_miter_next(&miter)) {
+		memcpy(to_ptr, miter.addr, miter.length);
+		to_ptr += miter.length >> 1;
 
-		memcpy(to_ptr, sg_pointer, sg->length);
-		to_ptr += sg->length >> 1;
+		data->bytes_xfered += miter.length;
 	}
 
+	sg_miter_stop(&miter);
 	dev_dbg(&host->pdev->dev, "pio_write(): complete\n");
 }
 

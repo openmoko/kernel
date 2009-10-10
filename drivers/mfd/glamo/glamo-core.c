@@ -981,7 +981,11 @@ static int __devinit glamo_probe(struct platform_device *pdev)
 	 * finally set the mfd interrupts up
 	 */
 	for (irq = irq_base; irq < irq_base + GLAMO_NR_IRQS; ++irq) {
+#ifdef CONFIG_ARM
 		set_irq_flags(irq, IRQF_VALID);
+#else
+		set_irq_noprobe(irq);
+#endif
 		set_irq_chip_data(irq, glamo);
 		set_irq_chip_and_handler(irq, &glamo_irq_chip,
 					handle_level_irq);
@@ -1013,7 +1017,11 @@ err_free_irqs:
 
 	for (irq = irq_base; irq < irq_base + GLAMO_NR_IRQS; ++irq) {
 		set_irq_chip(irq, NULL);
+#ifdef CONFIG_ARM
 		set_irq_flags(irq, 0);
+#else
+		set_irq_probe(irq);
+#endif
 		set_irq_chip_data(irq, NULL);
 	}
 err_iounmap:
@@ -1040,7 +1048,11 @@ static int __devexit glamo_remove(struct platform_device *pdev)
 	set_irq_chip_data(glamo->irq, NULL);
 
 	for (irq = irq_base; irq < irq_base + GLAMO_NR_IRQS; ++irq) {
+#ifdef CONFIG_ARM
 		set_irq_flags(irq, 0);
+#else
+		set_irq_noprobe();
+#endif
 		set_irq_chip(irq, NULL);
 		set_irq_chip_data(irq, NULL);
 	}

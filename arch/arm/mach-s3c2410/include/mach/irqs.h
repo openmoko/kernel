@@ -180,8 +180,8 @@
  * for each board.
  */
 
-#if 0
-/* Number of board specific irqs go here */
+#if defined(CONFIG_MACH_NEO1973_GTA02)
+#define S3C2410_NR_BOARD_IRQS 9
 #else
 #define S3C2410_NR_BOARD_IRQS 0
 #endif

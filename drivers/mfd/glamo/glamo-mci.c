@@ -140,6 +140,22 @@ static void glamo_reg_set_bit_mask(struct glamo_mci_host *glamo,
 	glamo_reg_write(glamo, reg, tmp);
 }
 
+static void glamo_mci_reset(struct glamo_mci_host *host)
+{
+	glamo_engine_reset(host->core, GLAMO_ENGINE_MMC);
+
+	glamo_reg_write(host, GLAMO_REG_MMC_WDATADS1,
+			(uint16_t)(host->data_mem->start));
+	glamo_reg_write(host, GLAMO_REG_MMC_WDATADS2,
+			(uint16_t)(host->data_mem->start >> 16));
+
+	glamo_reg_write(host, GLAMO_REG_MMC_RDATADS1,
+			(uint16_t)(host->data_mem->start));
+	glamo_reg_write(host, GLAMO_REG_MMC_RDATADS2,
+			(uint16_t)(host->data_mem->start >> 16));
+
+}
+
 static void glamo_mci_clock_disable(struct glamo_mci_host *host)
 {
 	if (host->clk_enabled) {
@@ -229,8 +245,10 @@ static int glamo_mci_wait_idle(struct glamo_mci_host *host,
 		status = glamo_reg_read(host, GLAMO_REG_MMC_RB_STAT1);
 	} while (!(status & GLAMO_STAT1_MMC_IDLE) && jiffies < timeout);
 
-	if (jiffies >= timeout)
+	if (jiffies >= timeout) {
+		glamo_mci_reset(host);
 		return -ETIMEDOUT;
+	}
 
 	return 0;
 }
@@ -880,17 +898,8 @@ static int glamo_mci_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, mmc);
 
 	glamo_engine_enable(host->core, GLAMO_ENGINE_MMC);
-	glamo_engine_reset(host->core, GLAMO_ENGINE_MMC);
-
-	glamo_reg_write(host, GLAMO_REG_MMC_WDATADS1,
-			(uint16_t)(host->data_mem->start));
-	glamo_reg_write(host, GLAMO_REG_MMC_WDATADS2,
-			(uint16_t)(host->data_mem->start >> 16));
-
-	glamo_reg_write(host, GLAMO_REG_MMC_RDATADS1,
-			(uint16_t)(host->data_mem->start));
-	glamo_reg_write(host, GLAMO_REG_MMC_RDATADS2,
-			(uint16_t)(host->data_mem->start >> 16));
+	glamo_mci_reset(host);
+	glamo_engine_disable(host->core, GLAMO_ENGINE_MMC);
 
 	setup_timer(&host->disable_timer, glamo_mci_disable_timer,
 				(unsigned long)host);
@@ -970,18 +979,10 @@ static int glamo_mci_resume(struct device *dev)
 	struct glamo_mci_host *host = mmc_priv(mmc);
 	int ret;
 
+
 	glamo_engine_enable(host->core, GLAMO_ENGINE_MMC);
-	glamo_engine_reset(host->core, GLAMO_ENGINE_MMC);
+	glamo_mci_reset(host);
 
-	glamo_reg_write(host, GLAMO_REG_MMC_WDATADS1,
-			(uint16_t)(host->data_mem->start));
-	glamo_reg_write(host, GLAMO_REG_MMC_WDATADS2,
-			(uint16_t)(host->data_mem->start >> 16));
-
-	glamo_reg_write(host, GLAMO_REG_MMC_RDATADS1,
-			(uint16_t)(host->data_mem->start));
-	glamo_reg_write(host, GLAMO_REG_MMC_RDATADS2,
-			(uint16_t)(host->data_mem->start >> 16));
 	mdelay(5);
 
 	ret = mmc_resume_host(host->mmc);

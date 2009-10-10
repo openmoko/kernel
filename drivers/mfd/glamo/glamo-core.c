@@ -310,7 +310,7 @@ static struct irq_chip glamo_irq_chip = {
 
 static void glamo_irq_demux_handler(unsigned int irq, struct irq_desc *desc)
 {
-	struct glamo_core *glamo = get_irq_desc_chip_data(desc);
+	struct glamo_core *glamo = get_irq_desc_data(desc);
 	desc->status &= ~(IRQ_REPLAY | IRQ_WAITING);
 
 	if (unlikely(desc->status & IRQ_INPROGRESS)) {
@@ -901,7 +901,7 @@ static int __devinit glamo_supported(struct glamo_core *glamo)
 
 static int __devinit glamo_probe(struct platform_device *pdev)
 {
-	int ret = 0, irq;
+	int ret = 0, irq, irq_base;
 	struct glamo_core *glamo;
 	struct resource *mem;
 
@@ -912,13 +912,20 @@ static int __devinit glamo_probe(struct platform_device *pdev)
 	spin_lock_init(&glamo->lock);
 
 	glamo->pdev = pdev;
-	mem  = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	glamo->irq = platform_get_irq(pdev, 0);
+	glamo->irq_base = irq_base = platform_get_irq(pdev, 1);
 	glamo->pdata = pdev->dev.platform_data;
 
 	if (glamo->irq < 0) {
-		dev_err(&pdev->dev, "Failed to get platform irq: %d\n", ret);
 		ret = glamo->irq;
+		dev_err(&pdev->dev, "Failed to get platform irq: %d\n", ret);
+		goto err_free;
+	}
+
+	if (irq_base < 0) {
+		ret = glamo->irq;
+		dev_err(&pdev->dev, "Failed to get glamo irq base: %d\n", ret);
 		goto err_free;
 	}
 
@@ -973,15 +980,20 @@ static int __devinit glamo_probe(struct platform_device *pdev)
 	/*
 	 * finally set the mfd interrupts up
 	 */
-	for (irq = glamo->irq_base; irq < glamo->irq_base + GLAMO_NR_IRQS; ++irq) {
-		set_irq_chip_and_handler(irq, &glamo_irq_chip, handle_level_irq);
+	for (irq = irq_base; irq < irq_base + GLAMO_NR_IRQS; ++irq) {
+#ifdef CONFIG_ARM
 		set_irq_flags(irq, IRQF_VALID);
+#else
+		set_irq_noprobe(irq);
+#endif
 		set_irq_chip_data(irq, glamo);
+		set_irq_chip_and_handler(irq, &glamo_irq_chip,
+					handle_level_irq);
 	}
 
-	set_irq_chained_handler(glamo->irq, glamo_irq_demux_handler);
 	set_irq_type(glamo->irq, IRQ_TYPE_EDGE_FALLING);
-	set_irq_chip_data(glamo->irq, glamo);
+	set_irq_data(glamo->irq, glamo);
+	set_irq_chained_handler(glamo->irq, glamo_irq_demux_handler);
 	glamo->irq_works = 1;
 
 	ret = mfd_add_devices(&pdev->dev, pdev->id, glamo_cells,
@@ -1003,9 +1015,13 @@ err_free_irqs:
 	set_irq_chained_handler(glamo->irq, NULL);
 	set_irq_chip_data(glamo->irq, NULL);
 
-	for (irq = glamo->irq_base; irq < glamo->irq_base + GLAMO_NR_IRQS; ++irq) {
-		set_irq_flags(irq, 0);
+	for (irq = irq_base; irq < irq_base + GLAMO_NR_IRQS; ++irq) {
 		set_irq_chip(irq, NULL);
+#ifdef CONFIG_ARM
+		set_irq_flags(irq, 0);
+#else
+		set_irq_probe(irq);
+#endif
 		set_irq_chip_data(irq, NULL);
 	}
 err_iounmap:
@@ -1023,6 +1039,7 @@ static int __devexit glamo_remove(struct platform_device *pdev)
 {
 	struct glamo_core *glamo = platform_get_drvdata(pdev);
 	int irq;
+	int irq_base = glamo->irq_base;
 
 	mfd_remove_devices(&pdev->dev);
 
@@ -1030,8 +1047,12 @@ static int __devexit glamo_remove(struct platform_device *pdev)
 	set_irq_chained_handler(glamo->irq, NULL);
 	set_irq_chip_data(glamo->irq, NULL);
 
-	for (irq = glamo->irq_base; irq < glamo->irq_base + GLAMO_NR_IRQS; ++irq) {
+	for (irq = irq_base; irq < irq_base + GLAMO_NR_IRQS; ++irq) {
+#ifdef CONFIG_ARM
 		set_irq_flags(irq, 0);
+#else
+		set_irq_noprobe();
+#endif
 		set_irq_chip(irq, NULL);
 		set_irq_chip_data(irq, NULL);
 	}

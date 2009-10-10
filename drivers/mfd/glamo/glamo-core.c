@@ -901,7 +901,7 @@ static int __devinit glamo_supported(struct glamo_core *glamo)
 
 static int __devinit glamo_probe(struct platform_device *pdev)
 {
-	int ret = 0, irq;
+	int ret = 0, irq, irq_base;
 	struct glamo_core *glamo;
 	struct resource *mem;
 
@@ -914,7 +914,7 @@ static int __devinit glamo_probe(struct platform_device *pdev)
 	glamo->pdev = pdev;
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	glamo->irq = platform_get_irq(pdev, 0);
-	glamo->irq_base = platform_get_irq(pdev, 1);
+	glamo->irq_base = irq_base = platform_get_irq(pdev, 1);
 	glamo->pdata = pdev->dev.platform_data;
 
 	if (glamo->irq < 0) {
@@ -923,7 +923,7 @@ static int __devinit glamo_probe(struct platform_device *pdev)
 		goto err_free;
 	}
 
-	if (glamo->irq_base < 0) {
+	if (irq_base < 0) {
 		ret = glamo->irq;
 		dev_err(&pdev->dev, "Failed to get glamo irq base: %d\n", ret);
 		goto err_free;
@@ -980,8 +980,9 @@ static int __devinit glamo_probe(struct platform_device *pdev)
 	/*
 	 * finally set the mfd interrupts up
 	 */
-	for (irq = glamo->irq_base; irq < glamo->irq_base + GLAMO_NR_IRQS; ++irq) {
-		set_irq_chip_and_handler(irq, &glamo_irq_chip, handle_level_irq);
+	for (irq = irq_base; irq < irq_base + GLAMO_NR_IRQS; ++irq) {
+		set_irq_chip_and_handler(irq, &glamo_irq_chip,
+					handle_level_irq);
 		set_irq_flags(irq, IRQF_VALID);
 		set_irq_chip_data(irq, glamo);
 	}
@@ -1010,7 +1011,7 @@ err_free_irqs:
 	set_irq_chained_handler(glamo->irq, NULL);
 	set_irq_chip_data(glamo->irq, NULL);
 
-	for (irq = glamo->irq_base; irq < glamo->irq_base + GLAMO_NR_IRQS; ++irq) {
+	for (irq = irq_base; irq < irq_base + GLAMO_NR_IRQS; ++irq) {
 		set_irq_flags(irq, 0);
 		set_irq_chip(irq, NULL);
 		set_irq_chip_data(irq, NULL);
@@ -1030,6 +1031,7 @@ static int __devexit glamo_remove(struct platform_device *pdev)
 {
 	struct glamo_core *glamo = platform_get_drvdata(pdev);
 	int irq;
+	int irq_base = glamo->irq_base;
 
 	mfd_remove_devices(&pdev->dev);
 
@@ -1037,7 +1039,7 @@ static int __devexit glamo_remove(struct platform_device *pdev)
 	set_irq_chained_handler(glamo->irq, NULL);
 	set_irq_chip_data(glamo->irq, NULL);
 
-	for (irq = glamo->irq_base; irq < glamo->irq_base + GLAMO_NR_IRQS; ++irq) {
+	for (irq = irq_base; irq < irq_base + GLAMO_NR_IRQS; ++irq) {
 		set_irq_flags(irq, 0);
 		set_irq_chip(irq, NULL);
 		set_irq_chip_data(irq, NULL);

@@ -8,7 +8,7 @@ struct glamo_fb_platform_data;
 struct glamo_mmc_platform_data {
 	int	(*glamo_mmc_use_slow)(void);
 
-    struct glamo_core *core;
+	struct glamo_core *core;
 };
 
 struct glamo_gpio_platform_data {
@@ -17,13 +17,13 @@ struct glamo_gpio_platform_data {
 };
 
 struct glamo_platform_data {
-    struct glamo_fb_platform_data	*fb_data;
-    struct glamo_mmc_platform_data	*mmc_data;
-    struct glamo_gpio_platform_data	*gpio_data;
+	struct glamo_fb_platform_data	*fb_data;
+	struct glamo_mmc_platform_data	*mmc_data;
+	struct glamo_gpio_platform_data	*gpio_data;
 
-    unsigned int osci_clock_rate;
+	unsigned int osci_clock_rate;
 
-    void (*glamo_external_reset)(int);
+	void (*glamo_external_reset)(int);
 };
 
 enum glamo_engine {

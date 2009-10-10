@@ -912,13 +912,20 @@ static int __devinit glamo_probe(struct platform_device *pdev)
 	spin_lock_init(&glamo->lock);
 
 	glamo->pdev = pdev;
-	mem  = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	glamo->irq = platform_get_irq(pdev, 0);
+	glamo->irq_base = platform_get_irq(pdev, 1);
 	glamo->pdata = pdev->dev.platform_data;
 
 	if (glamo->irq < 0) {
-		dev_err(&pdev->dev, "Failed to get platform irq: %d\n", ret);
 		ret = glamo->irq;
+		dev_err(&pdev->dev, "Failed to get platform irq: %d\n", ret);
+		goto err_free;
+	}
+
+	if (glamo->irq_base < 0) {
+		ret = glamo->irq;
+		dev_err(&pdev->dev, "Failed to get glamo irq base: %d\n", ret);
 		goto err_free;
 	}
 

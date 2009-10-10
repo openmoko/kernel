@@ -263,8 +263,8 @@ static struct resource gta02_glamo_resources[] = {
 		.flags	= IORESOURCE_IRQ,
 	},
 	[2] = {
-		.start = GTA02_GPIO_3D_RESET,
-		.end   = GTA02_GPIO_3D_RESET,
+		.start	= S3C2410_BOARD_IRQ_START,
+		.flags	= IORESOURCE_IRQ,
 	},
 };
 

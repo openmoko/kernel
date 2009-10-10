@@ -167,20 +167,21 @@ static void glamo_mci_disable_timer(unsigned long data)
 
 static void do_pio_read(struct glamo_mci_host *host, struct mmc_data *data)
 {
-	struct scatterlist *sg;
+	struct sg_mapping_iter miter;
 	uint16_t __iomem *from_ptr = host->data_base;
-	void *sg_pointer;
 
 	dev_dbg(&host->pdev->dev, "pio_read():\n");
-	for (sg = data->sg; sg; sg = sg_next(sg)) {
-		sg_pointer = page_address(sg_page(sg)) + sg->offset;
 
+	sg_miter_start(&miter, data->sg, data->sg_len, SG_MITER_TO_SG);
 
-		memcpy(sg_pointer, from_ptr, sg->length);
-		from_ptr += sg->length >> 1;
+	while (sg_miter_next(&miter)) {
+		memcpy(miter.addr, from_ptr, miter.length);
+		from_ptr += miter.length >> 1;
 
-		data->bytes_xfered += sg->length;
+		data->bytes_xfered += miter.length;
 	}
+
+	sg_miter_stop(&miter);
 
 	dev_dbg(&host->pdev->dev, "pio_read(): "
 			"complete (no more data).\n");
@@ -188,20 +189,20 @@ static void do_pio_read(struct glamo_mci_host *host, struct mmc_data *data)
 
 static void do_pio_write(struct glamo_mci_host *host, struct mmc_data *data)
 {
-	struct scatterlist *sg;
+	struct sg_mapping_iter miter;
 	uint16_t __iomem *to_ptr = host->data_base;
-	void *sg_pointer;
 
 	dev_dbg(&host->pdev->dev, "pio_write():\n");
-	for (sg = data->sg; sg; sg = sg_next(sg)) {
-		sg_pointer = page_address(sg_page(sg)) + sg->offset;
+	sg_miter_start(&miter, data->sg, data->sg_len, SG_MITER_FROM_SG);
 
-		data->bytes_xfered += sg->length;
+	while (sg_miter_next(&miter)) {
+		memcpy(to_ptr, miter.addr, miter.length);
+		to_ptr += miter.length >> 1;
 
-		memcpy(to_ptr, sg_pointer, sg->length);
-		to_ptr += sg->length >> 1;
+		data->bytes_xfered += miter.length;
 	}
 
+	sg_miter_stop(&miter);
 	dev_dbg(&host->pdev->dev, "pio_write(): complete\n");
 }
 
@@ -220,6 +221,20 @@ static int glamo_mci_set_card_clock(struct glamo_mci_host *host, int freq)
 	return real_rate;
 }
 
+static int glamo_mci_wait_idle(struct glamo_mci_host *host,
+				unsigned long timeout)
+{
+	uint16_t status;
+	do {
+		status = glamo_reg_read(host, GLAMO_REG_MMC_RB_STAT1);
+	} while (!(status & GLAMO_STAT1_MMC_IDLE) && jiffies < timeout);
+
+	if (jiffies >= timeout)
+		return -ETIMEDOUT;
+
+	return 0;
+}
+
 static void glamo_mci_request_done(struct glamo_mci_host *host, struct
 mmc_request *mrq)
 {
@@ -232,12 +247,16 @@ static void glamo_mci_irq_worker(struct work_struct *work)
 {
 	struct glamo_mci_host *host = container_of(work, struct glamo_mci_host,
 						    irq_work);
+	struct mmc_request *mrq;
 	struct mmc_command *cmd;
 	uint16_t status;
+	int res;
+
 	if (!host->mrq || !host->mrq->cmd)
 		return;
 
-	cmd = host->mrq->cmd;
+	mrq = host->mrq;
+	cmd = mrq->cmd;
 
 #if 0
 	if (cmd->data->flags & MMC_DATA_READ)
@@ -262,11 +281,14 @@ static void glamo_mci_irq_worker(struct work_struct *work)
 	}
 
 	/* issue STOP if we have been given one to use */
-	if (host->mrq->stop)
-		glamo_mci_send_command(host, host->mrq->stop);
+	if (mrq->stop)
+		glamo_mci_send_command(host, mrq->stop);
 
 	if (cmd->data->flags & MMC_DATA_READ)
 		do_pio_read(host, cmd->data);
+
+	if (mrq->stop)
+		mrq->stop->error = glamo_mci_wait_idle(host, jiffies + HZ);
 
 done:
 	host->mrq = NULL;
@@ -633,6 +655,8 @@ static void glamo_mci_send_request(struct mmc_host *mmc,
 	dev_dbg(&host->pdev->dev, "Waiting for payload data\n");
 	return;
 done:
+	if (!cmd->error)
+		cmd->error = glamo_mci_wait_idle(host, jiffies + 2 * HZ);
 	glamo_mci_request_done(host, mrq);
 }
 

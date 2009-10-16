@@ -201,5 +201,12 @@ config REGULATOR_88PM8607
 	help
 	  This driver supports 88PM8607 voltage regulator chips.
 
+config REGULATOR_PCF50606
+	bool "PCF50606 regulator driver"
+        depends on MFD_PCF50606
+	help
+	 Say Y here to support the voltage regulators and convertors
+	 on PCF50606
+
 endif
 

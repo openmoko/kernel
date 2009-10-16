@@ -131,4 +131,10 @@ config CHARGER_PCF50633
 	help
 	 Say Y to include support for NXP PCF50633 Main Battery Charger.
 
+config CHARGER_PCF50606
+	tristate "Support for NXP PCF50606 MBC"
+	depends on MFD_PCF50606
+	help
+	 Say Y to include support for NXP PCF50606 Battery Charger.
+
 endif # POWER_SUPPLY

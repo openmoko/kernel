@@ -24,6 +24,7 @@
 #include <linux/scatterlist.h>
 #include <linux/io.h>
 #include <linux/regulator/consumer.h>
+#include <linux/err.h>
 #include <linux/mfd/glamo.h>
 
 #include "glamo-core.h"
@@ -158,20 +159,14 @@ static void glamo_mci_reset(struct glamo_mci_host *host)
 
 static void glamo_mci_clock_disable(struct glamo_mci_host *host)
 {
-	if (host->clk_enabled) {
-		glamo_engine_suspend(host->core, GLAMO_ENGINE_MMC);
-		host->clk_enabled = 0;
-	}
+    glamo_engine_suspend(host->core, GLAMO_ENGINE_MMC);
 }
 
 static void glamo_mci_clock_enable(struct glamo_mci_host *host)
 {
 	del_timer_sync(&host->disable_timer);
 
-	if (!host->clk_enabled) {
-		glamo_engine_enable(host->core, GLAMO_ENGINE_MMC);
-		host->clk_enabled = 1;
-	}
+    glamo_engine_enable(host->core, GLAMO_ENGINE_MMC);
 }
 
 static void glamo_mci_disable_timer(unsigned long data)
@@ -256,6 +251,7 @@ static int glamo_mci_wait_idle(struct glamo_mci_host *host,
 static void glamo_mci_request_done(struct glamo_mci_host *host, struct
 mmc_request *mrq)
 {
+    printk("request_done: %d\n", mrq->cmd->error);
 	mod_timer(&host->disable_timer, jiffies + HZ / 16);
 	mmc_request_done(host->mmc, mrq);
 }
@@ -268,7 +264,6 @@ static void glamo_mci_irq_worker(struct work_struct *work)
 	struct mmc_request *mrq;
 	struct mmc_command *cmd;
 	uint16_t status;
-	int res;
 
 	if (!host->mrq || !host->mrq->cmd)
 		return;
@@ -689,6 +684,7 @@ static void glamo_mci_set_power_mode(struct glamo_mci_host *host,
 	switch (power_mode) {
 	case MMC_POWER_UP:
 		if (host->power_mode == MMC_POWER_OFF) {
+            printk("ENABLE\n");
 			ret = regulator_enable(host->regulator);
 			if (ret)
 				dev_err(&host->pdev->dev,
@@ -700,6 +696,7 @@ static void glamo_mci_set_power_mode(struct glamo_mci_host *host,
 		break;
 	case MMC_POWER_OFF:
 	default:
+        printk("DISABLE\n");
 		glamo_engine_disable(host->core, GLAMO_ENGINE_MMC);
 
 		ret = regulator_disable(host->regulator);
@@ -801,9 +798,9 @@ static int glamo_mci_probe(struct platform_device *pdev)
 	INIT_WORK(&host->read_work, glamo_mci_read_worker);
 
 	host->regulator = regulator_get(pdev->dev.parent, "SD_3V3");
-	if (!host->regulator) {
+	if (IS_ERR(host->regulator)) {
 		dev_err(&pdev->dev, "Cannot proceed without regulator.\n");
-		ret = -ENODEV;
+		ret = PTR_ERR(host->regulator);
 		goto probe_free_host;
 	}
 
@@ -968,8 +965,6 @@ static int glamo_mci_suspend(struct device *dev)
 
 	ret = mmc_suspend_host(mmc, PMSG_SUSPEND);
 
-	glamo_engine_disable(host->core, GLAMO_ENGINE_MMC);
-
 	return ret;
 }
 
@@ -980,13 +975,11 @@ static int glamo_mci_resume(struct device *dev)
 	int ret;
 
 
-	glamo_engine_enable(host->core, GLAMO_ENGINE_MMC);
 	glamo_mci_reset(host);
-
-	mdelay(5);
+	glamo_engine_enable(host->core, GLAMO_ENGINE_MMC);
+    mdelay(10);
 
 	ret = mmc_resume_host(host->mmc);
-/*	glamo_mci_clock_disable(host);*/
 
 	return 0;
 }

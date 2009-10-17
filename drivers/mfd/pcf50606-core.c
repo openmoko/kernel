@@ -530,8 +530,13 @@ static int pcf50606_probe(struct i2c_client *client,
 {
 	struct pcf50606 *pcf;
 	struct pcf50606_platform_data *pdata = client->dev.platform_data;
-	int i, ret = 0;
+	int i, ret;
 	int version, variant;
+
+	if (!client->irq) {
+		dev_err(&client->dev, "Missing IRQ\n");
+		return -ENOENT;
+	}
 
 	pcf = kzalloc(sizeof(*pcf), GFP_KERNEL);
 	if (!pcf)
@@ -564,6 +569,14 @@ static int pcf50606_probe(struct i2c_client *client,
 	pcf50606_reg_write(pcf, PCF50606_REG_INT2M, 0x00);
 	pcf50606_reg_write(pcf, PCF50606_REG_INT3M, 0x00);
 
+	ret = request_irq(client->irq, pcf50606_irq,
+			IRQF_TRIGGER_LOW, "pcf50606", pcf);
+
+	if (ret) {
+		dev_err(pcf->dev, "Failed to request IRQ %d\n", ret);
+		goto err;
+	}
+
 	pcf50606_client_dev_register(pcf, "pcf50606-input",
 						&pcf->input_pdev);
 	pcf50606_client_dev_register(pcf, "pcf50606-rtc",
@@ -579,7 +592,7 @@ static int pcf50606_probe(struct i2c_client *client,
 
 		pdev = platform_device_alloc("pcf50606-regltr", i);
 		if (!pdev) {
-			dev_err(pcf->dev, "Cannot create regulator\n");
+			dev_err(pcf->dev, "Cannot create regulator %d\n", i);
 			continue;
 		}
 	
@@ -591,27 +604,13 @@ static int pcf50606_probe(struct i2c_client *client,
 		platform_device_add(pdev);
 	}
 
-	if (client->irq) {
-		set_irq_handler(client->irq, handle_level_irq);
-		ret = request_irq(client->irq, pcf50606_irq,
-				IRQF_TRIGGER_LOW, "pcf50606", pcf);
-
-		if (ret) {
-			dev_err(pcf->dev, "Failed to request IRQ %d\n", ret);
-			goto err;
-		}
-	} else {
-		dev_err(pcf->dev, "No IRQ configured\n");
-		goto err;
-	}
-
 	if (enable_irq_wake(client->irq) < 0)
-		dev_err(pcf->dev, "IRQ %u cannot be enabled as wake-up source"
+		dev_info(pcf->dev, "IRQ %u cannot be enabled as wake-up source"
 			"in this hardware revision", client->irq);
 
 	ret = sysfs_create_group(&client->dev.kobj, &pcf_attr_group);
 	if (ret)
-		dev_err(pcf->dev, "error creating sysfs entries\n");
+		dev_info(pcf->dev, "error creating sysfs entries\n");
 
 	if (pdata->probe_done)
 		pdata->probe_done(pcf);
@@ -619,6 +618,7 @@ static int pcf50606_probe(struct i2c_client *client,
 	return 0;
 
 err:
+	i2c_set_clientdata(client, NULL);
 	kfree(pcf);
 	return ret;
 }

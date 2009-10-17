@@ -35,7 +35,6 @@
 #include <linux/serial_core.h>
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/host.h>
-#include <linux/gta01_battery.h>
 
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/nand.h>
@@ -48,8 +47,6 @@
 #include <linux/mfd/pcf50606/pmic.h>
 #include <linux/mfd/pcf50606/mbc.h>
 #include <linux/mfd/pcf50606/adc.h>
-
-/*#include <linux/gta01_battery.h>*/
 
 #include <linux/regulator/machine.h>
 #include <linux/regulator/consumer.h>
@@ -102,6 +99,8 @@
 #include <../drivers/input/touchscreen/ts_filter_group.h>
 #endif
 */
+
+static void gta01_pmu_attach_child_devices(struct pcf50606 *pcf);
 
 static struct map_desc gta01_iodesc[] __initdata = {
 	{
@@ -231,6 +230,8 @@ static struct regulator_consumer_supply lpreg_consumers[] = {
 };
 #endif
 
+#if 0
+
 static int gta01_bat_get_charging_status(void)
 {
 	struct pcf50606 *pcf = gta01_pcf;
@@ -283,12 +284,13 @@ static struct platform_device gta01_bat = {
 		.platform_data = &gta01_bat_pdata,
 	}
 };
+#endif
 
 static void gta01_pcf_probe_done(struct pcf50606 *pcf)
 {
 	gta01_pcf = pcf;
-	gta01_bat.dev.parent = pcf->dev;
-	platform_device_register(&gta01_bat);
+
+	gta01_pmu_attach_child_devices(pcf);
 }
 
 static int gps_registered_regulators = 0;
@@ -310,8 +312,8 @@ static void gta01_pmu_regulator_registered(struct pcf50606 *pcf, int id)
 	}
 
 	/* All GPS related regulators registered ? */
-/*	if (gps_registered_regulators == 4)
-		platform_device_register(&gta01_pm_gps_dev);*/
+	if (gps_registered_regulators == 4)
+		platform_device_register(&gta01_pm_gps_dev);
 }
 
 static struct pcf50606_platform_data gta01_pcf_pdata = {
@@ -328,7 +330,7 @@ static struct pcf50606_platform_data gta01_pcf_pdata = {
 	},
 	.mbc_event_callback = gta01_pmu_event_callback,
 	.reg_init_data = {
-        /* BT, GPS */
+		/* BT, GPS */
 		[PCF50606_REGULATOR_D1REG] = {
 			.constraints = {
 				.min_uV = 3000000,
@@ -339,7 +341,7 @@ static struct pcf50606_platform_data gta01_pcf_pdata = {
 			.num_consumer_supplies = ARRAY_SIZE(d1reg_consumers),
 			.consumer_supplies = d1reg_consumers,
 		},
-        /* GPS */
+		/* GPS */
 		[PCF50606_REGULATOR_D2REG] = {
 			.constraints = {
 				.min_uV = 1650000,
@@ -352,20 +354,20 @@ static struct pcf50606_platform_data gta01_pcf_pdata = {
 			.consumer_supplies = d2reg_consumers,
 
 		},
-        /* RTC/Standby */
+		/* RTC/Standby */
 		[PCF50606_REGULATOR_D3REG] = {
 			.constraints = {
 				.min_uV = 1800000,
 				.max_uV = 2100000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
-                .always_on = 1,
+				.always_on = 1,
 				.state_mem = {
 					.enabled = 1,
 				},
 			},
 			.num_consumer_supplies = 0,
 		},
-        /* GPS */
+		/* GPS */
 		[PCF50606_REGULATOR_DCD] = {
 			.constraints = {
 				.min_uV = 1500000,
@@ -377,48 +379,48 @@ static struct pcf50606_platform_data gta01_pcf_pdata = {
 			.consumer_supplies = dcd_consumers,
 		},
 
-        /* S3C2410 Memory and IO, Vibrator, RAM, NAND, AMP, SD Card */
+		/* S3C2410 Memory and IO, Vibrator, RAM, NAND, AMP, SD Card */
 		[PCF50606_REGULATOR_DCDE] = {
 			.constraints = {
 				.min_uV = 3300000,
 				.max_uV = 3300000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
 				.apply_uV = 1,
-                .always_on = 1,
+				.always_on = 1,
 				.state_mem = {
 					.enabled = 1,
 				},
 			},
 			.num_consumer_supplies = 0,
 		},
-        /* SoC */
+		/* SoC */
 		[PCF50606_REGULATOR_DCUD] = {
 			.constraints = {
 				.min_uV = 2100000,
 				.max_uV = 2100000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
 				.apply_uV = 1,
-                .always_on = 1,
+				.always_on = 1,
 				.state_mem = {
 					.enabled = 1,
 				},
 			},
 			.num_consumer_supplies = 0,
 		},
-        /* Codec, GPS */
+		/* Codec, GPS */
 		[PCF50606_REGULATOR_IOREG] = {
 			.constraints = {
 				.min_uV = 3300000,
 				.max_uV = 3300000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
 				.apply_uV = 1,
-                .always_on = 1,
+				.always_on = 1,
 			},
 			.num_consumer_supplies = ARRAY_SIZE(ioreg_consumers),
 			.consumer_supplies = ioreg_consumers,
 
 		},
-        /* LCM */
+		/* LCM */
 		[PCF50606_REGULATOR_LPREG] = {
 			.constraints = {
 				.min_uV = 3300000,
@@ -434,16 +436,6 @@ static struct pcf50606_platform_data gta01_pcf_pdata = {
 	.regulator_registered = gta01_pmu_regulator_registered,
 };
 
-static void cfg_pmu_vrail(struct regulator_init_data *vrail,
-			  unsigned int suspend_on, unsigned int min,
-			  unsigned int max)
-{
-	vrail->constraints.state_mem.enabled = suspend_on;
-	vrail->constraints.min_uV = min;
-	vrail->constraints.max_uV = max;
-	vrail->constraints.apply_uV = 1;
-}
-
 static void mangle_pmu_pdata_by_system_rev(void)
 {
 	struct regulator_init_data *reg_init_data;
@@ -452,44 +444,21 @@ static void mangle_pmu_pdata_by_system_rev(void)
 
 	switch (S3C_SYSTEM_REV_ATAG) {
 	case GTA01Bv4_SYSTEM_REV:
-
 		/* FIXME : gta01_pcf_pdata.used_features |= PCF50606_FEAT_ACD; */
 		break;
 	case GTA01Bv3_SYSTEM_REV:
 	case GTA01Bv2_SYSTEM_REV:
 		reg_init_data[PCF50606_REGULATOR_D3REG].constraints.state_mem.enabled = 1;
 		break;
-	case GTA01v4_SYSTEM_REV:
-		cfg_pmu_vrail(&reg_init_data[PCF50606_REGULATOR_DCUD],
-			  1, 18000000, 1800000);
-		cfg_pmu_vrail(&reg_init_data[PCF50606_REGULATOR_D1REG],
-			  0, 3000000, 3000000);
-		cfg_pmu_vrail(&reg_init_data[PCF50606_REGULATOR_D3REG],
-			  0, 2800000, 2800000);
-		cfg_pmu_vrail(&reg_init_data[PCF50606_REGULATOR_DCD],
-			  0, 3500000, 3500000);
-		break;
-	case GTA01v3_SYSTEM_REV:
-		cfg_pmu_vrail(&reg_init_data[PCF50606_REGULATOR_D1REG],
-			  0, 3000000, 3000000);
-		cfg_pmu_vrail(&reg_init_data[PCF50606_REGULATOR_D2REG],
-			  0, 3300000, 3300000);
-		cfg_pmu_vrail(&reg_init_data[PCF50606_REGULATOR_D3REG],
-			  0, 3300000, 3300000);
-		cfg_pmu_vrail(&reg_init_data[PCF50606_REGULATOR_DCD],
-			  0, 3300000, 3300000);
-		cfg_pmu_vrail(&reg_init_data[PCF50606_REGULATOR_DCUD],
-			  1, 1800000, 1800000);
-		cfg_pmu_vrail(&reg_init_data[PCF50606_REGULATOR_IOREG],
-			  0, 2800000, 2800000);
+	default:
 		break;
 	}
 }
 
 static void gta01_power_off(void)
-{/*
+{
 	pcf50606_reg_write(gta01_pcf, PCF50606_REG_OOCC1,
-			PCF50606_OOCC1_GOSTDBY);*/
+			PCF50606_OOCC1_GOSTDBY);
 }
 
 /* LCD driver info */
@@ -871,10 +840,20 @@ static struct platform_device *gta01_devices[] __initdata = {
 	&gta01_pm_gsm_dev,
 };
 
-static struct platform_device *gta01_pmu_child_devices[] = {
+static struct platform_device *gta01_pmu_child_devices[] __initdata = {
 	&gta01_lcm_spigpio_device,
 };
 
+static void gta01_pmu_attach_child_devices(struct pcf50606 *pcf)
+{
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(gta01_pmu_child_devices); ++i)
+		gta01_pmu_child_devices[i]->dev.parent = pcf->dev;
+
+	platform_add_devices(gta01_pmu_child_devices,
+				 ARRAY_SIZE(gta01_pmu_child_devices));
+}
 static void __init gta01_map_io(void)
 {
 	s3c24xx_init_io(gta01_iodesc, ARRAY_SIZE(gta01_iodesc));

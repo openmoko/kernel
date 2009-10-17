@@ -38,10 +38,6 @@ struct pcf50606_platform_data {
 	u8 resumers[3];
 };
 
-struct pcf50606_subdev_pdata {
-	struct pcf50606 *pcf;
-};
-
 struct pcf50606_irq {
 	void (*handler)(int, void *);
 	void *data;
@@ -166,5 +162,11 @@ enum pcf50606_reg_int3 {
 
 #define PCF50606_REG_OOCC1 	0x08
 #define PCF50606_OOCC1_GOSTDBY	0x01
+
+static inline struct pcf50606 *dev_to_pcf50606(struct device *dev)
+{
+	return dev_get_drvdata(dev);
+}
+
 #endif
 

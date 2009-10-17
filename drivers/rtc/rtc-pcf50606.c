@@ -271,16 +271,13 @@ static void pcf50606_rtc_irq(int irq, void *data)
 
 static int __devinit pcf50606_rtc_probe(struct platform_device *pdev)
 {
-	struct pcf50606_subdev_pdata *pdata;
 	struct pcf50606_rtc *rtc;
 
-	
 	rtc = kzalloc(sizeof(*rtc), GFP_KERNEL);
 	if (!rtc)
 		return -ENOMEM;
 
-	pdata = pdev->dev.platform_data;
-	rtc->pcf = pdata->pcf;
+	rtc->pcf = dev_to_pcf50606(pdev->dev.parent);
 	platform_set_drvdata(pdev, rtc);
 	rtc->rtc_dev = rtc_device_register("pcf50606-rtc", &pdev->dev,
 				&pcf50606_rtc_ops, THIS_MODULE);

@@ -63,10 +63,8 @@ pcf50606_input_irq(int irq, void *data)
 static int __devinit pcf50606_input_probe(struct platform_device *pdev)
 {
 	struct pcf50606_input *input;
-	struct pcf50606_subdev_pdata *pdata = pdev->dev.platform_data;
 	struct input_dev *input_dev;
 	int ret;
-
 
 	input = kzalloc(sizeof(*input), GFP_KERNEL);
 	if (!input)
@@ -79,7 +77,7 @@ static int __devinit pcf50606_input_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, input);
-	input->pcf = pdata->pcf;
+	input->pcf = dev_to_pcf50606(pdev->dev.parent);
 	input->input_dev = input_dev;
 
 	input_dev->name = "PCF50606 PMU events";
@@ -93,9 +91,9 @@ static int __devinit pcf50606_input_probe(struct platform_device *pdev)
 		kfree(input);
 		return ret;
 	}
-	pcf50606_register_irq(pdata->pcf, PCF50606_IRQ_ONKEYR,
+	pcf50606_register_irq(input->pcf, PCF50606_IRQ_ONKEYR,
 				pcf50606_input_irq, input);
-	pcf50606_register_irq(pdata->pcf, PCF50606_IRQ_ONKEYF,
+	pcf50606_register_irq(input->pcf, PCF50606_IRQ_ONKEYF,
 				pcf50606_input_irq, input);
 
 	return 0;

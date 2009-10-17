@@ -436,7 +436,6 @@ static void
 pcf50606_client_dev_register(struct pcf50606 *pcf, const char *name,
 						struct platform_device **pdev)
 {
-	struct pcf50606_subdev_pdata subdev_pdata;
 	int ret;
 
 	*pdev = platform_device_alloc(name, -1);
@@ -444,9 +443,6 @@ pcf50606_client_dev_register(struct pcf50606 *pcf, const char *name,
 		dev_err(pcf->dev, "Falied to allocate %s\n", name);
 		return;
 	}
-
-	subdev_pdata.pcf = pcf;
-	platform_device_add_data(*pdev, &subdev_pdata, sizeof(subdev_pdata));
 
 	(*pdev)->dev.parent = pcf->dev;
 

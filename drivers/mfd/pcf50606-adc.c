@@ -211,17 +211,16 @@ static void pcf50606_adc_irq(int irq, void *data)
 
 static int __devinit pcf50606_adc_probe(struct platform_device *pdev)
 {
-	struct pcf50606_subdev_pdata *pdata = pdev->dev.platform_data;
 	struct pcf50606_adc *adc;
 
 	adc = kzalloc(sizeof(*adc), GFP_KERNEL);
 	if (!adc)
 		return -ENOMEM;
 
-	adc->pcf = pdata->pcf;
+	adc->pcf = dev_to_pcf50606(pdev->dev.parent);
 	platform_set_drvdata(pdev, adc);
 
-	pcf50606_register_irq(pdata->pcf, PCF50606_IRQ_ADCRDY,
+	pcf50606_register_irq(adc->pcf, PCF50606_IRQ_ADCRDY,
 					pcf50606_adc_irq, adc);
 
 	mutex_init(&adc->queue_mutex);

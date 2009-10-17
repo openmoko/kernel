@@ -158,7 +158,6 @@ static void pcf50606_wdt_irq(int irq, void *unused)
 
 int __init pcf50606_wdt_probe(struct platform_device *pdev)
 {
-	struct pcf50606_subdev_pdata *pdata;
 	int err;
 
 	if (pcf) {
@@ -166,13 +165,7 @@ int __init pcf50606_wdt_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	pdata = pdev->dev.platform_data;
-	if (!pdata) {
-		dev_err(&pdev->dev, "No platform data available\n");
-		return -EINVAL;
-	}
-
-	pcf = pdata->pcf;
+	pcf = dev_to_pcf50606(pdev->dev.parent);
 
 	err = misc_register(&pcf50606_wdt_miscdev);
 	if (err) {

@@ -599,7 +599,6 @@ static int pcf50606_probe(struct i2c_client *client,
 		pdev->dev.parent = pcf->dev;
 		platform_device_add_data(pdev, &pdata->reg_init_data[i],
 					sizeof(pdata->reg_init_data[i]));
-		pdev->dev.driver_data = pcf;
 		pcf->regulator_pdev[i] = pdev;
 
 		platform_device_add(pdev);

@@ -44,3 +44,8 @@ obj-$(CONFIG_MFD_PCF50633)	+= pcf50633-core.o
 obj-$(CONFIG_PCF50633_ADC)	+= pcf50633-adc.o
 obj-$(CONFIG_PCF50633_GPIO)	+= pcf50633-gpio.o
 obj-$(CONFIG_AB3100_CORE)	+= ab3100-core.o
+
+obj-$(CONFIG_MFD_PCF50606)	+= pcf50606-core.o
+obj-$(CONFIG_PCF50606_ADC)	+= pcf50606-adc.o
+obj-$(CONFIG_PCF50606_GPO)	+= pcf50606-gpo.o
+

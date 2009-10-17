@@ -426,7 +426,7 @@ static irqreturn_t pcf50606_irq(int irq, void *data)
 	struct pcf50606 *pcf = data;
 
 	get_device(pcf->dev);
-	disable_irq(pcf->irq);
+	disable_irq_nosync(pcf->irq);
 	schedule_work(&pcf->irq_work);
 
 	return IRQ_HANDLED;

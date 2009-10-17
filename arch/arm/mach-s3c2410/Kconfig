@@ -178,4 +178,24 @@ config MACH_QT2410
 	help
 	   Say Y here if you are using the Armzone QT2410
 
+config MACH_NEO1973_GTA01
+	bool "FIC Neo1973 GSM Phone (GTA01 Hardware)"
+	select CPU_S3C2410
+	select MACH_NEO1973
+	select S3C_DEV_USB_HOST
+	select MFD_PCF50606
+	select INPUT_PCF50606_PMU
+	select PCF50606_ADC
+	select PCF50606_GPIO
+	select RTC_DRV_PCF50606
+	select REGULATOR_PCF50606
+	select CHARGER_PCF50606
+	select PCF50606_WATCHDOG
+	select POWER_SUPPLY
+	select BATTERY_GTA01
+	select S3C24XX_ADC
+	select S3C_DEV_NAND
+	help
+	  Say Y here if you are using the FIC Neo1973 GSM Phone
+
 endmenu

@@ -117,4 +117,10 @@ config REGULATOR_LP3971
 	 Say Y here to support the voltage regulators and convertors
 	 on National Semiconductors LP3971 PMIC
 
+config REGULATOR_PCF50606
+	bool "PCF50606 regulator driver"
+        depends on MFD_PCF50606
+	help
+	 Say Y here to support the voltage regulators and convertors
+	 on PCF50606
 endif

@@ -42,6 +42,7 @@
 /* Glamo specific ioctls */
 #define DRM_GLAMO_CMDBUF     0x01
 #define DRM_GLAMO_SWAP       0x02
+#define DRM_GLAMO_CMDBURST   0x03
 
 #define DRM_GLAMO_GEM_INFO     0x1c
 #define DRM_GLAMO_GEM_CREATE   0x1d
@@ -54,6 +55,7 @@
 
 #define DRM_IOCTL_GLAMO_CMDBUF     DRM_IOW(DRM_COMMAND_BASE + DRM_GLAMO_CMDBUF, drm_glamo_cmd_buffer_t)
 #define DRM_IOCTL_GLAMO_SWAP       DRM_IO(DRM_COMMAND_BASE + DRM_GLAMO_SWAP)
+#define DRM_IOCTL_GLAMO_CMDBURST     DRM_IOW(DRM_COMMAND_BASE + DRM_GLAMO_CMDBURST, drm_glamo_cmd_burst_t)
 
 #define DRM_IOCTL_GLAMO_GEM_INFO   DRM_IOWR(DRM_COMMAND_BASE + DRM_GLAMO_GEM_INFO, struct drm_glamo_gem_info)
 #define DRM_IOCTL_GLAMO_GEM_CREATE DRM_IOWR(DRM_COMMAND_BASE + DRM_GLAMO_GEM_CREATE, struct drm_glamo_gem_create)
@@ -64,6 +66,8 @@
 #define DRM_IOCTL_GLAMO_GEM_PWRITE DRM_IOWR(DRM_COMMAND_BASE + DRM_GLAMO_GEM_PWRITE, struct drm_glamo_gem_pwrite)
 #define DRM_IOCTL_GLAMO_GEM_WAIT_RENDERING DRM_IOW(DRM_COMMAND_BASE + DRM_GLAMO_GEM_WAIT_RENDERING, struct drm_glamo_gem_wait_rendering)
 
+
+/* Simple command submission - a list of 16-bit address-data pairs */
 typedef struct drm_glamo_cmd_buffer {
 	unsigned int bufsz;	/* Size of buffer, in bytes */
 	char __user *buf;	/* Buffer of stuff to go onto the ring buffer */
@@ -73,6 +77,19 @@ typedef struct drm_glamo_cmd_buffer {
 	int nbox;
 	struct drm_clip_rect __user *boxes;
 } drm_glamo_cmd_buffer_t;
+
+
+/* Burst command submission - base address and data:
+ *  - Data can be 32-bit (more easily)
+ *  - Easier for the kernel to validate */
+typedef struct drm_glamo_cmd_burst {
+	uint16_t base;		/* Base address (command) */
+	int bufsz;		/* Size of data, in bytes */
+	uint16_t *data;		/* Pointer to data */
+	unsigned int *obj_pos;	/* Offsets (in bytes) at which to put objs */
+	uint32_t *objs;		/* List of buffer object (handles) to use */
+	unsigned int nobjs;	/* Number of objects referenced */
+} drm_glamo_cmd_burst_t;
 
 struct drm_glamo_gem_info {
 	uint64_t vram_start;

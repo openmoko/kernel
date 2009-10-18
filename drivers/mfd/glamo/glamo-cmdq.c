@@ -333,6 +333,164 @@ cleanup:
 }
 
 
+/* Return true for a legal sequence of commands, otherwise false */
+static int glamo_sanitize_burst(u16 base, u16 *cmds, unsigned int count)
+{
+	/* XXX FIXME TODO: Implementation... */
+	return 1;
+}
+
+
+static int glamo_relocate_burst(struct glamodrm_handle *gdrm,
+                                drm_glamo_cmd_burst_t *cbuf, u16 *data,
+                                struct drm_device *dev,
+                                struct drm_file *file_priv)
+{
+	u32 *handles;
+	int *offsets;
+	int nobjs =  cbuf->nobjs;
+	int i;
+
+	if ( nobjs > 32 ) return -EINVAL;	/* Get real... */
+
+	handles = drm_alloc(nobjs*sizeof(u32), DRM_MEM_DRIVER);
+	if ( handles == NULL ) return -1;
+	if ( copy_from_user(handles, cbuf->objs, nobjs*sizeof(u32)) )
+		return -1;
+
+	offsets = drm_alloc(nobjs*sizeof(int), DRM_MEM_DRIVER);
+	if ( offsets == NULL ) return -1;
+	if ( copy_from_user(offsets, cbuf->obj_pos, nobjs*sizeof(int)) )
+		return -1;
+
+	for ( i=0; i<nobjs; i++ ) {
+
+		u32 handle = handles[i];
+		int offset = offsets[i];
+		struct drm_gem_object *obj;
+		struct drm_glamo_gem_object *gobj;
+		u32 addr;
+		u16 addr_low, addr_high;
+
+		if ( offset > cbuf->bufsz ) {
+			printk(KERN_WARNING "[glamo-drm] Offset out of range"
+			                    " for this relocation!\n");
+			goto fail;
+		}
+
+		obj = drm_gem_object_lookup(dev, file_priv, handle);
+		if ( obj == NULL ) return -1;
+
+		/* Unref the object now, or it'll never get freed.
+		 * FIXME: This should really happen after the GPU has
+		 * finished executing these commands. */
+		drm_gem_object_unreference(obj);
+
+		gobj = obj->driver_private;
+		if ( gobj == NULL ) {
+			printk(KERN_WARNING "[glamo-drm] This object has no"
+			                    " private data!\n");
+			goto fail;
+		}
+
+		addr = GLAMO_OFFSET_FB + gobj->block->start;
+		addr_low = addr & 0xffff;
+		addr_high = (addr >> 16) & 0x7f;
+		printk("low=0x%04x, high=0x%04x\n", addr_low, addr_high);
+
+		/* FIXME: Should really check that the register is a
+		 * valid one for this relocation. */
+
+		printk("relocating at offset %i\n", offset);
+		printk("=%i\n", offset/2);
+		*(data+(offset/2)+0) = addr_low;
+		*(data+(offset/2)+1) = addr_high;
+
+	}
+
+	drm_free(handles, 1, DRM_MEM_DRIVER);
+	drm_free(offsets, 1, DRM_MEM_DRIVER);
+	return 0;
+
+fail:
+	drm_free(handles, 1, DRM_MEM_DRIVER);
+	drm_free(offsets, 1, DRM_MEM_DRIVER);
+	return -1;
+}
+
+
+/* This is DRM_IOCTL_GLAMO_CMDBURST */
+int glamo_ioctl_cmdburst(struct drm_device *dev, void *data,
+                         struct drm_file *file_priv)
+{
+	int ret = 0;
+	struct glamodrm_handle *gdrm;
+	drm_glamo_cmd_burst_t *cbuf = data;
+	u16 *burst;
+	size_t burst_size;
+	size_t data_size;
+	int i;
+
+	gdrm = dev->dev_private;
+
+	data_size = cbuf->bufsz;
+	burst_size = data_size + 4;  /* Add space for header */
+	if ( data_size % 4 ) burst_size += 2;
+	if ( burst_size > PAGE_SIZE ) return -EINVAL;
+	if ( burst_size % 4 ) return -EINVAL;
+
+	burst = drm_alloc(burst_size, DRM_MEM_DRIVER);
+	if ( burst == NULL ) return -ENOMEM;
+
+	/* Get data from userspace */
+	if ( copy_from_user(burst+2, cbuf->data, cbuf->bufsz) ) 	{
+		printk(KERN_WARNING "[glamo-drm] copy from user failed\n");
+		ret = -EINVAL;
+		goto cleanup;
+	}
+
+	/* Sanitise */
+	if ( !glamo_sanitize_burst(cbuf->base, burst+2, cbuf->bufsz) ) {
+		printk(KERN_WARNING "[glamo-drm] sanitize buffer failed\n");
+		ret = -EINVAL;
+		goto cleanup;
+	}
+
+	/* Relocate */
+	if ( cbuf->nobjs ) {
+		if ( glamo_relocate_burst(gdrm, cbuf, burst+2, dev, file_priv) )
+		{
+			printk(KERN_WARNING "[glamo-drm] Relocation failed\n");
+			ret = -EINVAL;
+			goto cleanup;
+		}
+	}
+
+	/* Add burst header */
+	burst[0] = 1<<15 | cbuf->base;
+	burst[1] = data_size / 2;  /* -> 2-byte words */
+
+	/* Zero-pad if necessary */
+	if ( burst[1] & 0x01 ) {
+		burst[(burst_size/2)-1] = 0x0000;
+	}
+
+	for ( i=0; i<burst_size/2; i++ ) {
+		printk("0x%02x = %4i : %04x = %4i\n", i, i, burst[i], burst[i]);
+	}
+	goto cleanup;
+
+	/* Add to command queue */
+	glamo_add_to_ring(gdrm, burst, burst_size);
+	glamo_set_cmdq_irq(gdrm);
+
+cleanup:
+	drm_free(burst, 1, DRM_MEM_DRIVER);
+
+	return ret;
+}
+
+
 /* TODO: Banish this to the nether regions of Hades */
 static void glamo_cmdq_wait(struct glamodrm_handle *gdrm,
                             enum glamo_engine engine)

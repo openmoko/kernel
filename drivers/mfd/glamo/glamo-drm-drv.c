@@ -63,6 +63,7 @@ static int glamo_ioctl_gem_info(struct drm_device *dev, void *data,
 struct drm_ioctl_desc glamo_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_GLAMO_CMDBUF, glamo_ioctl_cmdbuf, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_GLAMO_SWAP, glamo_ioctl_swap, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_GLAMO_CMDBURST, glamo_ioctl_cmdburst, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_INFO, glamo_ioctl_gem_info, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_CREATE, glamo_ioctl_gem_create, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_MMAP, glamo_ioctl_gem_mmap, DRM_AUTH),

@@ -286,7 +286,7 @@ static struct platform_device gta01_bat = {
 };
 #endif
 
-static void gta01_pcf_probe_done(struct pcf50606 *pcf)
+static void __devinit gta01_pcf_probe_done(struct pcf50606 *pcf)
 {
 	gta01_pcf = pcf;
 
@@ -840,11 +840,11 @@ static struct platform_device *gta01_devices[] __initdata = {
 	&gta01_pm_gsm_dev,
 };
 
-static struct platform_device *gta01_pmu_child_devices[] __initdata = {
+static struct platform_device *gta01_pmu_child_devices[] __devinitdata = {
 	&gta01_lcm_spigpio_device,
 };
 
-static void gta01_pmu_attach_child_devices(struct pcf50606 *pcf)
+static void __devinit gta01_pmu_attach_child_devices(struct pcf50606 *pcf)
 {
 	size_t i;
 

@@ -40,3 +40,18 @@ config MFD_GLAMO_MCI
 	  neo1973 GTA-02.
 
 	  If unsure, say N.
+
+config MFD_GLAMO_DRM
+	tristate "Glamo direct rendering and kernel modesetting support"
+	depends on MFD_GLAMO && DRM
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	help
+	  Direct Rendering Manager interface for the S-Media Glamo chip, as
+	  used in Openmoko FreeRunner (GTA02).
+
+	  This DRM driver includes kernel modesetting (KMS) support.  As such,
+	  do not select MFD_GLAMO_FB above if you choose to enable this option.
+
+	  If unsure, say N.

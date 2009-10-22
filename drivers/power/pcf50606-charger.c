@@ -61,7 +61,7 @@ int pcf50606_charge_fast(struct pcf50606 *pcf, int on)
 			mbc->charger_online = 0;
 	}
 
-    return 0;
+	return 0;
 }
 EXPORT_SYMBOL_GPL(pcf50606_charge_fast);
 
@@ -213,6 +213,7 @@ static int __devexit pcf50606_mbc_remove(struct platform_device *pdev)
 static struct platform_driver pcf50606_mbc_driver = {
 	.driver = {
 		.name = "pcf50606-mbc",
+		.owner = THIS_MODULE,
 	},
 	.probe = pcf50606_mbc_probe,
 	.remove = __devexit_p(pcf50606_mbc_remove),

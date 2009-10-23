@@ -46,7 +46,7 @@
 #define PCF50606_MBC_CHARGER_ONLINE	0x01
 #define PCF50606_MBC_CHARGER_ACTIVE	0x02
 
-void pcf50606_charge_fast(struct pcf50606 *pcf, int on);
+int pcf50606_charge_fast(struct pcf50606 *pcf, int on);
 
 #endif
 

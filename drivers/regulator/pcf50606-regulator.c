@@ -127,15 +127,12 @@ static int pcf50606_regulator_set_voltage(struct regulator_dev *rdev,
 						int min_uV, int max_uV)
 {
 	struct pcf50606 *pcf;
-	int ret;
 	int regulator_id, millivolts;
 	uint8_t volt_bits, regnr;
 
 	pcf = rdev_get_drvdata(rdev);
 
 	regulator_id = rdev_get_id(rdev);
-	if (regulator_id >= PCF50606_NUM_REGULATORS)
-		return -EINVAL;
 
 	millivolts = min_uV / 1000;
 
@@ -150,7 +147,7 @@ static int pcf50606_regulator_set_voltage(struct regulator_dev *rdev,
 		break;
 	case PCF50606_REGULATOR_DCUD:
 		volt_bits = dcudc_voltage(millivolts);
-		reg_nr = PCF50606_REG_DCUDC1;
+		regnr = PCF50606_REG_DCUDC1;
 		break;
 	case PCF50606_REGULATOR_D1REG:
 	case PCF50606_REGULATOR_D2REG:
@@ -186,8 +183,6 @@ static int pcf50606_regulator_get_voltage(struct regulator_dev *rdev)
 	pcf = rdev_get_drvdata(rdev);
 
 	regulator_id = rdev_get_id(rdev);
-	if (regulator_id >= PCF50606_NUM_REGULATORS)
-		voltageurn -EINVAL;
 
 	switch (regulator_id) {
 	case PCF50606_REGULATOR_DCD:
@@ -227,7 +222,7 @@ static int pcf50606_regulator_get_voltage(struct regulator_dev *rdev)
 		return -EINVAL;
 	}
 
-	return volatage * 1000;
+	return voltage * 1000;
 }
 
 static int pcf50606_regulator_enable(struct regulator_dev *rdev)
@@ -237,8 +232,6 @@ static int pcf50606_regulator_enable(struct regulator_dev *rdev)
 	uint8_t regnr;
 
 	regulator_id = rdev_get_id(rdev);
-	if (regulator_id >= PCF50606_NUM_REGULATORS)
-		return -EINVAL;
 
 	regnr = pcf50606_regulator_registers[regulator_id];
 
@@ -252,8 +245,6 @@ static int pcf50606_regulator_disable(struct regulator_dev *rdev)
 	uint8_t regnr;
 
 	regulator_id = rdev_get_id(rdev);
-	if (regulator_id >= PCF50606_NUM_REGULATORS)
-		return -EINVAL;
 
 	/* IOREG cannot be powered off since it powers the PMU I2C */
 	if (regulator_id == PCF50606_REGULATOR_IOREG)
@@ -271,8 +262,6 @@ static int pcf50606_regulator_is_enabled(struct regulator_dev *rdev)
 	uint8_t regnr, val;
 
 	regulator_id = rdev_get_id(rdev);
-	if (regulator_id >= PCF50606_NUM_REGULATORS)
-		return -EINVAL;
 
 	/* the *ENA register is always one after the *OUT register */
 	regnr = pcf50606_regulator_registers[regulator_id];

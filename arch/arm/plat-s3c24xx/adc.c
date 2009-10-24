@@ -58,6 +58,7 @@ struct adc_device {
 	void __iomem		*regs;
 
 	unsigned int		 prescale;
+	unsigned int		 delay;
 
 	int			 irq;
 };
@@ -264,6 +265,7 @@ static int s3c_adc_probe(struct platform_device *pdev)
 
 	adc->pdev = pdev;
 	adc->prescale = S3C2410_ADCCON_PRSCVL(49);
+	adc->delay = 0x2710;
 
 	adc->irq = platform_get_irq(pdev, 1);
 	if (adc->irq <= 0) {
@@ -303,6 +305,7 @@ static int s3c_adc_probe(struct platform_device *pdev)
 
 	writel(adc->prescale | S3C2410_ADCCON_PRSCEN,
 	       adc->regs + S3C2410_ADCCON);
+	writel(adc->delay, adc->regs + S3C2410_ADCDLY);
 
 	dev_info(dev, "attached adc driver\n");
 
@@ -358,6 +361,7 @@ static int s3c_adc_resume(struct platform_device *pdev)
 
 	writel(adc->prescale | S3C2410_ADCCON_PRSCEN,
 	       adc->regs + S3C2410_ADCCON);
+	writel(adc->delay, adc->regs + S3C2410_ADCDLY);
 
 	return 0;
 }

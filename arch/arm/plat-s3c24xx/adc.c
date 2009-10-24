@@ -43,6 +43,7 @@ struct s3c_adc_client {
 	unsigned int		 nr_samples;
 	unsigned char		 is_ts;
 	unsigned char		 channel;
+	unsigned int		 selected;
 
 	void	(*select_cb)(unsigned selected);
 	void	(*convert_cb)(unsigned val1, unsigned val2,
@@ -58,11 +59,14 @@ struct adc_device {
 	void __iomem		*regs;
 
 	unsigned int		 prescale;
+	unsigned int		 delay;
 
 	int			 irq;
 };
 
 static struct adc_device *adc_dev;
+
+static struct work_struct resume_work;
 
 static LIST_HEAD(adc_pending);
 
@@ -81,7 +85,10 @@ static inline void s3c_adc_select(struct adc_device *adc,
 {
 	unsigned con = readl(adc->regs + S3C2410_ADCCON);
 
-	client->select_cb(1);
+	if (!client->selected) {
+		client->selected = 1;
+		client->select_cb(1);
+	}
 
 	con &= ~S3C2410_ADCCON_MUXMASK;
 	con &= ~S3C2410_ADCCON_STDBM;
@@ -105,12 +112,9 @@ static void s3c_adc_try(struct adc_device *adc)
 {
 	struct s3c_adc_client *next = adc->ts_pend;
 
-	if (!next && !list_empty(&adc_pending)) {
+	if (!next && !list_empty(&adc_pending))
 		next = list_first_entry(&adc_pending,
 					struct s3c_adc_client, pend);
-		list_del(&next->pend);
-	} else
-		adc->ts_pend = NULL;
 
 	if (next) {
 		adc_dbg(adc, "new client is %p\n", next);
@@ -234,13 +238,19 @@ static irqreturn_t s3c_adc_irq(int irq, void *pw)
 
 	if (client->nr_samples > 0) {
 		/* fire another conversion for this */
-
+		client->selected = 1;
 		client->select_cb(1);
 		s3c_adc_convert(adc);
 	} else {
 		local_irq_save(flags);
-		(client->select_cb)(0);
+		client->selected = 0;
+		if (!adc->cur->is_ts)
+			list_del(&adc->cur->pend);
+		else
+			adc->ts_pend = NULL;
 		adc->cur = NULL;
+
+		(client->select_cb)(0);
 
 		s3c_adc_try(adc);
 		local_irq_restore(flags);
@@ -264,6 +274,7 @@ static int s3c_adc_probe(struct platform_device *pdev)
 
 	adc->pdev = pdev;
 	adc->prescale = S3C2410_ADCCON_PRSCVL(49);
+	adc->delay = 0x2710;
 
 	adc->irq = platform_get_irq(pdev, 1);
 	if (adc->irq <= 0) {
@@ -303,6 +314,7 @@ static int s3c_adc_probe(struct platform_device *pdev)
 
 	writel(adc->prescale | S3C2410_ADCCON_PRSCEN,
 	       adc->regs + S3C2410_ADCCON);
+	writel(adc->delay, adc->regs + S3C2410_ADCDLY);
 
 	dev_info(dev, "attached adc driver\n");
 
@@ -346,18 +358,42 @@ static int s3c_adc_suspend(struct platform_device *pdev, pm_message_t state)
 	writel(con, adc->regs + S3C2410_ADCCON);
 
 	clk_disable(adc->clk);
+	disable_irq(IRQ_ADC);
+	if (!list_empty(&adc_pending) || adc->ts_pend)
+		dev_info(&pdev->dev, "We still have adc clients pending\n");
 
 	return 0;
+}
+
+/* It seems this is not needed. This is under upstream review now. */
+static void adc_resume_work(struct work_struct *work)
+{
+	if (!adc_dev) /* Have no ADC here */
+		return;
+
+	if (!list_empty(&adc_pending) || adc_dev->ts_pend)
+		/* We still have adc clients pending */
+		s3c_adc_try(adc_dev);
 }
 
 static int s3c_adc_resume(struct platform_device *pdev)
 {
 	struct adc_device *adc = platform_get_drvdata(pdev);
 
+	enable_irq(IRQ_ADC);
 	clk_enable(adc->clk);
 
 	writel(adc->prescale | S3C2410_ADCCON_PRSCEN,
 	       adc->regs + S3C2410_ADCCON);
+	writel(adc->delay, adc->regs + S3C2410_ADCDLY);
+
+	/* Schedule task if there are clients pending. */
+	if (!list_empty(&adc_pending) || adc_dev->ts_pend) {
+		INIT_WORK(&resume_work, adc_resume_work);
+		if (!schedule_work(&resume_work))
+			dev_err(&pdev->dev,
+				"Failed to schedule adc_resume work!\n");
+	}
 
 	return 0;
 }

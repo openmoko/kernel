@@ -45,7 +45,7 @@
 
 #include <linux/kernel.h>
 #include <linux/slab.h>
-#include "ts_filter_group.h"
+#include <linux/input/touchscreen/ts_filter_group.h>
 
 struct coord_range {
 	int min;	/* Minimum value of the range. */

@@ -7,7 +7,7 @@
  * (c) 2008,2009 Andy Green <andy@warmcat.com>
  */
 
-#include "ts_filter.h"
+#include <linux/input/touchscreen/ts_filter.h>
 
 #include <linux/err.h>
 

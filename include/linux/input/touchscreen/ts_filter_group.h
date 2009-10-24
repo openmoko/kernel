@@ -1,7 +1,7 @@
 #ifndef __TS_FILTER_GROUP_H__
 #define __TS_FILTER_GROUP_H__
 
-#include "ts_filter.h"
+#include <linux/input/touchscreen/ts_filter.h>
 
 /*
  * Touchscreen group filter.

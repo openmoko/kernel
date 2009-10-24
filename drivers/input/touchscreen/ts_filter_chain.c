@@ -19,8 +19,8 @@
 #include <linux/kernel.h>
 #include <linux/device.h>
 
-#include "ts_filter_chain.h"
-#include "ts_filter.h"
+#include <linux/input/trouchscreen/ts_filter_chain.h>
+#include <linux/input/trouchscreen/ts_filter.h>
 
 /*
  * Tux, would you like the following function in /lib?

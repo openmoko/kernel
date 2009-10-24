@@ -55,6 +55,24 @@ config TOUCHSCREEN_FILTER_LINEAR
 	  Say Y here if you want to use the Linear touchscreen filter, it
 	  enables the use of calibration data for the touchscreen.
 
+config TOUCHSCREEN_S3C2410
+	tristate "Samsung S3C2410 touchscreen input driver"
+	depends on ARCH_S3C2410 && INPUT && INPUT_TOUCHSCREEN
+	select SERIO
+	help
+	  Say Y here if you have the s3c2410 touchscreen.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called s3c2410_ts.
+
+config TOUCHSCREEN_S3C2410_DEBUG
+	boolean "Samsung S3C2410 touchscreen debug messages"
+	depends on TOUCHSCREEN_S3C2410
+	help
+	  Select this if you want debug messages
+
 config TOUCHSCREEN_ADS7846
 	tristate "ADS7846/TSC2046 and ADS7843 based touchscreens"
 	depends on SPI_MASTER

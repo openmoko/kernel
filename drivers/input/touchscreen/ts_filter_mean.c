@@ -25,7 +25,7 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 
-#include "ts_filter_mean.h"
+#include <linux/input/touchscreen/ts_filter_mean.h>
 
 struct ts_filter_mean {
 	/* Copy of the private filter configuration. */

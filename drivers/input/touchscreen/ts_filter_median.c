@@ -32,7 +32,7 @@
 #include <linux/errno.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
-#include "ts_filter_median.h"
+#include <linux/input/touchscreen/ts_filter_median.h>
 
 struct ts_filter_median {
 	/* Private configuration. */

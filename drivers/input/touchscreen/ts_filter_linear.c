@@ -28,7 +28,7 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 
-#include "ts_filter_linear.h"
+#include <linux/input/touchscreen/ts_filter_linear.h>
 
 struct ts_filter_linear;
 

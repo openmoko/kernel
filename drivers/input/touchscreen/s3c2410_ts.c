@@ -72,7 +72,7 @@
 #include <plat/regs-adc.h>
 #include <plat/adc.h>
 
-#include "ts_filter_chain.h"
+#include <linux/input/touchscreen/ts_filter_chain.h>
 
 /* For ts.dev.id.version */
 #define S3C2410TSVERSION	0x0101

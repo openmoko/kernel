@@ -16,7 +16,7 @@
 #ifndef __ASM_ARM_TS_H
 #define __ASM_ARM_TS_H
 
-#include <../drivers/input/touchscreen/ts_filter.h>
+#include <linux/input/touchscreen/ts_filter.h>
 
 struct s3c2410_ts_mach_info {
 	/* Touchscreen delay. */

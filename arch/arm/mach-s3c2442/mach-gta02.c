@@ -97,6 +97,15 @@
 #include <linux/hdq.h>
 #include <linux/bq27000_battery.h>
 
+#include <mach/ts.h>
+#include <linux/input/touchscreen/ts_filter_chain.h>
+#ifdef CONFIG_TOUCHSCREEN_FILTER
+#include <linux/input/touchscreen/ts_filter_linear.h>
+#include <linux/input/touchscreen/ts_filter_mean.h>
+#include <linux/input/touchscreen/ts_filter_median.h>
+#include <linux/input/touchscreen/ts_filter_group.h>
+#endif
+
 struct pcf50633 *gta02_pcf;
 
 /*
@@ -666,6 +675,52 @@ static struct s3c2410_udc_mach_info gta02_udc_cfg = {
 
 };
 
+/* Touchscreen configuration. */
+
+#ifdef CONFIG_TOUCHSCREEN_FILTER
+const static struct ts_filter_group_configuration gta02_ts_group = {
+	.length = 12,
+	.close_enough = 10,
+	.threshold = 6,		/* At least half of the points in a group. */
+	.attempts = 10,
+};
+
+const static struct ts_filter_median_configuration gta02_ts_median = {
+	.extent = 20,
+	.decimation_below = 3,
+	.decimation_threshold = 8 * 3,
+	.decimation_above = 4,
+};
+
+const static struct ts_filter_mean_configuration gta02_ts_mean = {
+	.length = 4,
+};
+
+const static struct ts_filter_linear_configuration gta02_ts_linear = {
+	.constants = {1, 0, 0, 0, 1, 0, 1},	/* Don't modify coords. */
+	.coord0 = 0,
+	.coord1 = 1,
+};
+#endif
+
+const static struct ts_filter_chain_configuration gta02_filter_configuration[] =
+{
+#ifdef CONFIG_TOUCHSCREEN_FILTER
+	{&ts_filter_group_api,		&gta02_ts_group.config},
+	{&ts_filter_median_api,		&gta02_ts_median.config},
+	{&ts_filter_mean_api,		&gta02_ts_mean.config},
+	{&ts_filter_linear_api,		&gta02_ts_linear.config},
+#endif
+	{NULL, NULL},
+};
+
+const static struct s3c2410_ts_mach_info gta02_ts_cfg = {
+	.delay = 10000,
+	.presc = 0xff, /* slow as we can go */
+	.filter_config = gta02_filter_configuration,
+};
+
+
 static void gta02_bl_set_intensity(int intensity)
 {
 	struct pcf50633 *pcf = gta02_pcf;
@@ -865,11 +920,13 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&gta02_nor_flash,
 	&s3c_device_iis,
 	&s3c_device_i2c0,
+	&s3c_device_adc,
 };
 
 /* These guys DO need to be children of PMU. */
 
 static struct platform_device *gta02_devices_pmu_children[] = {
+	&s3c_device_ts,
 	&gta02_glamo_dev,
 	&s3c_device_timer[2],
 	&gta02_hdq_device,
@@ -921,6 +978,7 @@ static void __init gta02_machine_init(void)
 
 	s3c24xx_udc_set_platdata(&gta02_udc_cfg);
 	s3c_i2c0_set_platdata(NULL);
+	set_s3c2410ts_info(&gta02_ts_cfg);
 
 	i2c_register_board_info(0, gta02_i2c_devs, ARRAY_SIZE(gta02_i2c_devs));
 	spi_register_board_info(gta02_spi_board_info,

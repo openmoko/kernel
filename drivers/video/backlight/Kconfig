@@ -262,3 +262,9 @@ config BACKLIGHT_ADP5520
 	  To compile this driver as a module, choose M here: the module will
 	  be called adp5520_bl.
 
+config BACKLIGHT_PCF50633
+	tristate "Backlight driver for NXP PCF50633 MFD"
+	depends on BACKLIGHT_CLASS_DEVICE && MFD_PCF50633
+	help
+	  If you have a backlight driven by a NXP PCF50633 MFD, say Y here to
+	  enable its driver.

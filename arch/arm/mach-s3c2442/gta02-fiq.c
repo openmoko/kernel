@@ -79,19 +79,19 @@ void gta02_fiq_kick(void)
 	__raw_writel(__raw_readl(S3C2410_INTMSK) &
 			~(1 << (gta02_fiq_irq - S3C2410_CPUIRQ_OFFSET)),
 			S3C2410_INTMSK);
-	tcon = __raw_readl(S3C2410_TCON) & ~S3C2410_TCON_T3START;
+	tcon = __raw_readl(S3C2410_TCON) & ~S3C2410_TCON_T2START;
 	/* fake the timer to a count of 1 */
 	__raw_writel(1, S3C2410_TCNTB(gta02_fiq_timer_index));
-	__raw_writel(tcon | S3C2410_TCON_T3MANUALUPD, S3C2410_TCON);
-	__raw_writel(tcon | S3C2410_TCON_T3MANUALUPD | S3C2410_TCON_T3START,
+	__raw_writel(tcon | S3C2410_TCON_T2MANUALUPD, S3C2410_TCON);
+	__raw_writel(tcon | S3C2410_TCON_T2MANUALUPD | S3C2410_TCON_T2START,
 			S3C2410_TCON);
-	__raw_writel(tcon | S3C2410_TCON_T3START, S3C2410_TCON);
+	__raw_writel(tcon | S3C2410_TCON_T2START, S3C2410_TCON);
 	local_irq_restore(flags);
 }
 
 int gta02_fiq_enable(void)
 {
-	int irq_index_fiq = IRQ_TIMER3;
+	int irq_index_fiq = IRQ_TIMER2;
 	int rc = 0;
 
 	local_fiq_disable();

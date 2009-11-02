@@ -229,3 +229,10 @@ config BACKLIGHT_SAHARA
 	help
 	  If you have a Tabletkiosk Sahara Touch-iT, say y to enable the
 	  backlight driver.
+
+config BACKLIGHT_PCF50633
+	tristate "Backlight driver for NXP PCF50533 MFD"
+	depends on MFD_PCF50633
+	help
+	  If you have a backlight driven by a NXP PCF50633 MFD, say Y here to
+	  enable its driver.

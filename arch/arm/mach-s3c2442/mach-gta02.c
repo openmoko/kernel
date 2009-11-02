@@ -50,7 +50,6 @@
 #include <linux/io.h>
 
 #include <linux/i2c.h>
-#include <linux/backlight.h>
 #include <linux/regulator/machine.h>
 
 #include <linux/mfd/pcf50633/core.h>
@@ -58,6 +57,7 @@
 #include <linux/mfd/pcf50633/adc.h>
 #include <linux/mfd/pcf50633/gpio.h>
 #include <linux/mfd/pcf50633/pmic.h>
+#include <linux/mfd/pcf50633/backlight.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -449,6 +449,12 @@ static struct regulator_consumer_supply ldo6_consumers[] = {
 	REGULATOR_SUPPLY("VDDIO", "spi2.0"),
 };
 
+static struct pcf50633_bl_platform_data gta02_backlight_data = {
+	.default_brightness = 0x3f,
+	.default_brightness_limit = 0,
+	.ramp_time = 3,
+};
+
 struct pcf50633_platform_data gta02_pcf_pdata = {
 	.resumers = {
 		[0] =	PCF50633_INT1_USBINS |
@@ -465,6 +471,8 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 	.num_batteries = ARRAY_SIZE(gta02_batteries),
 
 	.chg_ref_current_ma = 1000,
+
+	.backlight_data = &gta02_backlight_data,
 
 	.reg_init_data = {
 		[PCF50633_REGULATOR_AUTO] = {
@@ -721,67 +729,6 @@ const static struct s3c2410_ts_mach_info gta02_ts_cfg = {
 };
 
 
-static void gta02_bl_set_intensity(int intensity)
-{
-	struct pcf50633 *pcf = gta02_pcf;
-	int old_intensity = pcf50633_reg_read(pcf, PCF50633_REG_LEDOUT);
-
-	/* We map 8-bit intensity to 6-bit intensity in hardware. */
-	intensity >>= 2;
-
-	/*
-	 * This can happen during, eg, print of panic on blanked console,
-	 * but we can't service i2c without interrupts active, so abort.
-	 */
-	if (in_atomic()) {
-		printk(KERN_ERR "gta02_bl_set_intensity called while atomic\n");
-		return;
-	}
-
-	old_intensity = pcf50633_reg_read(pcf, PCF50633_REG_LEDOUT);
-	if (intensity == old_intensity)
-		return;
-
-	/* We can't do this anywhere else. */
-	pcf50633_reg_write(pcf, PCF50633_REG_LEDDIM, 5);
-
-	if (!(pcf50633_reg_read(pcf, PCF50633_REG_LEDENA) & 3))
-		old_intensity = 0;
-
-	/*
-	 * The PCF50633 cannot handle LEDOUT = 0 (datasheet p60)
-	 * if seen, you have to re-enable the LED unit.
-	 */
-	if (!intensity || !old_intensity)
-		pcf50633_reg_write(pcf, PCF50633_REG_LEDENA, 0);
-
-	/* Illegal to set LEDOUT to 0. */
-	if (!intensity)
-		pcf50633_reg_set_bit_mask(pcf, PCF50633_REG_LEDOUT, 0x3f, 2);
-	else
-		pcf50633_reg_set_bit_mask(pcf, PCF50633_REG_LEDOUT, 0x3f,
-					  intensity);
-
-	if (intensity)
-		pcf50633_reg_write(pcf, PCF50633_REG_LEDENA, 2);
-
-}
-
-static struct generic_bl_info gta02_bl_info = {
-	.name			= "gta02-bl",
-	.max_intensity		= 0xff,
-	.default_intensity	= 0xff,
-	.set_bl_intensity	= gta02_bl_set_intensity,
-};
-
-static struct platform_device gta02_bl_dev = {
-	.name			= "generic-bl",
-	.id			= 1,
-	.dev = {
-		.platform_data = &gta02_bl_info,
-	},
-};
-
 /* USB */
 static struct s3c2410_hcd_info gta02_usb_info = {
 	.port[0]	= {
@@ -795,15 +742,7 @@ static struct s3c2410_hcd_info gta02_usb_info = {
 /* JBT6k74 display controller */
 static void gta02_jbt6k74_probe_completed(struct device *dev)
 {
-	struct pcf50633 *pcf = gta02_pcf;
-	/* Switch on backlight. Qi does not do it for us */
-	pcf50633_reg_write(pcf, PCF50633_REG_LEDOUT, 0x01);
-	pcf50633_reg_write(pcf, PCF50633_REG_LEDENA, 0x00);
-	pcf50633_reg_write(pcf, PCF50633_REG_LEDDIM, 0x01);
-	pcf50633_reg_write(pcf, PCF50633_REG_LEDENA, 0x01);
-
-	gta02_bl_dev.dev.parent = dev;
-	platform_device_register(&gta02_bl_dev);
+	pcf50633_bl_set_brightness_limit(gta02_pcf, 0x3f);
 }
 
 const struct jbt6k74_platform_data jbt6k74_pdata = {

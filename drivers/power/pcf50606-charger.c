@@ -33,7 +33,7 @@ struct pcf50606_mbc {
 	struct power_supply charger;
 };
 
-void pcf50606_charge_fast(struct pcf50606 *pcf, int on)
+int pcf50606_charge_fast(struct pcf50606 *pcf, int on)
 {
 	struct pcf50606_mbc *mbc = platform_get_drvdata(pcf->mbc_pdev);
 
@@ -43,7 +43,7 @@ void pcf50606_charge_fast(struct pcf50606 *pcf, int on)
 	 * ready.
 	 */
 	if (!mbc)
-		return;
+		return -ENODEV;
 
 	if (on) {
 		pcf50606_reg_set_bit_mask(pcf, PCF50606_REG_MBCC1,
@@ -60,25 +60,27 @@ void pcf50606_charge_fast(struct pcf50606 *pcf, int on)
 				PCF50606_MBCC1_CHGMOD_IDLE);
 			mbc->charger_online = 0;
 	}
+
+	return 0;
 }
 EXPORT_SYMBOL_GPL(pcf50606_charge_fast);
 
 static ssize_t
-show_chgmode(struct device *dev, struct device_attribute *attr, char *buf)
+show_charge_mode(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct pcf50606_mbc *mbc = dev_get_drvdata(dev);
 
-	u8 mbcc1 = pcf50606_reg_read(mbc->pcf, PCF50606_REG_MBCC1);
-	u8 chgmod = (mbcc1 & PCF50606_MBCC1_CHGMOD_MASK);
+	uint8_t charge_mode = pcf50606_reg_read(mbc->pcf, PCF50606_REG_MBCC1);
+	charge_mode &= PCF50606_MBCC1_CHGMOD_MASK;
 
-	return sprintf(buf, "%d\n", chgmod);
+	return sprintf(buf, "%d\n", charge_mode);
 }
 
-static ssize_t set_chgmode(struct device *dev, struct device_attribute *attr,
+static ssize_t set_charge_mode(struct device *dev, struct device_attribute *attr,
 			   const char *buf, size_t count)
 {
 	struct pcf50606_mbc *mbc = dev_get_drvdata(dev);
-	u_int8_t mbcc1 = pcf50606_reg_read(mbc->pcf, PCF50606_REG_MBCC1);
+	uint8_t mbcc1 = pcf50606_reg_read(mbc->pcf, PCF50606_REG_MBCC1);
 
 	mbcc1 &= ~PCF50606_MBCC1_CHGMOD_MASK;
 
@@ -101,18 +103,7 @@ static ssize_t set_chgmode(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
-static DEVICE_ATTR(chgmode, S_IRUGO, show_chgmode, set_chgmode);
-
-
-static struct attribute *pcf50606_mbc_sysfs_entries[] = {
-	&dev_attr_chgmode.attr,
-	NULL,
-};
-
-static struct attribute_group mbc_attr_group = {
-	.name	= NULL,			/* put in device directory */
-	.attrs	= pcf50606_mbc_sysfs_entries,
-};
+static DEVICE_ATTR(charge_mode, S_IRUGO, show_charge_mode, set_charge_mode);
 
 static void
 pcf50606_mbc_irq_handler(int irq, void *data)
@@ -147,7 +138,7 @@ static enum power_supply_property power_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
-static const u8 mbc_irq_handlers[] = {
+static const uint8_t mbc_irq_handlers[] = {
 	PCF50606_IRQ_CHGINS,
 	PCF50606_IRQ_CHGRM,
 	PCF50606_IRQ_CHGFOK,
@@ -160,20 +151,14 @@ static int __devinit pcf50606_mbc_probe(struct platform_device *pdev)
 {
 	struct pcf50606_mbc *mbc;
 	int ret;
-	int i;
-	u8 oocs;
+	size_t i;
+	uint8_t oocs;
 
 	mbc = kzalloc(sizeof(*mbc), GFP_KERNEL);
 	if (!mbc)
 		return -ENOMEM;
 
-	platform_set_drvdata(pdev, mbc);
 	mbc->pcf = dev_to_pcf50606(pdev->dev.parent);
-
-	/* Set up IRQ handlers */
-	for (i = 0; i < ARRAY_SIZE(mbc_irq_handlers); i++)
-		pcf50606_register_irq(mbc->pcf, mbc_irq_handlers[i],
-					pcf50606_mbc_irq_handler, mbc);
 
 	mbc->charger.name		= "charger";
 	mbc->charger.type		= POWER_SUPPLY_TYPE_MAINS;
@@ -190,7 +175,12 @@ static int __devinit pcf50606_mbc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = sysfs_create_group(&pdev->dev.kobj, &mbc_attr_group);
+	/* Set up IRQ handlers */
+	for (i = 0; i < ARRAY_SIZE(mbc_irq_handlers); i++)
+		pcf50606_register_irq(mbc->pcf, mbc_irq_handlers[i],
+					pcf50606_mbc_irq_handler, mbc);
+
+	ret = sysfs_create_file(&pdev->dev.kobj,  &dev_attr_charge_mode.attr);
 	if (ret)
 		dev_err(mbc->pcf->dev, "failed to create sysfs entries\n");
 
@@ -198,13 +188,15 @@ static int __devinit pcf50606_mbc_probe(struct platform_device *pdev)
 	if (oocs & PCF50606_OOCS_CHGOK)
 		pcf50606_mbc_irq_handler(PCF50606_IRQ_CHGINS, mbc);
 
+	platform_set_drvdata(pdev, mbc);
+
 	return 0;
 }
 
 static int __devexit pcf50606_mbc_remove(struct platform_device *pdev)
 {
 	struct pcf50606_mbc *mbc = platform_get_drvdata(pdev);
-	int i;
+	size_t i;
 
 	/* Remove IRQ handlers */
 	for (i = 0; i < ARRAY_SIZE(mbc_irq_handlers); i++)
@@ -212,6 +204,7 @@ static int __devexit pcf50606_mbc_remove(struct platform_device *pdev)
 
 	power_supply_unregister(&mbc->charger);
 
+	platform_set_drvdata(pdev, NULL);
 	kfree(mbc);
 
 	return 0;
@@ -220,6 +213,7 @@ static int __devexit pcf50606_mbc_remove(struct platform_device *pdev)
 static struct platform_driver pcf50606_mbc_driver = {
 	.driver = {
 		.name = "pcf50606-mbc",
+		.owner = THIS_MODULE,
 	},
 	.probe = pcf50606_mbc_probe,
 	.remove = __devexit_p(pcf50606_mbc_remove),

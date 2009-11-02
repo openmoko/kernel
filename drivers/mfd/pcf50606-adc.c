@@ -37,6 +37,7 @@ struct pcf50606_adc_request {
 
 };
 
+/* code expects this to be a power of two */
 #define PCF50606_MAX_ADC_FIFO_DEPTH 8
 
 struct pcf50606_adc {
@@ -44,12 +45,12 @@ struct pcf50606_adc {
 
 	/* Private stuff */
 	struct pcf50606_adc_request *queue[PCF50606_MAX_ADC_FIFO_DEPTH];
-	int queue_head;
-	int queue_tail;
+	unsigned int queue_head;
+	unsigned int queue_tail;
 	struct mutex queue_mutex;
 };
 
-static inline struct pcf50606_adc *__to_adc(struct pcf50606 *pcf)
+static inline struct pcf50606_adc *pcf50606_to_adc(struct pcf50606 *pcf)
 {
 	return platform_get_drvdata(pcf->adc_pdev);
 }
@@ -66,13 +67,12 @@ static void adc_setup(struct pcf50606 *pcf, int channel)
 
 static void trigger_next_adc_job_if_any(struct pcf50606 *pcf)
 {
-	struct pcf50606_adc *adc = __to_adc(pcf);
-	int head, tail;
+	struct pcf50606_adc *adc = pcf50606_to_adc(pcf);
+	unsigned int head;
 
 	mutex_lock(&adc->queue_mutex);
 
 	head = adc->queue_head;
-	tail = adc->queue_tail;
 
 	if (!adc->queue[head])
 		goto out;
@@ -85,11 +85,10 @@ out:
 static int
 adc_enqueue_request(struct pcf50606 *pcf, struct pcf50606_adc_request *req)
 {
-	struct pcf50606_adc *adc = __to_adc(pcf);
-	int head, tail;
+	struct pcf50606_adc *adc = pcf50606_to_adc(pcf);
+	unsigned int tail;
 
 	mutex_lock(&adc->queue_mutex);
-	head = adc->queue_head;
 	tail = adc->queue_tail;
 
 	if (adc->queue[tail]) {
@@ -172,7 +171,7 @@ EXPORT_SYMBOL_GPL(pcf50606_adc_async_read);
 
 static int adc_result(struct pcf50606 *pcf)
 {
-	u16 ret = (pcf50606_reg_read(pcf, PCF50606_REG_ADCS1) << 2) |
+	int ret = (pcf50606_reg_read(pcf, PCF50606_REG_ADCS1) << 2) |
 			(pcf50606_reg_read(pcf, PCF50606_REG_ADCS2) & 0x03);
 
 	dev_dbg(pcf->dev, "adc result = %d\n", ret);
@@ -185,7 +184,7 @@ static void pcf50606_adc_irq(int irq, void *data)
 	struct pcf50606_adc *adc = data;
 	struct pcf50606 *pcf = adc->pcf;
 	struct pcf50606_adc_request *req;
-	int head;
+	unsigned int head;
 
 	mutex_lock(&adc->queue_mutex);
 	head = adc->queue_head;
@@ -198,8 +197,7 @@ static void pcf50606_adc_irq(int irq, void *data)
 	}
 
 	adc->queue[head] = NULL;
-	adc->queue_head = (head + 1) &
-				      (PCF50606_MAX_ADC_FIFO_DEPTH - 1);
+	adc->queue_head = (head + 1) & (PCF50606_MAX_ADC_FIFO_DEPTH - 1);
 
 	mutex_unlock(&adc->queue_mutex);
 
@@ -231,7 +229,8 @@ static int __devinit pcf50606_adc_probe(struct platform_device *pdev)
 static int __devexit pcf50606_adc_remove(struct platform_device *pdev)
 {
 	struct pcf50606_adc *adc = platform_get_drvdata(pdev);
-	int i, head;
+	unsigned int i;
+	unsigned int head;
 
 	pcf50606_free_irq(adc->pcf, PCF50606_IRQ_ADCRDY);
 
@@ -254,6 +253,7 @@ static int __devexit pcf50606_adc_remove(struct platform_device *pdev)
 struct platform_driver pcf50606_adc_driver = {
 	.driver = {
 		.name = "pcf50606-adc",
+		.owner = THIS_MODULE,
 	},
 	.probe = pcf50606_adc_probe,
 	.remove = __devexit_p(pcf50606_adc_remove),

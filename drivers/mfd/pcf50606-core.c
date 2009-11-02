@@ -27,7 +27,7 @@
 
 #include <linux/mfd/pcf50606/core.h>
 
-static int __pcf50606_read(struct pcf50606 *pcf, u8 reg, int num, u8 *data)
+static int __pcf50606_read(struct pcf50606 *pcf, uint8_t reg, int num, uint8_t *data)
 {
 	int ret;
 
@@ -39,7 +39,7 @@ static int __pcf50606_read(struct pcf50606 *pcf, u8 reg, int num, u8 *data)
 	return ret;
 }
 
-static int __pcf50606_write(struct pcf50606 *pcf, u8 reg, int num, u8 *data)
+static int __pcf50606_write(struct pcf50606 *pcf, uint8_t reg, int num, uint8_t *data)
 {
 	int ret;
 
@@ -53,8 +53,8 @@ static int __pcf50606_write(struct pcf50606 *pcf, u8 reg, int num, u8 *data)
 }
 
 /* Read a block of upto 32 regs  */
-int pcf50606_read_block(struct pcf50606 *pcf, u8 reg,
-					int nr_regs, u8 *data)
+int pcf50606_read_block(struct pcf50606 *pcf, uint8_t reg,
+					int nr_regs, uint8_t *data)
 {
 	int ret;
 
@@ -67,8 +67,8 @@ int pcf50606_read_block(struct pcf50606 *pcf, u8 reg,
 EXPORT_SYMBOL_GPL(pcf50606_read_block);
 
 /* Write a block of upto 32 regs  */
-int pcf50606_write_block(struct pcf50606 *pcf , u8 reg,
-					int nr_regs, u8 *data)
+int pcf50606_write_block(struct pcf50606 *pcf , uint8_t reg,
+					int nr_regs, uint8_t *data)
 {
 	int ret;
 
@@ -80,9 +80,9 @@ int pcf50606_write_block(struct pcf50606 *pcf , u8 reg,
 }
 EXPORT_SYMBOL_GPL(pcf50606_write_block);
 
-u8 pcf50606_reg_read(struct pcf50606 *pcf, u8 reg)
+uint8_t pcf50606_reg_read(struct pcf50606 *pcf, uint8_t reg)
 {
-	u8 val;
+	uint8_t val;
 
 	mutex_lock(&pcf->lock);
 	__pcf50606_read(pcf, reg, 1, &val);
@@ -92,7 +92,7 @@ u8 pcf50606_reg_read(struct pcf50606 *pcf, u8 reg)
 }
 EXPORT_SYMBOL_GPL(pcf50606_reg_read);
 
-int pcf50606_reg_write(struct pcf50606 *pcf, u8 reg, u8 val)
+int pcf50606_reg_write(struct pcf50606 *pcf, uint8_t reg, uint8_t val)
 {
 	int ret;
 
@@ -104,10 +104,10 @@ int pcf50606_reg_write(struct pcf50606 *pcf, u8 reg, u8 val)
 }
 EXPORT_SYMBOL_GPL(pcf50606_reg_write);
 
-int pcf50606_reg_set_bit_mask(struct pcf50606 *pcf, u8 reg, u8 mask, u8 val)
+int pcf50606_reg_set_bit_mask(struct pcf50606 *pcf, uint8_t reg, uint8_t mask, uint8_t val)
 {
 	int ret;
-	u8 tmp;
+	uint8_t tmp;
 
 	val &= mask;
 
@@ -127,10 +127,10 @@ out:
 }
 EXPORT_SYMBOL_GPL(pcf50606_reg_set_bit_mask);
 
-int pcf50606_reg_clear_bits(struct pcf50606 *pcf, u8 reg, u8 val)
+int pcf50606_reg_clear_bits(struct pcf50606 *pcf, uint8_t reg, uint8_t val)
 {
 	int ret;
-	u8 tmp;
+	uint8_t tmp;
 
 	mutex_lock(&pcf->lock);
 	ret = __pcf50606_read(pcf, reg, 1, &tmp);
@@ -149,13 +149,13 @@ EXPORT_SYMBOL_GPL(pcf50606_reg_clear_bits);
 
 /* sysfs attributes */
 static ssize_t show_dump_regs(struct device *dev, struct device_attribute *attr,
-			    char *buf)
+				char *buf)
 {
 	struct pcf50606 *pcf = dev_get_drvdata(dev);
-	u8 dump[16];
+	uint8_t dump[16];
 	int n, n1, idx = 0;
 	char *buf1 = buf;
-	static u8 address_no_read[] = { /* must be ascending */
+	static uint8_t address_no_read[] = { /* must be ascending */
 		PCF50606_REG_INT1,
 		PCF50606_REG_INT2,
 		PCF50606_REG_INT3,
@@ -237,9 +237,9 @@ int pcf50606_free_irq(struct pcf50606 *pcf, int irq)
 }
 EXPORT_SYMBOL_GPL(pcf50606_free_irq);
 
-static int __pcf50606_irq_mask_set(struct pcf50606 *pcf, int irq, u8 mask)
+static int __pcf50606_irq_mask_set(struct pcf50606 *pcf, int irq, uint8_t mask)
 {
-	u8 reg, bits, tmp;
+	uint8_t reg, bits, tmp;
 	int ret = 0, idx;
 
 	idx = irq >> 3;
@@ -298,7 +298,7 @@ EXPORT_SYMBOL_GPL(pcf50606_irq_unmask);
 
 int pcf50606_irq_mask_get(struct pcf50606 *pcf, int irq)
 {
-	u8 reg, bits;
+	uint8_t reg, bits;
 
 	reg =  (irq / 8);
 	bits = (1 << (irq % 8));
@@ -320,9 +320,10 @@ static void pcf50606_irq_call_handler(struct pcf50606 *pcf,
 
 static void pcf50606_irq_worker(struct work_struct *work)
 {
+	int ret;
 	struct pcf50606 *pcf;
-	int ret, i, j;
-	u8 pcf_int[3], chgstat;
+	uint8_t pcf_int[3], charger_status;
+	size_t i, j;
 
 	pcf = container_of(work, struct pcf50606, irq_work);
 
@@ -331,7 +332,7 @@ static void pcf50606_irq_worker(struct work_struct *work)
 						ARRAY_SIZE(pcf_int), pcf_int);
 	if (ret != ARRAY_SIZE(pcf_int)) {
 		dev_err(pcf->dev, "Error reading INT registers\n");
-		
+
 		/*
 		 * If this doesn't ACK the interrupt to the chip, we'll be
 		 * called once again as we're level triggered.
@@ -340,15 +341,15 @@ static void pcf50606_irq_worker(struct work_struct *work)
 	}
 
 	/* We immediately read the charger status. We thus make sure
-	 * only of CHGINS/CHGRM interrupt handlers are called */
+	 * only one of CHGINS/CHGRM interrupt handlers are called */
 	if (pcf_int[1] & (PCF50606_INT2_CHGINS | PCF50606_INT2_CHGRM)) {
-		chgstat = pcf50606_reg_read(pcf, PCF50606_REG_MBCS1);
-		if (chgstat & (0x1 << 4))
-			pcf_int[1] &= ~(1 << PCF50606_INT2_CHGRM);
+		charger_status = pcf50606_reg_read(pcf, PCF50606_REG_MBCS1);
+		if (charger_status & (0x1 << 4))
+			pcf_int[1] &= ~PCF50606_INT2_CHGRM;
 		else
-			pcf_int[1] &= ~(1 << PCF50606_INT2_CHGINS);
+			pcf_int[1] &= ~PCF50606_INT2_CHGINS;
 	}
-	
+
 	dev_dbg(pcf->dev, "INT1=0x%02x INT2=0x%02x INT3=0x%02x\n",
 				pcf_int[0], pcf_int[1], pcf_int[2]);
 
@@ -457,9 +458,10 @@ pcf50606_client_dev_register(struct pcf50606 *pcf, const char *name,
 #ifdef CONFIG_PM
 static int pcf50606_suspend(struct i2c_client *client, pm_message_t state)
 {
+	int ret;
 	struct pcf50606 *pcf;
-	int ret, i;
-	u8 res[3];
+	size_t i;
+	uint8_t res[3];
 
 	pcf = i2c_get_clientdata(client);
 
@@ -478,7 +480,7 @@ static int pcf50606_suspend(struct i2c_client *client, pm_message_t state)
 		dev_err(pcf->dev, "error saving irq masks\n");
 		goto out;
 	}
-	
+
 	/* Write wakeup irq masks */
 	for (i = 0; i < ARRAY_SIZE(res); i++)
 		res[i] = ~pcf->pdata->resumers[i];
@@ -528,10 +530,11 @@ static int pcf50606_resume(struct i2c_client *client)
 static int pcf50606_probe(struct i2c_client *client,
 				const struct i2c_device_id *ids)
 {
+	int ret;
 	struct pcf50606 *pcf;
 	struct pcf50606_platform_data *pdata = client->dev.platform_data;
-	int i, ret;
-	int version, variant;
+	int i;
+	uint8_t version, variant;
 
 	if (!client->irq) {
 		dev_err(&client->dev, "Missing IRQ\n");
@@ -555,6 +558,8 @@ static int pcf50606_probe(struct i2c_client *client,
 
 	version = pcf50606_reg_read(pcf, 0);
 	variant = pcf50606_reg_read(pcf, 1);
+
+	/* This test is always false, FIX it */
 	if (version < 0 || variant < 0) {
 		dev_err(pcf->dev, "Unable to probe pcf50606\n");
 		ret = -ENODEV;
@@ -595,7 +600,7 @@ static int pcf50606_probe(struct i2c_client *client,
 			dev_err(pcf->dev, "Cannot create regulator %d\n", i);
 			continue;
 		}
-	
+
 		pdev->dev.parent = pcf->dev;
 		platform_device_add_data(pdev, &pdata->reg_init_data[i],
 					sizeof(pdata->reg_init_data[i]));
@@ -626,7 +631,7 @@ err:
 static int pcf50606_remove(struct i2c_client *client)
 {
 	struct pcf50606 *pcf = i2c_get_clientdata(client);
-	int i;
+	unsigned int i;
 
 	free_irq(pcf->irq, pcf);
 
@@ -638,6 +643,7 @@ static int pcf50606_remove(struct i2c_client *client)
 	for (i = 0; i < PCF50606_NUM_REGULATORS; i++)
 		platform_device_unregister(pcf->regulator_pdev[i]);
 
+	i2c_set_clientdata(client, NULL);
 	kfree(pcf);
 
 	return 0;
@@ -662,15 +668,14 @@ static int __init pcf50606_init(void)
 {
 	return i2c_add_driver(&pcf50606_driver);
 }
+module_init(pcf50606_init);
 
 static void pcf50606_exit(void)
 {
 	i2c_del_driver(&pcf50606_driver);
 }
+module_exit(pcf50606_exit);
 
 MODULE_DESCRIPTION("I2C chip driver for NXP PCF50606 PMU");
 MODULE_AUTHOR("Harald Welte <laforge@openmoko.org>");
 MODULE_LICENSE("GPL");
-
-module_init(pcf50606_init);
-module_exit(pcf50606_exit);

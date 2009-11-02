@@ -52,7 +52,7 @@ enum pcf50606_time_indexes {
 };
 
 struct pcf50606_time {
-	u_int8_t time[PCF50606_TI_EXTENT];
+	uint8_t time[PCF50606_TI_EXTENT];
 };
 
 struct pcf50606_rtc {
@@ -301,12 +301,13 @@ static int __devexit pcf50606_rtc_remove(struct platform_device *pdev)
 	struct pcf50606_rtc *rtc;
 
 	rtc = platform_get_drvdata(pdev);
-	
-	pcf50606_free_irq(rtc->pcf, PCF50606_IRQ_ALARM);
-	pcf50606_free_irq(rtc->pcf, PCF50606_IRQ_SECOND);
-	
+
 	rtc_device_unregister(rtc->rtc_dev);
 
+	pcf50606_free_irq(rtc->pcf, PCF50606_IRQ_ALARM);
+	pcf50606_free_irq(rtc->pcf, PCF50606_IRQ_SECOND);
+
+	platform_set_drvdata(pdev, NULL);
 	kfree(rtc);
 
 	return 0;
@@ -316,6 +317,7 @@ static int __devexit pcf50606_rtc_remove(struct platform_device *pdev)
 static struct platform_driver pcf50606_rtc_driver = {
 	.driver = {
 		.name = "pcf50606-rtc",
+		.owner = THIS_MODULE,
 	},
 	.probe = pcf50606_rtc_probe,
 	.remove = __devexit_p(pcf50606_rtc_remove),

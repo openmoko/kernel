@@ -279,6 +279,8 @@ config PCF50606_ADC
 	  Say yes here if you want to include support for ADC in the
 	  NXP PCF50606 chip.
 
+source "drivers/mfd/glamo/Kconfig"
+
 endmenu
 
 menu "Multimedia Capabilities Port drivers"

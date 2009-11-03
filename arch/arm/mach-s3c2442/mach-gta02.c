@@ -799,15 +799,15 @@ static struct platform_device gta02_buttons_device = {
 /* LEDs */
 static struct gpio_led gta02_gpio_leds[] = {
 	{
-		.name	= "gta02-power:orange",
+		.name	= "gta02:orange:power",
 		.gpio	= GTA02_GPIO_PWR_LED1,
 	},
 	{
-		.name	= "gta02-power:blue",
+		.name	= "gta02:blue:power",
 		.gpio	= GTA02_GPIO_PWR_LED2,
 	},
 	{
-		.name	= "gta02-aux:red",
+		.name	= "gta02:red:aux",
 		.gpio	= GTA02_GPIO_AUX_LED,
 	},
 };

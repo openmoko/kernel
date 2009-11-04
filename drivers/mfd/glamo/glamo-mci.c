@@ -251,7 +251,6 @@ static int glamo_mci_wait_idle(struct glamo_mci_host *host,
 static void glamo_mci_request_done(struct glamo_mci_host *host, struct
 mmc_request *mrq)
 {
-    printk("request_done: %d\n", mrq->cmd->error);
 	mod_timer(&host->disable_timer, jiffies + HZ / 16);
 	mmc_request_done(host->mmc, mrq);
 }

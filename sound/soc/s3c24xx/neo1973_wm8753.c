@@ -679,6 +679,10 @@ static int __init neo1973_init(void)
 		return -ENODEV;
 	}
 
+	if (machine_is_neo1973_gta02()) {
+		neo1973_snd_devdata.card->name = "neo1973gta02";
+	}
+
 	/* register bluetooth DAI here */
 	ret = snd_soc_register_dai(&bt_dai);
 	if (ret)

@@ -65,15 +65,38 @@ int pcf50606_charge_fast(struct pcf50606 *pcf, int on)
 }
 EXPORT_SYMBOL_GPL(pcf50606_charge_fast);
 
+static const char *charge_mode_descs[] = {
+	"qualification",
+	"pre",
+	"trickle",
+	"fast_cccv",
+	"idle",
+};
+
 static ssize_t
 show_charge_mode(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct pcf50606_mbc *mbc = dev_get_drvdata(dev);
+	const char **desc = charge_mode_descs;
 
 	uint8_t charge_mode = pcf50606_reg_read(mbc->pcf, PCF50606_REG_MBCC1);
 	charge_mode &= PCF50606_MBCC1_CHGMOD_MASK;
-
-	return sprintf(buf, "%d\n", charge_mode);
+	switch (charge_mode) {
+	case PCF50606_MBCC1_CHGMOD_IDLE:
+		++desc;
+	case PCF50606_MBCC1_CHGMOD_FAST_CCCV:
+		++desc;
+	case PCF50606_MBCC1_CHGMOD_TRICKLE:
+		++desc;
+	case PCF50606_MBCC1_CHGMOD_PRE:
+		++desc;
+	case PCF50606_MBCC1_CHGMOD_QUAL:
+		return sprintf(buf, "%s\n", *desc);
+		break;
+	default:
+		return sprintf(buf, "unkown: %d\n", charge_mode);
+		break;
+	}
 }
 
 static ssize_t set_charge_mode(struct device *dev, struct device_attribute *attr,
@@ -103,7 +126,7 @@ static ssize_t set_charge_mode(struct device *dev, struct device_attribute *attr
 	return count;
 }
 
-static DEVICE_ATTR(charge_mode, S_IRUGO, show_charge_mode, set_charge_mode);
+static DEVICE_ATTR(charge_mode, S_IRUGO | S_IWUSR, show_charge_mode, set_charge_mode);
 
 static void
 pcf50606_mbc_irq_handler(int irq, void *data)

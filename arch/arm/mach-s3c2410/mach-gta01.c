@@ -90,15 +90,14 @@
 
 #include <linux/gpio.h>
 
-/*
-#include <../drivers/input/touchscreen/ts_filter_chain.h>
+#include <mach/ts.h>
+#include <linux/input/touchscreen/ts_filter_chain.h>
 #ifdef CONFIG_TOUCHSCREEN_FILTER
-#include <../drivers/input/touchscreen/ts_filter_linear.h>
-#include <../drivers/input/touchscreen/ts_filter_mean.h>
-#include <../drivers/input/touchscreen/ts_filter_median.h>
-#include <../drivers/input/touchscreen/ts_filter_group.h>
+#include <linux/input/touchscreen/ts_filter_linear.h>
+#include <linux/input/touchscreen/ts_filter_mean.h>
+#include <linux/input/touchscreen/ts_filter_median.h>
+#include <linux/input/touchscreen/ts_filter_group.h>
 #endif
-*/
 
 static void gta01_pmu_attach_child_devices(struct pcf50606 *pcf);
 
@@ -642,7 +641,6 @@ static struct s3c2410_udc_mach_info gta01_udc_cfg = {
 
 /* Touchscreen configuration. */
 
-#if 0
 
 #ifdef CONFIG_TOUCHSCREEN_FILTER
 const static struct ts_filter_group_configuration gta01_ts_group = {
@@ -686,7 +684,6 @@ const static struct s3c2410_ts_mach_info gta01_ts_cfg = {
 	.presc = 0xff, /* slow as we can go */
 	.filter_config = gta01_filter_configuration,
 };
-#endif
 
 /* SPI / Display */
 
@@ -832,7 +829,7 @@ static struct platform_device *gta01_devices[] __initdata = {
 	&s3c_device_usbgadget,
 	&s3c_device_nand,
 	&s3c_device_adc,
-/*	&s3c_device_ts,*/
+	&s3c_device_ts,
 	&s3c_device_timer[0],
 	&s3c_device_timer[3],
 	&gta01_bl_device,
@@ -922,7 +919,7 @@ static void __init gta01_machine_init(void)
 	s3c24xx_udc_set_platdata(&gta01_udc_cfg);
 	s3c_i2c0_set_platdata(NULL);
 
-/*	set_s3c2410ts_info(&gta01_ts_cfg);*/
+	set_s3c2410ts_info(&gta01_ts_cfg);
 
 #if 0
 	switch (S3C_SYSTEM_REV_ATAG) {

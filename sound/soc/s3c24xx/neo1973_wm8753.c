@@ -50,6 +50,9 @@ static struct lm4857 {
 
 static void lm4857_write_regs(void)
 {
+    if (!lm4857.i2c)
+        return;
+
 	if (i2c_master_send(lm4857.i2c, lm4857.regs, 4) != 4)
 		printk(KERN_ERR "lm4857: i2c write failed\n");
 }
@@ -510,8 +513,8 @@ static int neo1973_wm8753_init(struct snd_soc_codec *codec)
 		machine_widgets		= wm8753_dapm_widgets_gta02;
 		num_machine_widgets	= ARRAY_SIZE(wm8753_dapm_widgets_gta02);
 
-		machine_controls	= wm8753_neo1973_gta01_controls;
-		num_machine_controls	= ARRAY_SIZE(wm8753_neo1973_gta01_controls);
+		machine_controls	= wm8753_neo1973_gta02_controls;
+		num_machine_controls	= ARRAY_SIZE(wm8753_neo1973_gta02_controls);
 	}
 
 	/* set up NC codec pins */
@@ -674,6 +677,10 @@ static int __init neo1973_init(void)
 
 	if (!machine_is_neo1973_gta01() && !machine_is_neo1973_gta02()) {
 		return -ENODEV;
+	}
+
+	if (machine_is_neo1973_gta02()) {
+		neo1973_snd_devdata.card->name = "neo1973gta02";
 	}
 
 	/* register bluetooth DAI here */

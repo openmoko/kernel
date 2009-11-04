@@ -513,8 +513,8 @@ static int neo1973_wm8753_init(struct snd_soc_codec *codec)
 		machine_widgets		= wm8753_dapm_widgets_gta02;
 		num_machine_widgets	= ARRAY_SIZE(wm8753_dapm_widgets_gta02);
 
-		machine_controls	= wm8753_neo1973_gta01_controls;
-		num_machine_controls	= ARRAY_SIZE(wm8753_neo1973_gta01_controls);
+		machine_controls	= wm8753_neo1973_gta02_controls;
+		num_machine_controls	= ARRAY_SIZE(wm8753_neo1973_gta02_controls);
 	}
 
 	/* set up NC codec pins */

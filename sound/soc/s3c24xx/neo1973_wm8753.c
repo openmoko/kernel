@@ -50,6 +50,9 @@ static struct lm4857 {
 
 static void lm4857_write_regs(void)
 {
+    if (!lm4857.i2c)
+        return;
+
 	if (i2c_master_send(lm4857.i2c, lm4857.regs, 4) != 4)
 		printk(KERN_ERR "lm4857: i2c write failed\n");
 }

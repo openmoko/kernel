@@ -238,9 +238,10 @@ static int glamo_mci_wait_idle(struct glamo_mci_host *host,
 	uint16_t status;
 	do {
 		status = glamo_reg_read(host, GLAMO_REG_MMC_RB_STAT1);
-	} while (!(status & GLAMO_STAT1_MMC_IDLE) && jiffies < timeout);
+	} while (!(status & GLAMO_STAT1_MMC_IDLE) &&
+		  time_is_after_jiffies(timeout));
 
-	if (jiffies >= timeout) {
+	if (time_is_before_eq_jiffies(timeout)) {
 		glamo_mci_reset(host);
 		return -ETIMEDOUT;
 	}

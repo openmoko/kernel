@@ -191,6 +191,10 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 	reg_write(gdrm, GLAMO_REG_CMDQ_WRITE_ADDRL,
 			new_ring_write & 0xffff);
 
+	if ( !(reg_read(gdrm, GLAMO_REG_CMDQ_STATUS) & 1<<3)  ) {
+		printk(KERN_ERR "[glamo-drm] CmdQ decode failure.\n");
+	}
+
 	up(&gdrm->add_to_ring);
 
 	return 0;
@@ -396,13 +400,10 @@ static int glamo_relocate_burst(struct glamodrm_handle *gdrm,
 		addr = GLAMO_OFFSET_FB + gobj->block->start;
 		addr_low = addr & 0xffff;
 		addr_high = (addr >> 16) & 0x7f;
-		printk("low=0x%04x, high=0x%04x\n", addr_low, addr_high);
 
 		/* FIXME: Should really check that the register is a
 		 * valid one for this relocation. */
 
-		printk("relocating at offset %i\n", offset);
-		printk("=%i\n", offset/2);
 		*(data+(offset/2)+0) = addr_low;
 		*(data+(offset/2)+1) = addr_high;
 
@@ -429,7 +430,6 @@ int glamo_ioctl_cmdburst(struct drm_device *dev, void *data,
 	u16 *burst;
 	size_t burst_size;
 	size_t data_size;
-	int i;
 
 	gdrm = dev->dev_private;
 
@@ -474,11 +474,6 @@ int glamo_ioctl_cmdburst(struct drm_device *dev, void *data,
 	if ( burst[1] & 0x01 ) {
 		burst[(burst_size/2)-1] = 0x0000;
 	}
-
-	for ( i=0; i<burst_size/2; i++ ) {
-		printk("0x%02x = %4i : %04x = %4i\n", i, i, burst[i], burst[i]);
-	}
-	goto cleanup;
 
 	/* Add to command queue */
 	glamo_add_to_ring(gdrm, burst, burst_size);

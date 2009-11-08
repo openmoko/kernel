@@ -58,6 +58,7 @@ config TOUCHSCREEN_FILTER_LINEAR
 config TOUCHSCREEN_S3C2410
 	tristate "Samsung S3C2410 touchscreen input driver"
 	depends on ARCH_S3C2410 && INPUT && INPUT_TOUCHSCREEN
+	select S3C24XX_ADC
 	select SERIO
 	help
 	  Say Y here if you have the s3c2410 touchscreen.

@@ -125,6 +125,11 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 	size_t ring_write, ring_read;
 	size_t new_ring_write;
 
+	if ( count >= GLAMO_CMDQ_SIZE ) {
+		printk(KERN_WARNING "[glamo-drm] CmdQ submission too large\n");
+		return -EINVAL;
+	}
+
 	down(&gdrm->add_to_ring);
 
 	ring_write = glamo_get_write(gdrm);
@@ -168,16 +173,6 @@ static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
 			iowrite16(0x0000, gdrm->cmdq_base);
 			iowrite16(0x0000, gdrm->cmdq_base + 2);
 			new_ring_write = 4;
-		}
-
-		/* Suppose we just filled the WHOLE ring buffer, and so the
-		 * write position ends up in the same place as it started.
-		 * No change in poginter means no activity from the command
-		 * queue engine.  So, insert a no-op */
-		if (ring_write == new_ring_write) {
-			iowrite16(0x0000, gdrm->cmdq_base + new_ring_write);
-			iowrite16(0x0000, gdrm->cmdq_base + new_ring_write + 2);
-			new_ring_write += 4;
 		}
 
 	} else {

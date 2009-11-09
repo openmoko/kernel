@@ -319,7 +319,9 @@ void glamodrm_gem_free_object(struct drm_gem_object *obj)
 	gobj = obj->driver_private;
 
 	/* Free the VRAM */
-	drm_mm_put_block(gobj->block);
+	if ( gobj->block != NULL ) {
+		drm_mm_put_block(gobj->block);
+	}
 
 	/* Release mappings */
 	list = &obj->map_list;

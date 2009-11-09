@@ -436,7 +436,7 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	info->flags = FBINFO_DEFAULT;
 
 	offs = gobj->block->start;
-	info->screen_base = ioremap(gdrm->vram->start + offs,
+	info->screen_base = ioremap(gdrm->vram->start + offs + GLAMO_OFFSET_FB,
 	                            GLAMO_FRAMEBUFFER_ALLOCATION);
 	if (!info->screen_base) {
 		printk(KERN_ERR "[glamo-drm] Couldn't map framebuffer!\n");

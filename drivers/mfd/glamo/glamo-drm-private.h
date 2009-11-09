@@ -31,6 +31,8 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/semaphore.h>
+#include <linux/spinlock.h>
+#include <linux/wait.h>
 
 #include "glamo-core.h"
 
@@ -66,6 +68,10 @@ struct glamodrm_handle {
 	struct resource *lcd_regs;
 	char __iomem *lcd_base;
 
+	/* 2D engine registers */
+	struct resource *twod_regs;
+	char __iomem *twod_base;
+
 	ssize_t vram_size;
 
 	/* Memory management */
@@ -89,6 +95,16 @@ struct glamodrm_handle {
 	u_int16_t saved_vrtren;
 	u_int16_t saved_vdspst;
 	u_int16_t saved_vdspen;
+
+	/* Fencing */
+	atomic_t curr_seq;              /* The last used stamp number */
+	struct list_head fence_list;    /* List of active fences */
+	rwlock_t fence_list_lock;       /* Lock to protect fence_list */
+	wait_queue_head_t fence_queue;  /* Waitqueue */
+	struct tasklet_struct fence_tl; /* Tasklet for fence IRQ */
+
+	/* A scratch block */
+	struct drm_mm_node *scratch;
 };
 
 

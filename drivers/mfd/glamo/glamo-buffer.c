@@ -151,8 +151,8 @@ int glamodrm_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	               PAGE_SHIFT;
 
 	mutex_lock(&dev->struct_mutex);
-	pfn = ((gdrm->vram->start + gobj->block->start) >> PAGE_SHIFT)
-	       + page_offset;
+	pfn = ((gdrm->vram->start + GLAMO_OFFSET_FB + gobj->block->start)
+	       >> PAGE_SHIFT) + page_offset;
 	ret = vm_insert_pfn(vma, (unsigned long)vmf->virtual_address, pfn);
 	mutex_unlock(&dev->struct_mutex);
 
@@ -346,6 +346,19 @@ int glamo_buffer_init(struct glamodrm_handle *gdrm)
 {
 	gdrm->mmgr = drm_calloc(1, sizeof(struct drm_mm), DRM_MEM_DRIVER);
 	drm_mm_init(gdrm->mmgr, 0, gdrm->vram_size);
+
+	/* Reserve a scratch buffer.  We do this outside the protections
+	 * of the other GEM code.  To do this safely, the allocation must
+	 * be a multiple of PAGE_SIZE. */
+	gdrm->scratch = drm_mm_search_free(gdrm->mmgr, PAGE_SIZE, 4, 1);
+	if ( gdrm->scratch ) {
+		gdrm->scratch = drm_mm_get_block(gdrm->scratch, PAGE_SIZE, 4);
+	}
+	if ( !gdrm->scratch ) {
+		printk(KERN_WARNING "[glamo-drm] Couldn't allocate"
+		                    " scratch buffer!\n");
+	}
+
 	return 0;
 }
 

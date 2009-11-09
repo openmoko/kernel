@@ -51,8 +51,6 @@
  */
 
 
-#include <linux/irq.h>
-#include <linux/interrupt.h>
 #include <drm/drmP.h>
 #include <drm/glamo_drm.h>
 
@@ -93,34 +91,9 @@ static u32 glamo_get_write(struct glamodrm_handle *gdrm)
 }
 
 
-static void glamo_enable_cmdq_irq(struct glamodrm_handle *gdrm)
-{
-	uint16_t irq_status = reg_read(gdrm, GLAMO_REG_IRQ_ENABLE);
-	irq_status |= GLAMO_IRQ_CMDQUEUE;
-	reg_write(gdrm, GLAMO_REG_IRQ_ENABLE, irq_status);
-}
-
-
-static void glamo_set_cmdq_irq(struct glamodrm_handle *gdrm)
-{
-	uint16_t irq_status = reg_read(gdrm, GLAMO_REG_IRQ_SET);
-	irq_status |= GLAMO_IRQ_CMDQUEUE;
-	reg_write(gdrm, GLAMO_REG_IRQ_SET, irq_status);
-}
-
-
-static void glamo_cmdq_irq(unsigned int irq, struct irq_desc *desc)
-{
-	struct glamodrm_handle *gdrm = desc->handler_data;
-
-	if (!gdrm) return;
-	reg_write(gdrm, GLAMO_REG_IRQ_CLEAR, GLAMO_IRQ_CMDQUEUE);
-}
-
-
 /* Add commands to the ring buffer */
-static int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
-                             unsigned int count)
+int glamo_add_to_ring(struct glamodrm_handle *gdrm, u16 *addr,
+                      unsigned int count)
 {
 	size_t ring_write, ring_read;
 	size_t new_ring_write;
@@ -323,8 +296,6 @@ int glamo_ioctl_cmdbuf(struct drm_device *dev, void *data,
 
 	glamo_add_to_ring(gdrm, cmds, count);
 
-	glamo_set_cmdq_irq(gdrm);
-
 cleanup:
 	drm_free(cmds, 1, DRM_MEM_DRIVER);
 
@@ -472,59 +443,11 @@ int glamo_ioctl_cmdburst(struct drm_device *dev, void *data,
 
 	/* Add to command queue */
 	glamo_add_to_ring(gdrm, burst, burst_size);
-	glamo_set_cmdq_irq(gdrm);
 
 cleanup:
 	drm_free(burst, 1, DRM_MEM_DRIVER);
 
 	return ret;
-}
-
-
-/* TODO: Banish this to the nether regions of Hades */
-static void glamo_cmdq_wait(struct glamodrm_handle *gdrm,
-                            enum glamo_engine engine)
-{
-	u16 mask, val, status;
-	int i;
-
-	switch (engine)
-	{
-		case GLAMO_ENGINE_ALL:
-			mask = 1 << 2;
-			val  = mask;
-			break;
-		default:
-			return;
-	}
-
-	for ( i=0; i<1000; i++ ) {
-		status = reg_read(gdrm, GLAMO_REG_CMDQ_STATUS);
-		if ((status & mask) == val) break;
-		mdelay(1);
-	}
-	if ( i == 1000 ) {
-		size_t ring_read;
-		printk(KERN_WARNING "[glamo-drm] CmdQ timeout!\n");
-		printk(KERN_WARNING "[glamo-drm] status = %x\n", status);
-		ring_read = reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRL);
-		ring_read |= ((reg_read(gdrm, GLAMO_REG_CMDQ_READ_ADDRH)
-				& 0x7) << 16);
-		printk(KERN_INFO "[glamo-drm] ring_read now 0x%x\n",
-				 ring_read);
-	}
-}
-
-
-int glamo_ioctl_gem_wait_rendering(struct drm_device *dev, void *data,
-                                   struct drm_file *file_priv)
-{
-	struct glamodrm_handle *gdrm;
-
-	gdrm = dev->dev_private;
-	glamo_cmdq_wait(gdrm, GLAMO_ENGINE_ALL);
-
-	return 0;
 }
 
 
@@ -561,19 +484,12 @@ int glamo_cmdq_init(struct glamodrm_handle *gdrm)
 	                                 5 << 8  |   /* no interrupt */
 	                                 8 << 4);    /* HQ threshold */
 
-	/* Set up IRQ */
-	set_irq_handler(IRQ_GLAMO(GLAMO_IRQIDX_CMDQUEUE), glamo_cmdq_irq);
-	set_irq_data(IRQ_GLAMO(GLAMO_IRQIDX_CMDQUEUE), gdrm);
-
-	glamo_enable_cmdq_irq(gdrm);
-
 	return 0;
 }
 
 
 int glamo_cmdq_shutdown(struct glamodrm_handle *gdrm)
 {
-	set_irq_handler(IRQ_GLAMO(GLAMO_IRQIDX_CMDQUEUE), handle_level_irq);
 	return 0;
 }
 

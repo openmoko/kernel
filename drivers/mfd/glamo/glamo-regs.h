@@ -642,4 +642,15 @@ enum glamo_register_cq {
 	GLAMO_REG_CMDQ_STATUS         = 0x12,
 };
 
+#define REG_2D(x)		(GLAMO_REGOFS_2D+(x))
+
+enum glamo_register_2d {
+	GLAMO_REG_2D_DST_X		= REG_2D(0x0a),
+	GLAMO_REG_2D_COMMAND1           = REG_2D(0x3a),
+	GLAMO_REG_2D_STATUS		= REG_2D(0x42),
+	GLAMO_REG_2D_ID1		= REG_2D(0x44),
+	GLAMO_REG_2D_ID2		= REG_2D(0x46),
+	GLAMO_REG_2D_ID3		= REG_2D(0x48),
+};
+
 #endif /* _GLAMO_REGS_H */

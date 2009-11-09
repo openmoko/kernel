@@ -100,6 +100,9 @@ void glamo_engine_reset(struct glamo_core *glamo, enum glamo_engine engine);
 int glamo_engine_reclock(struct glamo_core *glamo,
 			 enum glamo_engine engine, int ps);
 
+extern void glamo_clear_irq(struct glamo_core *glamo, unsigned int irq);
+extern void glamo_enable_irq(struct glamo_core *glamo, unsigned int irq);
+
 void glamo_engine_clkreg_set(struct glamo_core *glamo,
 			     enum glamo_engine engine,
 			     u_int16_t mask, u_int16_t val);

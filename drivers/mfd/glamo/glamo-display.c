@@ -214,7 +214,8 @@ static struct glamo_script lcd_init_script[] = {
 	   * np cpu if, 9bit serial data, sclk rising edge latch data
 	   * 01 00 0 100 0 000 01 0 0 */
 	/* The following values assume 640*480@16bpp */
-	{ GLAMO_REG_LCD_A_BASE1, 0x0000 }, /* display A base address 15:0 */
+	/* FIXME: fb0 has not yet been allocated! */
+	{ GLAMO_REG_LCD_A_BASE1, PAGE_SIZE }, /* display A base address 15:0 */
 	{ GLAMO_REG_LCD_A_BASE2, 0x0000 }, /* display A base address 22:16 */
 	{ GLAMO_REG_LCD_B_BASE1, 0x6000 }, /* display B base address 15:0 */
 	{ GLAMO_REG_LCD_B_BASE2, 0x0009 }, /* display B base address 22:16 */

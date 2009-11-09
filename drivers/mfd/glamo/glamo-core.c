@@ -198,6 +198,11 @@ static struct resource glamo_graphics_resources[] = {
 		.start	= GLAMO_REGOFS_LCD,
 		.end	= GLAMO_REGOFS_MMC - 1,
 		.flags	= IORESOURCE_MEM,
+	}, {
+		.name	= "glamo-2d-regs",
+		.start  = GLAMO_REGOFS_2D,
+		.end    = GLAMO_REGOFS_3D- 1,
+		.flags  = IORESOURCE_MEM,
 	}
 };
 
@@ -346,6 +351,24 @@ static void glamo_irq_demux_handler(unsigned int irq, struct irq_desc *desc)
 	} while ((desc->status & (IRQ_PENDING | IRQ_DISABLED)) == IRQ_PENDING);
 
 	desc->status &= ~IRQ_INPROGRESS;
+}
+
+
+void glamo_clear_irq(struct glamo_core *glamo, unsigned int irq)
+{
+	/* set interrupt source */
+	__reg_write(glamo, GLAMO_REG_IRQ_CLEAR, irq);
+}
+
+
+void glamo_enable_irq(struct glamo_core *glamo, unsigned int irq)
+{
+	u_int16_t tmp;
+
+	/* set bit in enable register */
+	tmp = __reg_read(glamo, GLAMO_REG_IRQ_ENABLE);
+	tmp |= irq;
+	__reg_write(glamo, GLAMO_REG_IRQ_ENABLE, tmp);
 }
 
 

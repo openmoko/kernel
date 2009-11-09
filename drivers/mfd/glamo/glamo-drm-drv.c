@@ -35,6 +35,7 @@
 #include "glamo-drm-private.h"
 #include "glamo-display.h"
 #include "glamo-kms-fb.h"
+#include "glamo-fence.h"
 
 #define DRIVER_AUTHOR           "Openmoko, Inc."
 #define DRIVER_NAME             "glamo-drm"
@@ -72,7 +73,7 @@ struct drm_ioctl_desc glamo_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_PREAD, glamo_ioctl_gem_pread, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_PWRITE, glamo_ioctl_gem_pwrite, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_GLAMO_GEM_WAIT_RENDERING,
-				glamo_ioctl_gem_wait_rendering, DRM_AUTH),
+	              glamo_ioctl_wait_rendering, DRM_AUTH),
 };
 
 
@@ -130,6 +131,7 @@ static int glamodrm_load(struct drm_device *dev, unsigned long flags)
 
 	glamo_buffer_init(gdrm);
 	glamo_cmdq_init(gdrm);
+	glamo_fence_init(gdrm);
 	glamo_display_init(dev);
 
 	return 0;
@@ -145,6 +147,7 @@ static int glamodrm_unload(struct drm_device *dev)
 	glamo_engine_disable(gdrm->glamo_core, GLAMO_ENGINE_2D);
 	glamo_engine_disable(gdrm->glamo_core, GLAMO_ENGINE_3D);
 	glamo_buffer_final(gdrm);
+	glamo_fence_shutdown(gdrm);
 
 	return 0;
 }
@@ -285,6 +288,28 @@ static int glamodrm_probe(struct platform_device *pdev)
 		goto out_release_lcd;
 	}
 
+	/* Find the 2D engine */
+	gdrm->twod_regs = platform_get_resource(pdev, IORESOURCE_MEM, 4);
+	if ( !gdrm->twod_regs ) {
+		dev_err(&pdev->dev, "Unable to find 2D registers.\n");
+		rc = -ENOENT;
+		goto out_unmap_lcd;
+	}
+	gdrm->twod_regs = request_mem_region(gdrm->twod_regs->start,
+	                                    RESSIZE(gdrm->twod_regs),
+	                                    pdev->name);
+	if ( !gdrm->twod_regs ) {
+		dev_err(&pdev->dev, "failed to request 2D registers\n");
+		rc = -ENOENT;
+		goto out_unmap_lcd;
+	}
+	gdrm->twod_base = ioremap(gdrm->twod_regs->start, RESSIZE(gdrm->twod_regs));
+	if ( !gdrm->twod_base ) {
+		dev_err(&pdev->dev, "failed to ioremap() 2D registers\n");
+		rc = -ENOENT;
+		goto out_release_2d;
+	}
+
 	gdrm->vram_size = GLAMO_FB_SIZE;
 	printk(KERN_INFO "[glamo-drm] %lli bytes of VRAM\n",
 	                 (long long int)gdrm->vram_size);
@@ -294,6 +319,10 @@ static int glamodrm_probe(struct platform_device *pdev)
 
 	return 0;
 
+out_release_2d:
+	release_mem_region(gdrm->twod_regs->start, RESSIZE(gdrm->twod_regs));
+out_unmap_lcd:
+	iounmap(gdrm->lcd_base);
 out_release_lcd:
 	release_mem_region(gdrm->lcd_regs->start, RESSIZE(gdrm->lcd_regs));
 out_unmap_cmdq:
@@ -332,9 +361,13 @@ static int glamodrm_remove(struct platform_device *pdev)
 //	iounmap(gdrm->vram_base);
 	release_mem_region(gdrm->vram->start, RESSIZE(gdrm->vram));
 
-	/* Release command queue  */
+	/* Release command queue */
 	iounmap(gdrm->cmdq_base);
 	release_mem_region(gdrm->cmdq->start, RESSIZE(gdrm->cmdq));
+
+	/* Release 2D engine  */
+	iounmap(gdrm->twod_base);
+	release_mem_region(gdrm->twod_regs->start, RESSIZE(gdrm->twod_regs));
 
 	kfree(gdrm);
 

@@ -470,7 +470,11 @@ static struct regulator_consumer_supply ldo6_consumers[] = {
 
 static struct pcf50633_bl_platform_data gta02_backlight_data = {
 	.default_brightness = 0x3f,
+#ifdef CONFIG_BACKLIGHT_PCF50633
 	.default_brightness_limit = 0,
+#else
+	.default_brightness_limit = 0x3f,
+#endif
 	.ramp_time = 3,
 };
 
@@ -828,7 +832,9 @@ static struct platform_device gta02_leds_device = {
 /* JBT6k74 display controller */
 static void gta02_jbt6k74_probe_completed(struct device *dev)
 {
+#ifdef CONFIG_BACKLIGHT_PCF50633
 	pcf50633_bl_set_brightness_limit(gta02_pcf, 0x3f);
+#endif
 }
 
 const struct jbt6k74_platform_data jbt6k74_pdata = {

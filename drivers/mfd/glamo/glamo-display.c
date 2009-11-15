@@ -214,8 +214,8 @@ static struct glamo_script lcd_init_script[] = {
 	   * np cpu if, 9bit serial data, sclk rising edge latch data
 	   * 01 00 0 100 0 000 01 0 0 */
 	/* The following values assume 640*480@16bpp */
-	/* FIXME: fb0 has not yet been allocated! */
-	{ GLAMO_REG_LCD_A_BASE1, PAGE_SIZE }, /* display A base address 15:0 */
+	/* The addresses are both wrong, but get overwritten very soon */
+	{ GLAMO_REG_LCD_A_BASE1, 0x0000 }, /* display A base address 15:0 */
 	{ GLAMO_REG_LCD_A_BASE2, 0x0000 }, /* display A base address 22:16 */
 	{ GLAMO_REG_LCD_B_BASE1, 0x6000 }, /* display B base address 15:0 */
 	{ GLAMO_REG_LCD_B_BASE2, 0x0009 }, /* display B base address 22:16 */
@@ -300,6 +300,41 @@ static bool glamo_crtc_mode_fixup(struct drm_crtc *crtc,
 }
 
 
+static void glamo_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
+                                     struct drm_framebuffer *old_fb)
+{
+	struct glamodrm_handle *gdrm;
+	struct glamo_crtc *gcrtc;
+	struct glamo_framebuffer *gfb;
+	struct drm_gem_object *obj;
+	struct drm_glamo_gem_object *gobj;
+	u32 addr;
+	u16 addr_low, addr_high;
+
+	if (!crtc->fb) {
+		DRM_DEBUG("No FB bound\n");
+		return;
+	}
+
+	/* Dig out our handle */
+	gcrtc = to_glamo_crtc(crtc);
+	gdrm = gcrtc->gdrm;	/* Here it is! */
+
+	gfb = to_glamo_framebuffer(crtc->fb);
+	obj = gfb->obj;
+	gobj = obj->driver_private;
+
+	addr = GLAMO_OFFSET_FB + gobj->block->start;
+	addr_low = addr & 0xffff;
+	addr_high = ((addr >> 16) & 0x7f) | 0x4000;
+
+	glamo_lcd_cmd_mode(gdrm, 1);
+	reg_write_lcd(gdrm, GLAMO_REG_LCD_A_BASE1, addr_low);
+	reg_write_lcd(gdrm, GLAMO_REG_LCD_A_BASE2, addr_high);
+	glamo_lcd_cmd_mode(gdrm, 0);
+}
+
+
 static void glamo_crtc_mode_set(struct drm_crtc *crtc,
                                 struct drm_display_mode *mode,
                                 struct drm_display_mode *adjusted_mode,
@@ -362,41 +397,9 @@ static void glamo_crtc_mode_set(struct drm_crtc *crtc,
 	                     GLAMO_LCD_HV_RETR_DISP_END_MASK, disp_end);
 
 	glamo_lcd_cmd_mode(gdrm, 0);
-}
 
+	glamo_crtc_mode_set_base(crtc, 0, 0, old_fb);
 
-static void glamo_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
-                                     struct drm_framebuffer *old_fb)
-{
-	struct glamodrm_handle *gdrm;
-	struct glamo_crtc *gcrtc;
-	struct glamo_framebuffer *gfb;
-	struct drm_gem_object *obj;
-	struct drm_glamo_gem_object *gobj;
-	u32 addr;
-	u16 addr_low, addr_high;
-
-	if (!crtc->fb) {
-		DRM_DEBUG("No FB bound\n");
-		return;
-	}
-
-	/* Dig out our handle */
-	gcrtc = to_glamo_crtc(crtc);
-	gdrm = gcrtc->gdrm;	/* Here it is! */
-
-	gfb = to_glamo_framebuffer(crtc->fb);
-	obj = gfb->obj;
-	gobj = obj->driver_private;
-
-	addr = GLAMO_OFFSET_FB + gobj->block->start;
-	addr_low = addr & 0xffff;
-	addr_high = ((addr >> 16) & 0x7f) | 0x4000;
-
-	glamo_lcd_cmd_mode(gdrm, 1);
-	reg_write_lcd(gdrm, GLAMO_REG_LCD_A_BASE1, addr_low);
-	reg_write_lcd(gdrm, GLAMO_REG_LCD_A_BASE2, addr_high);
-	glamo_lcd_cmd_mode(gdrm, 0);
 }
 
 
@@ -747,6 +750,10 @@ int glamo_display_init(struct drm_device *dev)
 	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_LCD);
 	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_LCD);
 
+	/* Initial setup of the LCD controller */
+	glamo_run_lcd_script(gdrm, lcd_init_script,
+	                           ARRAY_SIZE(lcd_init_script));
+
 	drm_mode_config_init(dev);
 
 	dev->mode_config.min_width = 240;
@@ -795,10 +802,6 @@ int glamo_display_init(struct drm_device *dev)
 	drm_connector_helper_add(connector, &glamo_connector_helper_funcs);
 
 	drm_helper_initial_config(dev, false);
-
-	/* Initial setup of the LCD controller */
-	glamo_run_lcd_script(gdrm, lcd_init_script,
-	                           ARRAY_SIZE(lcd_init_script));
 
 	if (list_empty(&dev->mode_config.fb_kernel_list)) {
 		int ret, cols, cols_g;

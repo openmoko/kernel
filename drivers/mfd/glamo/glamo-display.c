@@ -391,7 +391,7 @@ static void glamo_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 
 	addr = GLAMO_OFFSET_FB + gobj->block->start;
 	addr_low = addr & 0xffff;
-	addr_high = (addr >> 16) & 0x7f;
+	addr_high = ((addr >> 16) & 0x7f) | 0x4000;
 
 	glamo_lcd_cmd_mode(gdrm, 1);
 	reg_write_lcd(gdrm, GLAMO_REG_LCD_A_BASE1, addr_low);

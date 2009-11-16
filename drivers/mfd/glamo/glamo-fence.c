@@ -78,46 +78,21 @@ struct glamo_fence
 
 static void glamo_fence_emit(struct glamo_fence *fence)
 {
-	u16 fring[26];
-	u32 addr;
+	u16 fring[6];
 
-	addr = GLAMO_OFFSET_FB + fence->gdrm->scratch->start;
-
-	fring[0] = 0x8000 | GLAMO_REG_2D_DST_X;
-	fring[1] = 11;
-	fring[2] = 0;         /* dest X */
-	fring[3] = 0;         /* dest Y */
-	fring[4] = addr & 0xffff;       /* dest buffer */
-	fring[5] = (addr >> 16) & 0x7f; /* dest buffer */
-	fring[6] = 1;         /* dest pitch */
-	fring[7] = 1;         /* dest height */
-	fring[8] = 1;         /* rect width */
-	fring[9] = 1;         /* rect height */
-	fring[10] = 0x0000;   /* patt L */
-	fring[11] = 0x0000;   /* patt H */
-	fring[12] = 0x0000;   /* FG colour */
-	fring[13] = 0x0000;   /* Padding */
-
-	fring[14] = 0x8000 | GLAMO_REG_2D_COMMAND1;
-	fring[15] = 3;
-	fring[16] = 0x0000;
-	fring[17] = 0xf0 << 8;
-	fring[18] = 0x0000;
-	fring[19] = 0x0000;  /* Padding */
-
-	fring[20] = 0x8000 | GLAMO_REG_2D_ID1;
-	fring[21] = 3;
+	fring[0] = 0x8000 | GLAMO_REG_2D_ID1;
+	fring[1] = 3;
 	fence->seq = atomic_inc_return(&fence->gdrm->curr_seq);
 	if ( fence->seq > 1<<14 ) {
 		atomic_set(&fence->gdrm->curr_seq, 0);
 		fence->seq = atomic_inc_return(&fence->gdrm->curr_seq);
 	}
-	fring[22] = 1<<15 | fence->seq;
-	fring[23] = 0;  /* Unused */
-	fring[24] = 0;  /* Unused */
-	fring[25] = 0;  /* Padding */
+	fring[2] = 1<<15 | fence->seq;
+	fring[3] = 0;  /* Unused */
+	fring[4] = 0;  /* Unused */
+	fring[5] = 0;  /* Padding */
 
-	glamo_add_to_ring(fence->gdrm, fring, 52);
+	glamo_add_to_ring(fence->gdrm, fring, 12);
 }
 
 

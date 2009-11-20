@@ -429,9 +429,6 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 	info->fbops = &glamofb_ops;
 
 	info->fix.line_length = fb->pitch;
-	info->fix.smem_start = dev->mode_config.fb_base
-	                        + (unsigned long) gdrm->vram->start;
-	info->fix.smem_len = size;
 
 	info->flags = FBINFO_DEFAULT;
 
@@ -443,6 +440,8 @@ int glamofb_create(struct drm_device *dev, uint32_t fb_width,
 		ret = -ENOSPC;
 		goto out_unref;
 	}
+	info->fix.smem_start = (unsigned long)gdrm->vram->start + offs;
+	info->fix.smem_len = size;
 	info->screen_size = size;
 
 	info->pseudo_palette = fb->pseudo_palette;

@@ -698,6 +698,22 @@ static int jbt6k74_get_power(struct lcd_device *ld)
 	}
 }
 
+/* This is utterly, totally horrible.  I'm REALLY sorry... */
+struct jbt_info *jbt_global;
+void jbt6k74_action(int val)
+{
+	if ( !jbt_global ) {
+		printk(KERN_CRIT "JBT not initialised!!!\n");
+		return;
+	}
+	if ( val == 0 ) {
+		jbt6k74_enter_power_mode(jbt_global, JBT_POWER_MODE_SLEEP);
+	} else {
+		jbt6k74_enter_power_mode(jbt_global, JBT_POWER_MODE_NORMAL);
+	}
+}
+EXPORT_SYMBOL_GPL(jbt6k74_action);
+
 struct lcd_ops jbt6k74_lcd_ops = {
 	.set_power = jbt6k74_set_power,
 	.get_power = jbt6k74_get_power,
@@ -727,6 +743,8 @@ static int __devinit jbt_probe(struct spi_device *spi)
 	jbt = kzalloc(sizeof(*jbt), GFP_KERNEL);
 	if (!jbt)
 		return -ENOMEM;
+
+	jbt_global = jbt;
 
 	jbt->spi = spi;
 

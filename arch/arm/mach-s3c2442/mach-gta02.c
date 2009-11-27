@@ -1047,7 +1047,6 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&s3c_device_usbgadget,
 	&s3c_device_nand,
 	&gta02_nor_flash,
-	&s3c_device_timer,
 	&s3c_device_iis,
 	&s3c_device_i2c0,
 	&gta02_buttons_device,
@@ -1064,6 +1063,7 @@ static struct platform_device *gta02_devices[] __initdata = {
 static struct platform_device *gta02_devices_pmu_children[] = {
 	&s3c_device_ts,
 	&gta02_glamo_dev,
+	&s3c_device_timer[2],
 	&gta02_hdq_device,
 };
 

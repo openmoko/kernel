@@ -109,8 +109,6 @@
 
 #include <linux/platform_battery.h>
 
-#include <linux/gta02-vibrator.h>
-
 #include <mach/ts.h>
 #include <linux/input/touchscreen/ts_filter_chain.h>
 #ifdef CONFIG_TOUCHSCREEN_FILTER
@@ -646,12 +644,6 @@ static struct platform_device gta02_nor_flash = {
 	.num_resources	= 1,
 };
 
-
-struct platform_device s3c24xx_pwm_device = {
-	.name		= "s3c24xx_pwm",
-	.num_resources	= 0,
-};
-
 static struct i2c_board_info gta02_i2c_devs[] __initdata = {
 	{
 		I2C_BOARD_INFO("pcf50633", 0x73),
@@ -1068,31 +1060,7 @@ struct platform_device gta02_hdq_device = {
 	.resource	= gta02_hdq_resources,
 	.dev		= {
 		.platform_data = &gta02_hdq_platform_data,
-		.parent = &s3c24xx_pwm_device.dev,
-	},
-};
-
-/* vibrator (child of FIQ) */
-
-static struct resource gta02_vibrator_resources[] = {
-	[0] = {
-		.start	= GTA02_GPIO_VIBRATOR_ON,
-		.end	= GTA02_GPIO_VIBRATOR_ON,
-	},
-};
-
-struct gta02_vib_platform_data gta02_vib_pdata = {
-	.enable_fiq = gta02_fiq_enable,
-	.disable_fiq = gta02_fiq_disable,
-	.kick_fiq = gta02_fiq_kick,
-};
-
-static struct platform_device gta02_vibrator_device = {
-	.name		= "gta02-vibrator",
-	.num_resources	= ARRAY_SIZE(gta02_vibrator_resources),
-	.resource	= gta02_vibrator_resources,
-	.dev	 = {
-		.platform_data = &gta02_vib_pdata,
+		.parent = &s3c_device_timer[2].dev,
 	},
 };
 
@@ -1113,9 +1081,9 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&s3c_device_usbgadget,
 	&s3c_device_nand,
 	&gta02_nor_flash,
-/*	&s3c24xx_pwm_device,*/
 	&s3c_device_timer[0],
 	&s3c_device_timer[1],
+	&s3c_device_timer[2],
 	&s3c_device_timer[3],
 	&s3c_device_iis,
 	&s3c_device_i2c0,
@@ -1135,7 +1103,6 @@ static struct platform_device *gta02_devices_pmu_children[] = {
 	&s3c_device_ts,
 	&gta02_glamo_dev,
 	&gta02_hdq_device,
-	&gta02_vibrator_device,
 };
 
 

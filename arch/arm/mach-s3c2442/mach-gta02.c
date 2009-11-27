@@ -628,7 +628,7 @@ static struct led_pwm gta02_pwm_leds[] = {
 	},
 	{
 		.name = "gta02::vibrator",
-		.max_brightness = 0xff,
+		.max_brightness = 0x3f,
 		.pwm_period_ns = 60000000,
 		.pwm_id = 3,
 	}

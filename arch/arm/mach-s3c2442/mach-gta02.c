@@ -108,8 +108,6 @@
 
 #include <linux/platform_battery.h>
 
-#include <linux/gta02-vibrator.h>
-
 #include <mach/ts.h>
 #include <linux/input/touchscreen/ts_filter_chain.h>
 #ifdef CONFIG_TOUCHSCREEN_FILTER
@@ -1032,30 +1030,6 @@ struct platform_device gta02_hdq_device = {
 	},
 };
 
-/* vibrator (child of FIQ) */
-
-static struct resource gta02_vibrator_resources[] = {
-	[0] = {
-		.start	= GTA02_GPIO_VIBRATOR_ON,
-		.end	= GTA02_GPIO_VIBRATOR_ON,
-	},
-};
-
-struct gta02_vib_platform_data gta02_vib_pdata = {
-	.enable_fiq = gta02_fiq_enable,
-	.disable_fiq = gta02_fiq_disable,
-	.kick_fiq = gta02_fiq_kick,
-};
-
-static struct platform_device gta02_vibrator_device = {
-	.name		= "gta02-vibrator",
-	.num_resources	= ARRAY_SIZE(gta02_vibrator_resources),
-	.resource	= gta02_vibrator_resources,
-	.dev	 = {
-		.platform_data = &gta02_vib_pdata,
-	},
-};
-
 static void __init gta02_map_io(void)
 {
 	s3c24xx_init_io(gta02_iodesc, ARRAY_SIZE(gta02_iodesc));
@@ -1091,7 +1065,6 @@ static struct platform_device *gta02_devices_pmu_children[] = {
 	&s3c_device_ts,
 	&gta02_glamo_dev,
 	&gta02_hdq_device,
-	&gta02_vibrator_device,
 };
 
 

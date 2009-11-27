@@ -62,6 +62,7 @@
 #include <linux/gpio_keys.h>
 
 #include <linux/leds.h>
+#include <linux/leds_pwm.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -415,12 +416,6 @@ static struct platform_device gta02_nor_flash = {
 	.num_resources	= 1,
 };
 
-
-struct platform_device s3c24xx_pwm_device = {
-	.name		= "s3c24xx_pwm",
-	.num_resources	= 0,
-};
-
 static struct i2c_board_info gta02_i2c_devs[] __initdata = {
 	{
 		I2C_BOARD_INFO("pcf50633", 0x73),
@@ -594,14 +589,6 @@ static struct platform_device gta02_buttons_device = {
 /* LEDs */
 static struct gpio_led gta02_gpio_leds[] = {
 	{
-		.name	= "gta02:orange:power",
-		.gpio	= GTA02_GPIO_PWR_LED1,
-	},
-	{
-		.name	= "gta02:blue:power",
-		.gpio	= GTA02_GPIO_PWR_LED2,
-	},
-	{
 		.name	= "gta02:red:aux",
 		.gpio	= GTA02_GPIO_AUX_LED,
 	},
@@ -619,6 +606,41 @@ static struct platform_device gta02_leds_device = {
 		.platform_data = &gta02_gpio_leds_pdata,
 	},
 };
+
+static struct led_pwm gta02_pwm_leds[] = {
+	{
+		.name = "gta02:orange:power",
+		.max_brightness = 0xff,
+		.pwm_period_ns = 1000000,
+		.pwm_id = 0,
+	},
+	{
+		.name = "gta02:blue:power",
+		.max_brightness = 0xff,
+		.pwm_period_ns = 1000000,
+		.pwm_id = 1,
+	},
+	{
+		.name = "gta02::vibrator",
+		.max_brightness = 0x3f,
+		.pwm_period_ns = 60000000,
+		.pwm_id = 3,
+	}
+};
+
+static struct led_pwm_platform_data gta02_pwm_leds_pdata = {
+	.num_leds = ARRAY_SIZE(gta02_pwm_leds),
+	.leds = gta02_pwm_leds,
+};
+
+static struct platform_device gta02_pwm_leds_device = {
+	.name	= "leds_pwm",
+	.id	= -1,
+	.dev = {
+		.platform_data = &gta02_pwm_leds_pdata,
+	}
+};
+
 
 static struct platform_device gta02_pm_gps_dev = {
 	.name = "gta02-pm-gps",
@@ -653,11 +675,14 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&s3c_device_usbgadget,
 	&s3c_device_nand,
 	&gta02_nor_flash,
-	&s3c24xx_pwm_device,
+	&s3c_device_timer[0],
+	&s3c_device_timer[1],
+	&s3c_device_timer[3],
 	&s3c_device_iis,
 	&s3c_device_i2c0,
 	&gta02_buttons_device,
 	&gta02_leds_device,
+	&gta02_pwm_leds_device,
 	&gta02_pm_gps_dev,
 	&gta02_pm_bt_dev,
 	&gta02_pm_gsm_dev,
@@ -779,7 +804,14 @@ static void gta02_request_gpios(void)
 		ret = gpio_direction_output(GTA02_GPIO_USB_PULLUP, 0);
 		if (ret)
 			printk(KERN_ERR "Failed to set USB pullup gpio direction: %d\n", ret);
-    }
+	}
+}
+
+static void gta02_enable_pwm_pins(void)
+{
+	s3c2410_gpio_cfgpin(GTA02_GPIO_PWR_LED1, S3C2410_GPB0_TOUT0);
+	s3c2410_gpio_cfgpin(GTA02_GPIO_PWR_LED2, S3C2410_GPB1_TOUT1);
+	s3c2410_gpio_cfgpin(GTA02_GPIO_VIBRATOR_ON, S3C2410_GPB3_TOUT3);
 }
 
 static void __init gta02_machine_init(void)
@@ -806,6 +838,8 @@ static void __init gta02_machine_init(void)
 	i2c_register_board_info(0, gta02_i2c_devs, ARRAY_SIZE(gta02_i2c_devs));
 
 	platform_add_devices(gta02_devices, ARRAY_SIZE(gta02_devices));
+	gta02_enable_pwm_pins();
+
 	pm_power_off = gta02_poweroff;
 }
 

@@ -1,11 +1,13 @@
 #include <linux/kernel.h>
 
 #include <asm/fiq.h>
-#include <plat/pwm.h>
 #include <mach/regs-irq.h>
+#include <plat/regs-timer.h>
 #include <mach/irqs.h>
 #include <linux/io.h>
 #include <linux/hdq.h>
+#include <linux/pwm.h>
+#include <linux/err.h>
 
 /* -------------------------------------------------------------------------------
  * GTA02 FIQ related
@@ -14,28 +16,20 @@
  * determines if we the FIQ source be kept alive
  */
 
-#define DIVISOR_FROM_US(x) ((x) << 3)
-
 #ifdef CONFIG_HDQ_GPIO_BITBANG
-#define FIQ_DIVISOR_HDQ DIVISOR_FROM_US(HDQ_SAMPLE_PERIOD_US)
 extern int hdq_fiq_handler(void);
-#endif
-
-#ifdef CONFIG_LEDS_GTA02_VIBRATOR
-#define FIQ_DIVISOR_VIBRATOR DIVISOR_FROM_US(100)
-extern int gta02_vibrator_fiq_handler(void);
 #endif
 
 /* Global data related to our fiq source */
 static uint32_t gta02_fiq_ack_mask;
-static struct s3c2410_pwm gta02_fiq_pwm_timer;
-static uint16_t gta02_fiq_timer_index;
-static int gta02_fiq_irq;
+static const int gta02_gta02_fiq_timer_id = 2;
+
+struct pwm_device* gta02_fiq_timer;
 
 void gta02_fiq_handler(void)
 {
-	uint16_t divisor = 0xffff;
-
+	unsigned long intmask;
+	int keep_running = 0;
 	/* disable further timer interrupts if nobody has any work
 	 * or adjust rate according to who still has work
 	 *
@@ -45,20 +39,14 @@ void gta02_fiq_handler(void)
 	 */
 
 #ifdef CONFIG_HDQ_GPIO_BITBANG
-	if (hdq_fiq_handler())
-		divisor = FIQ_DIVISOR_HDQ;
+	keep_running = hdq_fiq_handler();
 #endif
-
-#ifdef CONFIG_LEDS_GTA02_VIBRATOR
-	if (gta02_vibrator_fiq_handler())
-		divisor = FIQ_DIVISOR_VIBRATOR;
-#endif
-
-	if (divisor == 0xffff) /* mask the fiq irq source */
-		__raw_writel(__raw_readl(S3C2410_INTMSK) | gta02_fiq_ack_mask,
-				S3C2410_INTMSK);
-	else /* still working, maybe at a different rate */
-		__raw_writel(divisor, S3C2410_TCNTB(gta02_fiq_timer_index));
+	if (!keep_running) {
+		/* Disable irq */
+		intmask = __raw_readl(S3C2410_INTMSK);
+		intmask |= (gta02_fiq_ack_mask);
+		__raw_writel(intmask, S3C2410_INTMSK);
+	}
 
 	__raw_writel(gta02_fiq_ack_mask, S3C2410_SRCPND);
 }
@@ -66,8 +54,7 @@ void gta02_fiq_handler(void)
 void gta02_fiq_kick(void)
 {
 	unsigned long flags;
-	uint32_t tcon;
-
+	unsigned long intmask;
 	/* we have to take care about FIQ because this modification is
 	 * non-atomic, FIQ could come in after the read and before the
 	 * writeback and its changes to the register would be lost
@@ -75,70 +62,71 @@ void gta02_fiq_kick(void)
 	 */
 	local_save_flags(flags);
 	local_fiq_disable();
+
 	/* allow FIQs to resume */
-	__raw_writel(__raw_readl(S3C2410_INTMSK) &
-			~(1 << (gta02_fiq_irq - S3C2410_CPUIRQ_OFFSET)),
-			S3C2410_INTMSK);
-	tcon = __raw_readl(S3C2410_TCON) & ~S3C2410_TCON_T3START;
-	/* fake the timer to a count of 1 */
-	__raw_writel(1, S3C2410_TCNTB(gta02_fiq_timer_index));
-	__raw_writel(tcon | S3C2410_TCON_T3MANUALUPD, S3C2410_TCON);
-	__raw_writel(tcon | S3C2410_TCON_T3MANUALUPD | S3C2410_TCON_T3START,
-			S3C2410_TCON);
-	__raw_writel(tcon | S3C2410_TCON_T3START, S3C2410_TCON);
+	intmask = __raw_readl(S3C2410_INTMSK);
+	intmask &= ~(gta02_fiq_ack_mask);
+	__raw_writel(intmask, S3C2410_INTMSK);
+
 	local_irq_restore(flags);
+
 }
 
 int gta02_fiq_enable(void)
 {
-	int irq_index_fiq = IRQ_TIMER3;
-	int rc = 0;
+	int ret = 0;
 
 	local_fiq_disable();
 
-	gta02_fiq_irq = irq_index_fiq;
-	gta02_fiq_ack_mask = 1 << (irq_index_fiq - S3C2410_CPUIRQ_OFFSET);
-	gta02_fiq_timer_index = (irq_index_fiq - IRQ_TIMER0);
+	gta02_fiq_timer = pwm_request(gta02_gta02_fiq_timer_id, "fiq timer");
 
-	/* set up the timer to operate as a pwm device */
+	if (IS_ERR(gta02_fiq_timer)) {
+		ret = PTR_ERR(gta02_fiq_timer);
+		printk("GTA02 FIQ: Could not request fiq timer: %d\n", ret);
+		return ret;
+	}
 
-	rc = s3c2410_pwm_init(&gta02_fiq_pwm_timer);
-	if (rc)
-		goto bail;
+	gta02_fiq_ack_mask = 1 << (IRQ_TIMER0 + gta02_gta02_fiq_timer_id
+					- S3C2410_CPUIRQ_OFFSET);
 
-	gta02_fiq_pwm_timer.timerid = PWM0 + gta02_fiq_timer_index;
-	gta02_fiq_pwm_timer.prescaler = (6 - 1) / 2;
-	gta02_fiq_pwm_timer.divider = S3C2410_TCFG1_MUX3_DIV2;
-	/* default rate == ~32us */
-	gta02_fiq_pwm_timer.counter = gta02_fiq_pwm_timer.comparer = 3000;
 
-	rc = s3c2410_pwm_enable(&gta02_fiq_pwm_timer);
-	if (rc)
-		goto bail;
-
-	s3c2410_pwm_start(&gta02_fiq_pwm_timer);
-
-	/* let our selected interrupt be a magic FIQ interrupt */
-	__raw_writel(gta02_fiq_ack_mask, S3C2410_INTMOD);
-
-	/* it's ready to go as soon as we unmask the source in S3C2410_INTMSK */
-	local_fiq_enable();
+	ret = pwm_config(gta02_fiq_timer, HDQ_SAMPLE_PERIOD_US * 1000,
+					HDQ_SAMPLE_PERIOD_US * 1000);
+	if (ret) {
+		printk("GTA02 FIQ: Could not configure fiq timer: %d\n", ret);
+		goto err;
+	}
 
 	set_fiq_c_handler(gta02_fiq_handler);
 
+	__raw_writel(gta02_fiq_ack_mask, S3C2410_INTMOD);
+
+	pwm_enable(gta02_fiq_timer);
+
+	local_fiq_enable();
+
 	return 0;
 
-bail:
-	printk(KERN_ERR "Could not initialize FIQ for GTA02: %d\n", rc);
+err:
+	pwm_free(gta02_fiq_timer);
 
-	return rc;
+	return ret;
 }
 
 void gta02_fiq_disable(void)
 {
-	__raw_writel(0, S3C2410_INTMOD);
 	local_fiq_disable();
-	gta02_fiq_irq = 0; /* no active source interrupt now either */
 
+	if (!gta02_fiq_timer)
+		return;
+
+	__raw_writel(0, S3C2410_INTMOD);
+	set_fiq_c_handler(NULL);
+
+	pwm_disable(gta02_fiq_timer);
+
+	pwm_free(gta02_fiq_timer);
+
+	gta02_fiq_timer = NULL;
 }
 /* -------------------- /GTA02 FIQ Handler ------------------------------------- */

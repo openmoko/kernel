@@ -641,12 +641,6 @@ static struct platform_device gta02_nor_flash = {
 	.num_resources	= 1,
 };
 
-
-struct platform_device s3c24xx_pwm_device = {
-	.name		= "s3c24xx_pwm",
-	.num_resources	= 0,
-};
-
 static struct i2c_board_info gta02_i2c_devs[] __initdata = {
 	{
 		I2C_BOARD_INFO("pcf50633", 0x73),
@@ -1034,7 +1028,7 @@ struct platform_device gta02_hdq_device = {
 	.resource	= gta02_hdq_resources,
 	.dev		= {
 		.platform_data = &gta02_hdq_platform_data,
-		.parent = &s3c24xx_pwm_device.dev,
+		.parent = &s3c_device_timer[2].dev,
 	},
 };
 
@@ -1079,7 +1073,7 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&s3c_device_usbgadget,
 	&s3c_device_nand,
 	&gta02_nor_flash,
-	&s3c24xx_pwm_device,
+	&s3c_device_timer,
 	&s3c_device_iis,
 	&s3c_device_i2c0,
 	&gta02_buttons_device,

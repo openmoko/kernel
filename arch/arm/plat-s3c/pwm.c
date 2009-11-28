@@ -21,6 +21,8 @@
 
 #include <mach/irqs.h>
 #include <mach/map.h>
+#include <mach/gpio.h>
+#include <mach/regs-gpio.h>
 
 #include <plat/devs.h>
 #include <plat/regs-timer.h>
@@ -40,6 +42,10 @@ struct pwm_device {
 	unsigned char		 running;
 	unsigned char		 use_count;
 	unsigned char		 pwm_id;
+
+	/* Used for saving state during suspend */
+	unsigned long		 tcon;
+	unsigned char		 routed_to_gpio:1;
 };
 
 #define pwm_dbg(_pwm, msg...) dev_dbg(&(_pwm)->pdev->dev, msg)
@@ -130,6 +136,7 @@ void pwm_free(struct pwm_device *pwm)
 
 EXPORT_SYMBOL(pwm_free);
 
+#define pwm_tcon_mask(pwm) (0xf << (pwm->tcon_base))
 #define pwm_tcon_start(pwm) (1 << (pwm->tcon_base + 0))
 #define pwm_tcon_invert(pwm) (1 << (pwm->tcon_base + 2))
 #define pwm_tcon_autoreload(pwm) (1 << (pwm->tcon_base + 3))
@@ -379,10 +386,75 @@ static int s3c_pwm_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+
+static int s3c_pwm_suspend(struct device *dev)
+{
+	struct pwm_device *pwm = dev_get_drvdata(dev);
+	unsigned int gpio_cfg = s3c2410_gpio_getcfg(S3C2410_GPB(pwm->pwm_id));
+
+	/* During suspend the pwm registers are reseted. If the invert bit is not
+     * set the output of TOUTn is high when the pwm is not active. In order to
+     * prevent spurious high output on the gpio at resume time, we stop routing
+     * the pwm signal to the gpio until tcon has been restored. */
+	if (gpio_cfg == S3C2410_GPIO_SFN2) {
+		s3c2410_gpio_cfgpin(S3C2410_GPB(pwm->pwm_id), S3C2410_GPIO_INPUT);
+		pwm->routed_to_gpio = 1;
+	} else {
+		pwm->routed_to_gpio = 0;
+	}
+
+	pwm->tcon = __raw_readl(S3C2410_TCON);
+
+	return 0;
+}
+
+static int s3c_pwm_resume(struct device *dev)
+{
+	struct pwm_device *pwm = dev_get_drvdata(dev);
+	unsigned long flags;
+	unsigned long tcon;
+	int duty_ns, period_ns;
+
+	duty_ns = pwm->duty_ns;
+	period_ns = pwm->period_ns;
+	pwm->duty_ns = -1;
+	pwm->period_ns = -1;
+	pwm_config(pwm, duty_ns, period_ns);
+
+	local_irq_save(flags);
+	tcon = __raw_readl(S3C2410_TCON);
+	tcon = __raw_readl(S3C2410_TCON);
+	tcon &= ~pwm_tcon_mask(pwm);
+	tcon |= pwm->tcon;
+	__raw_writel(tcon, S3C2410_TCON);
+	local_irq_restore(flags);
+
+	if (pwm->routed_to_gpio)
+		s3c2410_gpio_cfgpin(S3C2410_GPB(pwm->pwm_id), S3C2410_GPIO_SFN2);
+
+	return 0;
+}
+
+struct dev_pm_ops s3c_pwm_pm_ops = {
+	.suspend	= s3c_pwm_suspend,
+	.resume		= s3c_pwm_resume,
+	.freeze		= s3c_pwm_suspend,
+	.thaw		= s3c_pwm_resume,
+};
+
+#define S3C_PWM_PM_OPS (&s3c_pwm_pm_ops)
+
+#else
+#define S3C_PWM_PM_OPS NULL
+#endif
+
+
 static struct platform_driver s3c_pwm_driver = {
 	.driver		= {
 		.name	= "s3c24xx-pwm",
 		.owner	= THIS_MODULE,
+		.pm	= S3C_PWM_PM_OPS,
 	},
 	.probe		= s3c_pwm_probe,
 	.remove		= __devexit_p(s3c_pwm_remove),

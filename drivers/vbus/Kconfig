@@ -5,6 +5,7 @@
 config VBUS_PROXY
        tristate "Virtual-Bus support"
        select SHM_SIGNAL
+       select IOQ
        default n
        help
        Adds support for a virtual-bus model drivers in a guest to connect

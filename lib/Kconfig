@@ -214,7 +214,7 @@ config SHM_SIGNAL
 	tristate "SHM Signal - Generic shared-memory signaling mechanism"
 	default n
 	help
-	 Provides a shared-memory based signaling mechansim to indicate
+	 Provides a shared-memory based signaling mechanism to indicate
          memory-dirty notifications between two end-points.
 
 	 If unsure, say N

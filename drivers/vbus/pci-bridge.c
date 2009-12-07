@@ -234,6 +234,7 @@ vbus_pci_device_close(struct vbus_device_proxy *vdev, int flags)
 
 		list_del(&_signal->list);
 		free_irq(_signal->irq, _signal);
+		destroy_irq(_signal->irq);
 
 		spin_unlock_irqrestore(&vbus_pci.lock, iflags);
 		shm_signal_put(&_signal->signal);

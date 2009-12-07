@@ -39,6 +39,7 @@ struct venet_capabilities {
 
 #define VENET_CAP_GROUP_SG     0
 #define VENET_CAP_GROUP_EVENTQ 1
+#define VENET_CAP_GROUP_L4RO    2 /* layer-4 reassem offloading */
 
 /* CAPABILITIES-GROUP SG */
 #define VENET_CAP_SG     (1 << 0)
@@ -109,6 +110,14 @@ struct venet_event_txc {
 	__u64                     cookie;
 };
 
+struct venet_l4ro_query {
+	__u32 flags;
+	__u32 dpid;    /* descriptor pool-id */
+	__u32 pqid;    /* page queue-id */
+	__u8  pad[20];
+};
+
+
 #define VSG_DESC_SIZE(count) (sizeof(struct venet_sg) + \
 			      sizeof(struct venet_iov) * ((count) - 1))
 
@@ -119,5 +128,6 @@ struct venet_event_txc {
 #define VENET_FUNC_FLUSHRX   4
 #define VENET_FUNC_PMTDQUERY 5
 #define VENET_FUNC_EVQQUERY  6
+#define VENET_FUNC_L4ROQUERY  7
 
 #endif /* _LINUX_VENET_H */

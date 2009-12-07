@@ -512,7 +512,7 @@ vbus_enet_tx_start(struct sk_buff *skb, struct net_device *dev)
 
 			vsg->flags |= VENET_SG_FLAG_GSO;
 
-			vsg->gso.hdrlen = skb_transport_header(skb) - skb->data;
+			vsg->gso.hdrlen = skb_headlen(skb);
 			vsg->gso.size = sinfo->gso_size;
 			if (sinfo->gso_type & SKB_GSO_TCPV4)
 				vsg->gso.type = VENET_GSO_TYPE_TCPV4;

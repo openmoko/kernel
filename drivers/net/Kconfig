@@ -3319,4 +3319,18 @@ config VMXNET3
          To compile this driver as a module, choose M here: the
          module will be called vmxnet3.
 
+config VBUS_ENET
+	tristate "VBUS Ethernet Driver"
+	default n
+	select VBUS_PROXY
+	help
+	   A virtualized 802.x network device based on the VBUS
+	   "virtual-ethernet" interface.  It can be used with any
+	   hypervisor/kernel that supports the vbus+venet protocol.
+
+config VBUS_ENET_DEBUG
+        bool "Enable Debugging"
+	depends on VBUS_ENET
+	default n
+
 endif # NETDEVICES

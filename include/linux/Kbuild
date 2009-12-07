@@ -368,6 +368,7 @@ unifdef-y += usbdevice_fs.h
 unifdef-y += utsname.h
 unifdef-y += vhost.h
 unifdef-y += vbus_pci.h
+unifdef-y += venet.h
 unifdef-y += videodev2.h
 unifdef-y += videodev.h
 unifdef-y += virtio_config.h

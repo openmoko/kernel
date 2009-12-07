@@ -478,7 +478,7 @@ event_shmclose(struct vbus_pci_handle_event *event)
 
 static struct ioq_notifier eventq_notifier;
 
-static int __init
+static int __devinit
 eventq_init(int qlen)
 {
 	struct ioq_iterator iter;
@@ -687,7 +687,7 @@ vbus_pci_release(void)
 	vbus_pci.enabled = false;
 }
 
-static int __init
+static int __devinit
 vbus_pci_open(void)
 {
 	struct vbus_pci_bridge_negotiate params = {
@@ -702,7 +702,7 @@ vbus_pci_open(void)
 
 #define QLEN 1024
 
-static int __init
+static int __devinit
 vbus_pci_eventq_register(void)
 {
 	struct vbus_pci_busreg params = {
@@ -720,7 +720,7 @@ vbus_pci_eventq_register(void)
 				   &params, sizeof(params));
 }
 
-static int __init
+static int __devinit
 _ioq_init(size_t ringsize, struct ioq *ioq, struct ioq_ops *ops)
 {
 	struct shm_signal    *signal = NULL;

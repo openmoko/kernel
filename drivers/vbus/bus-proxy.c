@@ -167,8 +167,8 @@ static struct ioq_ops vbus_driver_ioq_ops = {
 };
 
 
-int vbus_driver_ioq_alloc(struct vbus_device_proxy *dev, int id, int prio,
-			  size_t count, struct ioq **ioq)
+int vbus_driver_ioq_alloc(struct vbus_device_proxy *dev, const char *name,
+			  int id, int prio, size_t count, struct ioq **ioq)
 {
 	struct ioq           *_ioq;
 	struct ioq_ring_head *head = NULL;
@@ -188,7 +188,7 @@ int vbus_driver_ioq_alloc(struct vbus_device_proxy *dev, int id, int prio,
 	head->ver	= IOQ_RING_VER;
 	head->count     = count;
 
-	ret = dev->ops->shm(dev, id, prio, head, len,
+	ret = dev->ops->shm(dev, name, id, prio, head, len,
 			    &head->signal, &signal, 0);
 	if (ret < 0)
 		goto error;

@@ -34,7 +34,8 @@ struct vbus_driver;
 struct vbus_device_proxy_ops {
 	int (*open)(struct vbus_device_proxy *dev, int version, int flags);
 	int (*close)(struct vbus_device_proxy *dev, int flags);
-	int (*shm)(struct vbus_device_proxy *dev, int id, int prio,
+	int (*shm)(struct vbus_device_proxy *dev, const char *name,
+		   int id, int prio,
 		   void *ptr, size_t len,
 		   struct shm_signal_desc *sigdesc, struct shm_signal **signal,
 		   int flags);
@@ -74,7 +75,7 @@ void vbus_driver_unregister(struct vbus_driver *drv);
 /*
  * driver-side IOQ helper - allocates device-shm and maps an IOQ on it
  */
-int vbus_driver_ioq_alloc(struct vbus_device_proxy *dev, int id, int prio,
-			  size_t ringsize, struct ioq **ioq);
+int vbus_driver_ioq_alloc(struct vbus_device_proxy *dev, const char *name,
+			  int id, int prio, size_t ringsize, struct ioq **ioq);
 
 #endif /* _LINUX_VBUS_DRIVER_H */

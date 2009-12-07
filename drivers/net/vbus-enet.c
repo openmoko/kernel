@@ -101,14 +101,20 @@ napi_to_priv(struct napi_struct *napi)
 static int
 queue_init(struct vbus_enet_priv *priv,
 	   struct vbus_enet_queue *q,
+	   const char *name,
 	   int qid,
 	   size_t ringsize,
 	   void (*func)(struct ioq_notifier *))
 {
 	struct vbus_device_proxy *dev = priv->vdev;
 	int ret;
+	char _name[64];
 
-	ret = vbus_driver_ioq_alloc(dev, qid, 0, ringsize, &q->queue);
+	if (name)
+		snprintf(_name, sizeof(_name), "%s-%s", priv->dev->name, name);
+
+	ret = vbus_driver_ioq_alloc(dev, name ? _name : NULL, qid, 0,
+				    ringsize, &q->queue);
 	if (ret < 0)
 		panic("ioq_alloc failed: %d\n", ret);
 
@@ -396,7 +402,8 @@ tx_setup(struct vbus_enet_priv *priv)
 
 		priv->pmtd.pool = pool;
 
-		ret = dev->ops->shm(dev, shmid, 0, pool, poollen, 0, NULL, 0);
+		ret = dev->ops->shm(dev, NULL, shmid, 0, pool, poollen,
+				    0, NULL, 0);
 		BUG_ON(ret < 0);
 	}
 
@@ -1227,12 +1234,13 @@ vbus_enet_evq_negcap(struct vbus_enet_priv *priv, unsigned long count)
 
 		priv->evq.pool = pool;
 
-		ret = dev->ops->shm(dev, query.dpid, 0,
+		ret = dev->ops->shm(dev, NULL, query.dpid, 0,
 				    pool, poollen, 0, NULL, 0);
 		if (ret < 0)
 			return ret;
 
-		queue_init(priv, &priv->evq.veq, query.qid, count, evq_isr);
+		queue_init(priv, &priv->evq.veq, "evq",
+			   query.qid, count, evq_isr);
 
 		ret = ioq_iter_init(priv->evq.veq.queue,
 				    &iter, ioq_idxtype_valid, 0);
@@ -1302,7 +1310,7 @@ vbus_enet_l4ro_negcap(struct vbus_enet_priv *priv, unsigned long count)
 		/*
 		 * pre-mapped descriptor pool
 		 */
-		ret = dev->ops->shm(dev, query.dpid, 0,
+		ret = dev->ops->shm(dev, NULL, query.dpid, 0,
 				    pool, poollen, 0, NULL, 0);
 		if (ret < 0) {
 			printk(KERN_ERR "Error registering L4RO pool: %d\n",
@@ -1317,7 +1325,8 @@ vbus_enet_l4ro_negcap(struct vbus_enet_priv *priv, unsigned long count)
 		 * one MTU frame.  All we need to do is keep it populated
 		 * with free pages.
 		 */
-		queue_init(priv, &priv->l4ro.pageq, query.pqid, count, NULL);
+		queue_init(priv, &priv->l4ro.pageq, "pageq", query.pqid,
+			   count, NULL);
 
 		priv->l4ro.pool      = pool;
 		priv->l4ro.available = true;
@@ -1395,6 +1404,16 @@ vbus_enet_probe(struct vbus_device_proxy *vdev)
 	if (!dev)
 		return -ENOMEM;
 
+	/*
+	 * establish our device-name early so we can incorporate it into
+	 * the signal-path names, etc
+	 */
+	rtnl_lock();
+
+	ret = dev_alloc_name(dev, dev->name);
+	if (ret < 0)
+		goto out_free;
+
 	priv = netdev_priv(dev);
 
 	spin_lock_init(&priv->lock);
@@ -1416,8 +1435,10 @@ vbus_enet_probe(struct vbus_device_proxy *vdev)
 
 	skb_queue_head_init(&priv->tx.outstanding);
 
-	queue_init(priv, &priv->rxq, VENET_QUEUE_RX, rx_ringlen, rx_isr);
-	queue_init(priv, &priv->tx.veq, VENET_QUEUE_TX, tx_ringlen, tx_isr);
+	queue_init(priv, &priv->rxq, "rx", VENET_QUEUE_RX, rx_ringlen,
+		   rx_isr);
+	queue_init(priv, &priv->tx.veq, "tx", VENET_QUEUE_TX, tx_ringlen,
+		   tx_isr);
 
 	rx_setup(priv);
 	tx_setup(priv);
@@ -1453,18 +1474,22 @@ vbus_enet_probe(struct vbus_device_proxy *vdev)
 
 	dev->features |= NETIF_F_HIGHDMA;
 
-	ret = register_netdev(dev);
+	ret = register_netdevice(dev);
 	if (ret < 0) {
 		printk(KERN_INFO "VENET: error %i registering device \"%s\"\n",
 		       ret, dev->name);
 		goto out_free;
 	}
 
+	rtnl_unlock();
+
 	vdev->priv = priv;
 
 	return 0;
 
  out_free:
+	rtnl_unlock();
+
 	free_netdev(dev);
 
 	return ret;

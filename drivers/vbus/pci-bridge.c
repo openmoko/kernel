@@ -262,7 +262,8 @@ vbus_pci_device_close(struct vbus_device_proxy *vdev, int flags)
 }
 
 static int
-vbus_pci_device_shm(struct vbus_device_proxy *vdev, int id, int prio,
+vbus_pci_device_shm(struct vbus_device_proxy *vdev, const char *name,
+		    int id, int prio,
 		    void *ptr, size_t len,
 		    struct shm_signal_desc *sdesc, struct shm_signal **signal,
 		    int flags)

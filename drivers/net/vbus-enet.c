@@ -1556,3 +1556,5 @@ vbus_enet_cleanup(void)
 
 module_init(vbus_enet_init_module);
 module_exit(vbus_enet_cleanup);
+
+VBUS_DRIVER_AUTOPROBE(VENET_TYPE);

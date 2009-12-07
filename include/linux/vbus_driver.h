@@ -78,4 +78,6 @@ void vbus_driver_unregister(struct vbus_driver *drv);
 int vbus_driver_ioq_alloc(struct vbus_device_proxy *dev, const char *name,
 			  int id, int prio, size_t ringsize, struct ioq **ioq);
 
+#define VBUS_DRIVER_AUTOPROBE(name) MODULE_ALIAS("vbus-proxy:" name)
+
 #endif /* _LINUX_VBUS_DRIVER_H */

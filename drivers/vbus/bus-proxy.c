@@ -48,6 +48,16 @@ static int vbus_dev_proxy_match(struct device *_dev, struct device_driver *_drv)
 	return !strcmp(dev->type, drv->type);
 }
 
+static int vbus_dev_proxy_uevent(struct device *_dev, struct kobj_uevent_env *env)
+{
+	struct vbus_device_proxy *dev = to_dev(_dev);
+
+	if (add_uevent_var(env, "MODALIAS=vbus-proxy:%s", dev->type))
+		return -ENOMEM;
+
+	return 0;
+}
+
 /*
  * This function is invoked after the bus infrastructure has already made a
  * match.  The device will contain a reference to the paired driver which
@@ -68,6 +78,7 @@ static int vbus_dev_proxy_probe(struct device *_dev)
 static struct bus_type vbus_proxy = {
 	.name   = VBUS_PROXY_NAME,
 	.match  = vbus_dev_proxy_match,
+	.uevent = vbus_dev_proxy_uevent,
 };
 
 static struct device vbus_proxy_rootdev = {
@@ -99,18 +110,38 @@ static void device_release(struct device *dev)
 	_dev->ops->release(_dev);
 }
 
+static ssize_t _show_modalias(struct device *dev,
+			      struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "vbus-proxy:%s\n", to_dev(dev)->type);
+}
+static DEVICE_ATTR(modalias, S_IRUSR | S_IRGRP | S_IROTH, _show_modalias, NULL);
+
 int vbus_device_proxy_register(struct vbus_device_proxy *new)
 {
+	int ret;
+
 	new->dev.parent  = &vbus_proxy_rootdev;
 	new->dev.bus     = &vbus_proxy;
 	new->dev.release = &device_release;
 
-	return device_register(&new->dev);
+	ret = device_register(&new->dev);
+	if (ret < 0)
+		return ret;
+
+	ret = device_create_file(&new->dev, &dev_attr_modalias);
+	if (ret < 0) {
+		device_unregister(&new->dev);
+		return ret;
+	}
+
+	return 0;
 }
 EXPORT_SYMBOL_GPL(vbus_device_proxy_register);
 
 void vbus_device_proxy_unregister(struct vbus_device_proxy *dev)
 {
+	device_remove_file(&dev->dev, &dev_attr_modalias);
 	device_unregister(&dev->dev);
 }
 EXPORT_SYMBOL_GPL(vbus_device_proxy_unregister);

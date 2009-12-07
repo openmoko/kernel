@@ -582,6 +582,8 @@ vbus_enet_tx_start(struct sk_buff *skb, struct net_device *dev)
 			iov->ptr = (u64)sg_phys(sg);
 		}
 
+		iter.desc->len = (u64)VSG_DESC_SIZE(vsg->count);
+
 	} else {
 		/*
 		 * non scatter-gather mode: simply put the skb right onto the

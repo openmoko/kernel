@@ -76,6 +76,9 @@ struct venet_sg {
 	struct venet_iov iov[1];
 };
 
+#define VSG_DESC_SIZE(count) (sizeof(struct venet_sg) + \
+			      sizeof(struct venet_iov) * ((count) - 1))
+
 #define VENET_FUNC_LINKUP    0
 #define VENET_FUNC_LINKDOWN  1
 #define VENET_FUNC_MACQUERY  2

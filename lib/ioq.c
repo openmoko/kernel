@@ -25,6 +25,10 @@
 #include <linux/bitops.h>
 #include <linux/module.h>
 
+MODULE_AUTHOR("Gregory Haskins");
+MODULE_LICENSE("GPL");
+MODULE_VERSION("1");
+
 #ifndef NULL
 #define NULL 0
 #endif

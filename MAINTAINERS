@@ -5980,6 +5980,12 @@ S:	Maintained
 F:	Documentation/fb/uvesafb.txt
 F:	drivers/video/uvesafb.*
 
+VBUS
+M:	Gregory Haskins <ghaskins@novell.com>
+S:	Maintained
+F:	include/linux/vbus*
+F:	drivers/vbus/*
+
 VFAT/FAT/MSDOS FILESYSTEM
 M:	OGAWA Hirofumi <hirofumi@mail.parknet.co.jp>
 S:	Maintained

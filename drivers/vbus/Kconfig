@@ -1,0 +1,14 @@
+#
+# Virtual-Bus (VBus) driver configuration
+#
+
+config VBUS_PROXY
+       tristate "Virtual-Bus support"
+       select SHM_SIGNAL
+       default n
+       help
+       Adds support for a virtual-bus model drivers in a guest to connect
+	to host side virtual-bus resources.  If you are using this kernel
+	in a virtualization solution which implements virtual-bus devices
+	on the backend, say Y.  If unsure, say N.
+

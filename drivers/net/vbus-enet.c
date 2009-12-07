@@ -61,6 +61,10 @@ struct vbus_enet_priv {
 	struct vbus_enet_queue     txq;
 	struct tasklet_struct      txtask;
 	bool                       sg;
+	struct {
+		bool               enabled;
+		char              *pool;
+	} pmtd; /* pre-mapped transmit descriptors */
 };
 
 static void vbus_enet_tx_reap(struct vbus_enet_priv *priv, int force);
@@ -201,7 +205,9 @@ rx_teardown(struct vbus_enet_priv *priv)
 static int
 tx_setup(struct vbus_enet_priv *priv)
 {
-	struct ioq *ioq = priv->txq.queue;
+	struct ioq *ioq    = priv->txq.queue;
+	size_t      iovlen = sizeof(struct venet_iov) * (MAX_SKB_FRAGS-1);
+	size_t      len    = sizeof(struct venet_sg) + iovlen;
 	struct ioq_iterator iter;
 	int i;
 	int ret;
@@ -212,6 +218,29 @@ tx_setup(struct vbus_enet_priv *priv)
 		 * scatter-gather
 		 */
 		return 0;
+
+	/* pre-allocate our descriptor pool if pmtd is enabled */
+	if (priv->pmtd.enabled) {
+		struct vbus_device_proxy *dev = priv->vdev;
+		size_t poollen = len * tx_ringlen;
+		char *pool;
+		int shmid;
+
+		/* pmtdquery will return the shm-id to use for the pool */
+		ret = devcall(priv, VENET_FUNC_PMTDQUERY, NULL, 0);
+		BUG_ON(ret < 0);
+
+		shmid = ret;
+
+		pool = kzalloc(poollen, GFP_KERNEL | GFP_DMA);
+		if (!pool)
+			return -ENOMEM;
+
+		priv->pmtd.pool = pool;
+
+		ret = dev->ops->shm(dev, shmid, 0, pool, poollen, 0, NULL, 0);
+		BUG_ON(ret < 0);
+	}
 
 	ret = ioq_iter_init(ioq, &iter, ioq_idxtype_valid, 0);
 	BUG_ON(ret < 0);
@@ -224,16 +253,22 @@ tx_setup(struct vbus_enet_priv *priv)
 	 */
 	for (i = 0; i < tx_ringlen; i++) {
 		struct venet_sg *vsg;
-		size_t iovlen = sizeof(struct venet_iov) * (MAX_SKB_FRAGS-1);
-		size_t len = sizeof(*vsg) + iovlen;
 
-		vsg = kzalloc(len, GFP_KERNEL);
-		if (!vsg)
-			return -ENOMEM;
+		if (priv->pmtd.enabled) {
+			size_t offset = (i * len);
+
+			vsg = (struct venet_sg *)&priv->pmtd.pool[offset];
+			iter.desc->ptr = (u64)offset;
+		} else {
+			vsg = kzalloc(len, GFP_KERNEL);
+			if (!vsg)
+				return -ENOMEM;
+
+			iter.desc->ptr = (u64)__pa(vsg);
+		}
 
 		iter.desc->cookie = (u64)vsg;
 		iter.desc->len    = len;
-		iter.desc->ptr    = (u64)__pa(vsg);
 
 		ret = ioq_iter_seek(&iter, ioq_seek_next, 0, 0);
 		BUG_ON(ret < 0);
@@ -258,6 +293,14 @@ tx_teardown(struct vbus_enet_priv *priv)
 		 * scatter-gather
 		 */
 		return;
+
+	if (priv->pmtd.enabled) {
+		/*
+		 * PMTD mode means we only need to free the pool
+		 */
+		kfree(priv->pmtd.pool);
+		return;
+	}
 
 	ret = ioq_iter_init(ioq, &iter, ioq_idxtype_valid, 0);
 	BUG_ON(ret < 0);
@@ -705,7 +748,7 @@ vbus_enet_negcap(struct vbus_enet_priv *priv)
 	if (sg_enabled) {
 		caps.gid = VENET_CAP_GROUP_SG;
 		caps.bits |= (VENET_CAP_SG|VENET_CAP_TSO4|VENET_CAP_TSO6
-			      |VENET_CAP_ECN);
+			      |VENET_CAP_ECN|VENET_CAP_PMTD);
 		/* note: exclude UFO for now due to stack bug */
 	}
 
@@ -726,6 +769,9 @@ vbus_enet_negcap(struct vbus_enet_priv *priv)
 			dev->features |= NETIF_F_TSO6;
 		if (caps.bits & VENET_CAP_ECN)
 			dev->features |= NETIF_F_TSO_ECN;
+
+		if (caps.bits & VENET_CAP_PMTD)
+			priv->pmtd.enabled = true;
 	}
 
 	return 0;

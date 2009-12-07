@@ -45,6 +45,7 @@ struct venet_capabilities {
 #define VENET_CAP_TSO6   (1 << 2)
 #define VENET_CAP_ECN    (1 << 3)
 #define VENET_CAP_UFO    (1 << 4)
+#define VENET_CAP_PMTD   (1 << 5) /* pre-mapped tx desc */
 
 struct venet_iov {
 	__u32 len;
@@ -75,10 +76,11 @@ struct venet_sg {
 	struct venet_iov iov[1];
 };
 
-#define VENET_FUNC_LINKUP   0
-#define VENET_FUNC_LINKDOWN 1
-#define VENET_FUNC_MACQUERY 2
-#define VENET_FUNC_NEGCAP   3 /* negotiate capabilities */
-#define VENET_FUNC_FLUSHRX  4
+#define VENET_FUNC_LINKUP    0
+#define VENET_FUNC_LINKDOWN  1
+#define VENET_FUNC_MACQUERY  2
+#define VENET_FUNC_NEGCAP    3 /* negotiate capabilities */
+#define VENET_FUNC_FLUSHRX   4
+#define VENET_FUNC_PMTDQUERY 5
 
 #endif /* _LINUX_VENET_H */

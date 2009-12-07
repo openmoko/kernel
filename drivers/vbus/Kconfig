@@ -12,3 +12,13 @@ config VBUS_PROXY
 	in a virtualization solution which implements virtual-bus devices
 	on the backend, say Y.  If unsure, say N.
 
+config VBUS_PCIBRIDGE
+       tristate "PCI to Virtual-Bus bridge"
+       depends on PCI
+       depends on VBUS_PROXY
+       select IOQ
+       default n
+       help
+        Provides a way to bridge host side vbus devices via a PCI-BRIDGE
+        object.  If you are running virtualization with vbus devices on the
+	host, and the vbus is exposed via PCI, say Y.  Otherwise, say N.

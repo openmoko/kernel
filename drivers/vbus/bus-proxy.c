@@ -150,3 +150,67 @@ void vbus_driver_unregister(struct vbus_driver *drv)
 }
 EXPORT_SYMBOL_GPL(vbus_driver_unregister);
 
+/*
+ *---------------------------------
+ * driver-side IOQ helper
+ *---------------------------------
+ */
+static void
+vbus_driver_ioq_release(struct ioq *ioq)
+{
+	kfree(ioq->head_desc);
+	kfree(ioq);
+}
+
+static struct ioq_ops vbus_driver_ioq_ops = {
+	.release = vbus_driver_ioq_release,
+};
+
+
+int vbus_driver_ioq_alloc(struct vbus_device_proxy *dev, int id, int prio,
+			  size_t count, struct ioq **ioq)
+{
+	struct ioq           *_ioq;
+	struct ioq_ring_head *head = NULL;
+	struct shm_signal    *signal = NULL;
+	size_t                len = IOQ_HEAD_DESC_SIZE(count);
+	int                   ret = -ENOMEM;
+
+	_ioq = kzalloc(sizeof(*_ioq), GFP_KERNEL);
+	if (!_ioq)
+		goto error;
+
+	head = kzalloc(len, GFP_KERNEL | GFP_DMA);
+	if (!head)
+		goto error;
+
+	head->magic     = IOQ_RING_MAGIC;
+	head->ver	= IOQ_RING_VER;
+	head->count     = count;
+
+	ret = dev->ops->shm(dev, id, prio, head, len,
+			    &head->signal, &signal, 0);
+	if (ret < 0)
+		goto error;
+
+	ioq_init(_ioq,
+		 &vbus_driver_ioq_ops,
+		 ioq_locality_north,
+		 head,
+		 signal,
+		 count);
+
+	*ioq = _ioq;
+
+	return 0;
+
+ error:
+	kfree(_ioq);
+	kfree(head);
+
+	if (signal)
+		shm_signal_put(signal);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(vbus_driver_ioq_alloc);

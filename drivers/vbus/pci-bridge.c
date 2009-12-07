@@ -862,6 +862,8 @@ vbus_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (ret < 0)
 		return ret;
 
+	pci_set_master(pdev);
+
 	ret = pci_request_regions(pdev, VBUS_PCI_NAME);
 	if (ret < 0) {
 		printk(KERN_ERR "VBUS_PCI: Could not init BARs: %d\n", ret);

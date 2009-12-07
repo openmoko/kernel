@@ -37,7 +37,8 @@ struct venet_capabilities {
 	__u32 bits;
 };
 
-#define VENET_CAP_GROUP_SG 0
+#define VENET_CAP_GROUP_SG     0
+#define VENET_CAP_GROUP_EVENTQ 1
 
 /* CAPABILITIES-GROUP SG */
 #define VENET_CAP_SG     (1 << 0)
@@ -46,6 +47,9 @@ struct venet_capabilities {
 #define VENET_CAP_ECN    (1 << 3)
 #define VENET_CAP_UFO    (1 << 4)
 #define VENET_CAP_PMTD   (1 << 5) /* pre-mapped tx desc */
+
+/* CAPABILITIES-GROUP EVENTQ */
+#define VENET_CAP_EVQ_LINKSTATE  (1 << 0)
 
 struct venet_iov {
 	__u32 len;
@@ -76,6 +80,27 @@ struct venet_sg {
 	struct venet_iov iov[1];
 };
 
+struct venet_eventq_query {
+	__u32 flags;
+	__u32 evsize;  /* size of each event */
+	__u32 dpid;    /* descriptor pool-id */
+	__u32 qid;
+	__u8  pad[16];
+};
+
+#define VENET_EVENT_LINKSTATE 0
+
+struct venet_event_header {
+	__u32 flags;
+	__u32 size;
+	__u32 id;
+};
+
+struct venet_event_linkstate {
+	struct venet_event_header header;
+	__u8                      state; /* 0 = down, 1 = up */
+};
+
 #define VSG_DESC_SIZE(count) (sizeof(struct venet_sg) + \
 			      sizeof(struct venet_iov) * ((count) - 1))
 
@@ -85,5 +110,6 @@ struct venet_sg {
 #define VENET_FUNC_NEGCAP    3 /* negotiate capabilities */
 #define VENET_FUNC_FLUSHRX   4
 #define VENET_FUNC_PMTDQUERY 5
+#define VENET_FUNC_EVQQUERY  6
 
 #endif /* _LINUX_VENET_H */

@@ -339,6 +339,7 @@ unifdef-y += serial_core.h
 unifdef-y += serial.h
 unifdef-y += serio.h
 unifdef-y += shm.h
+unifdef-y += shm_signal.h
 unifdef-y += signal.h
 unifdef-y += smb_fs.h
 unifdef-y += smb.h

@@ -5037,6 +5037,12 @@ F:	drivers/serial/serial_lh7a40x.c
 F:	drivers/usb/gadget/lh7a40*
 F:	drivers/usb/host/ohci-lh7a40*
 
+SHM-SIGNAL LIBRARY
+M:	Gregory Haskins <ghaskins@novell.com>
+S:	Maintained
+F:	include/linux/shm_signal.h
+F:	lib/shm_signal.c
+
 SIMPLE FIRMWARE INTERFACE (SFI)
 M:	Len Brown <lenb@kernel.org>
 L:	sfi-devel@simplefirmware.org

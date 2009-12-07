@@ -182,11 +182,11 @@ rxdesc_alloc(struct vbus_enet_priv *priv, struct ioq_ring_desc *desc, size_t len
 }
 
 static void
-rx_pageq_refill(struct vbus_enet_priv *priv)
+rx_pageq_refill(struct vbus_enet_priv *priv, gfp_t gfp_mask)
 {
 	struct ioq *ioq = priv->l4ro.pageq.queue;
 	struct ioq_iterator iter;
-	int ret;
+	int ret, added = 0;
 
 	if (ioq_full(ioq, ioq_idxtype_inuse))
 		/* nothing to do if the pageq is already fully populated */
@@ -202,11 +202,14 @@ rx_pageq_refill(struct vbus_enet_priv *priv)
 	 * Now populate each descriptor with an empty page
 	 */
 	while (!iter.desc->sown) {
-		struct page *page;
+		struct page *page = NULL;
 
-		page = alloc_page(GFP_KERNEL);
-		BUG_ON(!page);
+		page = alloc_page(gfp_mask);
 
+		if (!page)
+			break;
+
+		added = 1;
 		iter.desc->cookie = (u64)page;
 		iter.desc->ptr    = (u64)__pa(page_address(page));
 		iter.desc->len    = PAGE_SIZE;
@@ -215,7 +218,8 @@ rx_pageq_refill(struct vbus_enet_priv *priv)
 		BUG_ON(ret < 0);
 	}
 
-	ioq_signal(ioq, 0);
+	if (added)
+		ioq_signal(ioq, 0);
 }
 
 static void
@@ -271,7 +275,7 @@ rx_setup(struct vbus_enet_priv *priv)
 	}
 
 	if (priv->l4ro.available)
-		rx_pageq_refill(priv);
+		rx_pageq_refill(priv, GFP_KERNEL);
 }
 
 static void
@@ -602,7 +606,7 @@ vbus_enet_l4ro_import(struct vbus_enet_priv *priv, struct ioq_ring_desc *desc)
 	struct skb_shared_info *sinfo = skb_shinfo(skb);
 	int i;
 
-	rx_pageq_refill(priv);
+	rx_pageq_refill(priv, GFP_ATOMIC);
 
 	if (!vsg->len)
 		/*

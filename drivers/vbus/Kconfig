@@ -3,7 +3,7 @@
 #
 
 config VBUS_PROXY
-       tristate "Virtual-Bus support"
+       bool "Virtual-Bus support"
        select SHM_SIGNAL
        select IOQ
        default n
@@ -14,7 +14,7 @@ config VBUS_PROXY
 	on the backend, say Y.  If unsure, say N.
 
 config VBUS_PCIBRIDGE
-       tristate "PCI to Virtual-Bus bridge"
+       bool "PCI to Virtual-Bus bridge"
        depends on PCI
        depends on VBUS_PROXY
        select IOQ

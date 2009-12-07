@@ -91,7 +91,6 @@ struct ioq_ring_head {
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include <linux/interrupt.h>
-#include <linux/shm_signal.h>
 #include <linux/kref.h>
 
 enum ioq_idx_type {

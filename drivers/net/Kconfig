@@ -3322,7 +3322,7 @@ config VMXNET3
 config VBUS_ENET
 	tristate "VBUS Ethernet Driver"
 	default n
-	select VBUS_PROXY
+	depends on VBUS_PROXY
 	help
 	   A virtualized 802.x network device based on the VBUS
 	   "virtual-ethernet" interface.  It can be used with any

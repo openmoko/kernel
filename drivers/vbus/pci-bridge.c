@@ -63,7 +63,6 @@ struct vbus_pci_device {
 	u64                      handle;
 	struct list_head         shms;
 	struct vbus_device_proxy vdev;
-	struct work_struct       add;
 	struct work_struct       drop;
 };
 
@@ -442,18 +441,45 @@ struct vbus_device_proxy_ops vbus_pci_device_ops = {
  * -------------------
  */
 
+struct deferred_devadd_event {
+	struct work_struct        work;
+	struct vbus_pci_add_event event;
+};
+
+static void deferred_devdrop(struct work_struct *work);
+
 static void
 deferred_devadd(struct work_struct *work)
 {
+	struct deferred_devadd_event *_event;
 	struct vbus_pci_device *new;
 	int ret;
 
-	new = container_of(work, struct vbus_pci_device, add);
+	_event = container_of(work, struct deferred_devadd_event, work);
+
+	new = kzalloc(sizeof(*new), GFP_KERNEL);
+	if (!new) {
+		printk(KERN_ERR "VBUS_PCI: Out of memory on add_event\n");
+		return;
+	}
+
+	INIT_LIST_HEAD(&new->shms);
+
+	memcpy(new->type, _event->event.type, VBUS_MAX_DEVTYPE_LEN);
+	new->vdev.type        = new->type;
+	new->vdev.id          = _event->event.id;
+	new->vdev.ops         = &vbus_pci_device_ops;
+
+	dev_set_name(&new->vdev.dev, "%lld", _event->event.id);
+
+	INIT_WORK(&new->drop, deferred_devdrop);
 
 	ret = vbus_device_proxy_register(&new->vdev);
 	if (ret < 0)
 		panic("failed to register device %lld(%s): %d\n",
 		      new->vdev.id, new->type, ret);
+
+	kfree(_event);
 }
 
 static void
@@ -468,25 +494,19 @@ deferred_devdrop(struct work_struct *work)
 static void
 event_devadd(struct vbus_pci_add_event *event)
 {
-	struct vbus_pci_device *new = kzalloc(sizeof(*new), GFP_KERNEL);
-	if (!new) {
-		printk(KERN_ERR "VBUS_PCI: Out of memory on add_event\n");
+	struct deferred_devadd_event *_event;
+
+	_event = kzalloc(sizeof(*_event), GFP_ATOMIC);
+	if (!_event) {
+		printk(KERN_ERR \
+		       "VBUS_PCI: Out of ATOMIC memory on add_event\n");
 		return;
 	}
 
-	INIT_LIST_HEAD(&new->shms);
+	INIT_WORK(&_event->work, deferred_devadd);
+	memcpy(&_event->event, event, sizeof(*event));
 
-	memcpy(new->type, event->type, VBUS_MAX_DEVTYPE_LEN);
-	new->vdev.type        = new->type;
-	new->vdev.id          = event->id;
-	new->vdev.ops         = &vbus_pci_device_ops;
-
-	dev_set_name(&new->vdev.dev, "%lld", event->id);
-
-	INIT_WORK(&new->add, deferred_devadd);
-	INIT_WORK(&new->drop, deferred_devdrop);
-
-	schedule_work(&new->add);
+	schedule_work(&_event->work);
 }
 
 static void

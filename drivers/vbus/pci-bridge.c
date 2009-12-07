@@ -325,9 +325,10 @@ vbus_pci_device_shm(struct vbus_device_proxy *vdev, const char *name,
 		 */
 		shm_signal_get(&_signal->signal);
 
-		params.signal.offset = (u64)sdesc - (u64)ptr;
+		params.signal.offset = (u64)(unsigned long)sdesc -
+					(u64)(unsigned long)ptr;
 		params.signal.prio   = prio;
-		params.signal.cookie = (u64)_signal;
+		params.signal.cookie = (u64)(unsigned long)_signal;
 
 	} else
 		params.signal.offset = -1; /* yes, this is a u32, but its ok */
@@ -526,7 +527,7 @@ event_devdrop(struct vbus_pci_handle_event *event)
 static void
 event_shmsignal(struct vbus_pci_handle_event *event)
 {
-	struct _signal *_signal = (struct _signal *)event->handle;
+	struct _signal *_signal = (struct _signal *)(unsigned long)event->handle;
 	struct irq_desc *desc = _signal->desc;
 
 	vbus_pci.stats.notify++;
@@ -536,7 +537,7 @@ event_shmsignal(struct vbus_pci_handle_event *event)
 static void
 event_shmclose(struct vbus_pci_handle_event *event)
 {
-	struct _signal *_signal = (struct _signal *)event->handle;
+	struct _signal *_signal = (struct _signal *)(unsigned long)event->handle;
 
 	/*
 	 * This reference was taken during the DEVICESHM call
@@ -593,7 +594,7 @@ eventq_init(int qlen)
 
 		BUG_ON(iter.desc->valid);
 
-		desc->cookie = (u64)event;
+		desc->cookie = (u64)(unsigned long)event;
 		desc->ptr    = (u64)__pa(event);
 		desc->len    = len; /* total length  */
 		desc->valid  = 1;
@@ -643,7 +644,7 @@ eventq_wakeup(struct ioq_notifier *notifier)
 		struct ioq_ring_desc *desc  = iter.desc;
 		struct vbus_pci_event *event;
 
-		event = (struct vbus_pci_event *)desc->cookie;
+		event = (struct vbus_pci_event *)(unsigned long)desc->cookie;
 
 		switch (event->eventid) {
 		case VBUS_PCI_EVENT_DEVADD:

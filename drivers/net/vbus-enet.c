@@ -72,6 +72,7 @@ struct vbus_enet_priv {
 	struct {
 		bool                   enabled;
 		bool                   linkstate;
+		bool                   txc;
 		unsigned long          evsize;
 		struct vbus_enet_queue veq;
 		struct tasklet_struct  task;
@@ -649,6 +650,17 @@ vbus_enet_tx_start(struct sk_buff *skb, struct net_device *dev)
 	return 0;
 }
 
+/* assumes priv->lock held */
+static void
+vbus_enet_skb_complete(struct vbus_enet_priv *priv, struct sk_buff *skb)
+{
+	PDEBUG(priv->dev, "completed sending %d bytes\n",
+	       skb->len);
+
+	__skb_unlink(skb, &priv->tx.outstanding);
+	dev_kfree_skb(skb);
+}
+
 /*
  * reclaim any outstanding completed tx packets
  *
@@ -677,25 +689,27 @@ vbus_enet_tx_reap(struct vbus_enet_priv *priv)
 	 * owned by the south-side
 	 */
 	while (iter.desc->valid && !iter.desc->sown) {
-		struct sk_buff *skb;
 
-		if (priv->sg) {
-			struct venet_sg *vsg;
+		if (!priv->evq.txc) {
+			struct sk_buff *skb;
 
-			vsg = (struct venet_sg *)iter.desc->cookie;
-			skb = (struct sk_buff *)vsg->cookie;
+			if (priv->sg) {
+				struct venet_sg *vsg;
 
-		} else {
-			skb = (struct sk_buff *)iter.desc->cookie;
+				vsg = (struct venet_sg *)iter.desc->cookie;
+				skb = (struct sk_buff *)vsg->cookie;
+			} else
+				skb = (struct sk_buff *)iter.desc->cookie;
+
+			/*
+			 * If TXC is not enabled, we are required to free
+			 * the buffer resources now
+			 */
+			vbus_enet_skb_complete(priv, skb);
 		}
-
-		PDEBUG(priv->dev, "completed sending %d bytes\n", skb->len);
 
 		/* Reset the descriptor */
 		iter.desc->valid  = 0;
-
-		__skb_unlink(skb, &priv->tx.outstanding);
-		dev_kfree_skb(skb);
 
 		/* Advance the valid-index head */
 		ret = ioq_iter_pop(&iter, 0);
@@ -787,6 +801,22 @@ evq_linkstate_event(struct vbus_enet_priv *priv,
 }
 
 static void
+evq_txc_event(struct vbus_enet_priv *priv,
+	      struct venet_event_header *header)
+{
+	struct venet_event_txc *event =
+		(struct venet_event_txc *)header;
+	unsigned long flags;
+
+	spin_lock_irqsave(&priv->lock, flags);
+
+	vbus_enet_tx_reap(priv);
+	vbus_enet_skb_complete(priv, (struct sk_buff *)event->cookie);
+
+	spin_unlock_irqrestore(&priv->lock, flags);
+}
+
+static void
 deferred_evq_isr(unsigned long data)
 {
 	struct vbus_enet_priv *priv = (struct vbus_enet_priv *)data;
@@ -816,6 +846,9 @@ deferred_evq_isr(unsigned long data)
 		switch (header->id) {
 		case VENET_EVENT_LINKSTATE:
 			evq_linkstate_event(priv, header);
+			break;
+		case VENET_EVENT_TXC:
+			evq_txc_event(priv, header);
 			break;
 		default:
 			panic("venet: unexpected event id:%d of size %d\n",
@@ -901,6 +934,7 @@ vbus_enet_evq_negcap(struct vbus_enet_priv *priv, unsigned long count)
 
 	caps.gid = VENET_CAP_GROUP_EVENTQ;
 	caps.bits |= VENET_CAP_EVQ_LINKSTATE;
+	caps.bits |= VENET_CAP_EVQ_TXC;
 
 	ret = devcall(priv, VENET_FUNC_NEGCAP, &caps, sizeof(caps));
 	if (ret < 0)
@@ -924,6 +958,9 @@ vbus_enet_evq_negcap(struct vbus_enet_priv *priv, unsigned long count)
 			netif_carrier_off(priv->dev);
 			priv->evq.linkstate = true;
 		}
+
+		if (caps.bits & VENET_CAP_EVQ_TXC)
+			priv->evq.txc = true;
 
 		memset(&query, 0, sizeof(query));
 
@@ -1051,7 +1088,6 @@ vbus_enet_probe(struct vbus_device_proxy *vdev)
 		goto out_free;
 	}
 
-	tasklet_init(&priv->tx.task, deferred_tx_isr, (unsigned long)priv);
 	skb_queue_head_init(&priv->tx.outstanding);
 
 	queue_init(priv, &priv->rxq, VENET_QUEUE_RX, rx_ringlen, rx_isr);
@@ -1060,8 +1096,19 @@ vbus_enet_probe(struct vbus_device_proxy *vdev)
 	rx_setup(priv);
 	tx_setup(priv);
 
-	ioq_notify_enable(priv->rxq.queue, 0);  /* enable interrupts */
-	ioq_notify_enable(priv->tx.veq.queue, 0);
+	ioq_notify_enable(priv->rxq.queue, 0);  /* enable rx interrupts */
+
+	if (!priv->evq.txc) {
+		/*
+		 * If the TXC feature is present, we will recieve our
+		 * tx-complete notification via the event-channel.  Therefore,
+		 * we only enable txq interrupts if the TXC feature is not
+		 * present.
+		 */
+		tasklet_init(&priv->tx.task, deferred_tx_isr,
+			     (unsigned long)priv);
+		ioq_notify_enable(priv->tx.veq.queue, 0);
+	}
 
 	dev->netdev_ops     = &vbus_enet_netdev_ops;
 	dev->watchdog_timeo = 5 * HZ;

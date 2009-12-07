@@ -50,6 +50,7 @@ struct venet_capabilities {
 
 /* CAPABILITIES-GROUP EVENTQ */
 #define VENET_CAP_EVQ_LINKSTATE  (1 << 0)
+#define VENET_CAP_EVQ_TXC        (1 << 1) /* tx-complete */
 
 struct venet_iov {
 	__u32 len;
@@ -89,6 +90,7 @@ struct venet_eventq_query {
 };
 
 #define VENET_EVENT_LINKSTATE 0
+#define VENET_EVENT_TXC       1
 
 struct venet_event_header {
 	__u32 flags;
@@ -99,6 +101,12 @@ struct venet_event_header {
 struct venet_event_linkstate {
 	struct venet_event_header header;
 	__u8                      state; /* 0 = down, 1 = up */
+};
+
+struct venet_event_txc {
+	struct venet_event_header header;
+	__u32                     txqid;
+	__u64                     cookie;
 };
 
 #define VSG_DESC_SIZE(count) (sizeof(struct venet_sg) + \

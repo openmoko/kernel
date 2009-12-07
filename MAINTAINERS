@@ -5986,6 +5986,13 @@ S:	Maintained
 F:	include/linux/vbus*
 F:	drivers/vbus/*
 
+VBUS ETHERNET DRIVER
+M:	Gregory Haskins <ghaskins@novell.com>
+S:	Maintained
+W:	http://developer.novell.com/wiki/index.php/AlacrityVM
+F:	include/linux/venet.h
+F:	drivers/net/vbus-enet.c
+
 VFAT/FAT/MSDOS FILESYSTEM
 M:	OGAWA Hirofumi <hirofumi@mail.parknet.co.jp>
 S:	Maintained

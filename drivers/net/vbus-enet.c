@@ -50,6 +50,7 @@ module_param(sg_enabled, int, 0444);
 struct vbus_enet_queue {
 	struct ioq              *queue;
 	struct ioq_notifier      notifier;
+	unsigned long            count;
 };
 
 struct vbus_enet_priv {
@@ -93,6 +94,8 @@ queue_init(struct vbus_enet_priv *priv,
 		q->notifier.signal = func;
 		q->queue->notifier = &q->notifier;
 	}
+
+	q->count = ringsize;
 
 	return 0;
 }
@@ -222,7 +225,7 @@ tx_setup(struct vbus_enet_priv *priv)
 	/* pre-allocate our descriptor pool if pmtd is enabled */
 	if (priv->pmtd.enabled) {
 		struct vbus_device_proxy *dev = priv->vdev;
-		size_t poollen = len * tx_ringlen;
+		size_t poollen = len * priv->txq.count;
 		char *pool;
 		int shmid;
 
@@ -251,7 +254,7 @@ tx_setup(struct vbus_enet_priv *priv)
 	/*
 	 * Now populate each descriptor with an empty SG descriptor
 	 */
-	for (i = 0; i < tx_ringlen; i++) {
+	for (i = 0; i < priv->txq.count; i++) {
 		struct venet_sg *vsg;
 
 		if (priv->pmtd.enabled) {

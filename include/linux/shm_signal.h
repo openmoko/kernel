@@ -32,8 +32,8 @@
  *-----------
  */
 
-#define SHM_SIGNAL_MAGIC 0x58fa39df
-#define SHM_SIGNAL_VER   1
+#define SHM_SIGNAL_MAGIC cpu_to_le32(0x58fa39df)
+#define SHM_SIGNAL_VER   cpu_to_le32(1)
 
 struct shm_signal_irq {
 	__u8                  enabled;
@@ -47,8 +47,8 @@ enum shm_signal_locality {
 };
 
 struct shm_signal_desc {
-	__u32                 magic;
-	__u32                 ver;
+	__le32                 magic;
+	__le32                 ver;
 	struct shm_signal_irq irq[2];
 };
 

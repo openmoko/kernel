@@ -43,7 +43,7 @@ struct vbus_pci {
 	struct vbus_pci_regs     *regs;
 	struct vbus_pci_signals  *signals;
 	int                       irq;
-	int                       enabled:1;
+	bool                      enabled;
 	struct {
 		struct dentry    *fs;
 		int               events;

@@ -408,7 +408,7 @@ tx_setup(struct vbus_enet_priv *priv)
 		priv->pmtd.pool = pool;
 
 		ret = dev->ops->shm(dev, NULL, shmid, 0, pool, poollen,
-				    0, NULL, 0);
+				    NULL, NULL, 0);
 		BUG_ON(ret < 0);
 	}
 
@@ -1239,7 +1239,7 @@ vbus_enet_evq_negcap(struct vbus_enet_priv *priv, unsigned long count)
 		priv->evq.pool = pool;
 
 		ret = dev->ops->shm(dev, NULL, query.dpid, 0,
-				    pool, poollen, 0, NULL, 0);
+				    pool, poollen, NULL, NULL, 0);
 		if (ret < 0)
 			return ret;
 
@@ -1315,7 +1315,7 @@ vbus_enet_l4ro_negcap(struct vbus_enet_priv *priv, unsigned long count)
 		 * pre-mapped descriptor pool
 		 */
 		ret = dev->ops->shm(dev, NULL, query.dpid, 0,
-				    pool, poollen, 0, NULL, 0);
+				    pool, poollen, NULL, NULL, 0);
 		if (ret < 0) {
 			printk(KERN_ERR "Error registering L4RO pool: %d\n",
 			       ret);

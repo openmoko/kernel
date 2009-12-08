@@ -71,10 +71,10 @@ int ioq_iter_seek(struct ioq_iterator *iter, enum ioq_seek_type type,
 		pos = modulo_inc(iter->pos, iter->ioq->count);
 		break;
 	case ioq_seek_tail:
-		pos = idx->tail;
+		pos = le32_to_cpu(idx->tail);
 		break;
 	case ioq_seek_head:
-		pos = idx->head;
+		pos = le32_to_cpu(idx->head);
 		break;
 	case ioq_seek_set:
 		if (offset >= iter->ioq->count)
@@ -91,19 +91,23 @@ EXPORT_SYMBOL_GPL(ioq_iter_seek);
 
 static int ioq_ring_count(struct ioq_ring_idx *idx, int count)
 {
-	if (idx->full && (idx->head == idx->tail))
+	u32 head = le32_to_cpu(idx->head);
+	u32 tail = le32_to_cpu(idx->tail);
+
+	if (idx->full && (head == tail))
 		return count;
-	else if (idx->tail >= idx->head)
-		return idx->tail - idx->head;
+	else if (tail >= head)
+		return tail - head;
 	else
-		return (idx->tail + count) - idx->head;
+		return (tail + count) - head;
 }
 
 static void idx_tail_push(struct ioq_ring_idx *idx, int count)
 {
-	u32 tail = modulo_inc(idx->tail, count);
+	u32 tail = modulo_inc(le32_to_cpu(idx->tail), count);
+	u32 head = le32_to_cpu(idx->head);
 
-	if (idx->head == tail) {
+	if (head == tail) {
 		rmb();
 
 		/*
@@ -116,7 +120,7 @@ static void idx_tail_push(struct ioq_ring_idx *idx, int count)
 		wmb();
 	}
 
-	idx->tail = tail;
+	idx->tail = cpu_to_le32(tail);
 }
 
 int ioq_iter_push(struct ioq_iterator *iter, int flags)
@@ -128,7 +132,7 @@ int ioq_iter_push(struct ioq_iterator *iter, int flags)
 	/*
 	 * Its only valid to push if we are currently pointed at the tail
 	 */
-	if (iter->pos != idx->tail || iter->desc->sown != iter->ioq->locale)
+	if (iter->pos != le32_to_cpu(idx->tail) || iter->desc->sown != iter->ioq->locale)
 		return -EINVAL;
 
 	idx_tail_push(idx, iter->ioq->count);
@@ -167,10 +171,10 @@ int ioq_iter_pop(struct ioq_iterator *iter,  int flags)
 	/*
 	 * Its only valid to pop if we are currently pointed at the head
 	 */
-	if (iter->pos != idx->head || iter->desc->sown != iter->ioq->locale)
+	if (iter->pos != le32_to_cpu(idx->head) || iter->desc->sown != iter->ioq->locale)
 		return -EINVAL;
 
-	idx->head = modulo_inc(idx->head, iter->ioq->count);
+	idx->head = cpu_to_le32(modulo_inc(le32_to_cpu(idx->head), iter->ioq->count));
 	wmb(); /* head must be visible before full */
 
 	if (idx->full) {

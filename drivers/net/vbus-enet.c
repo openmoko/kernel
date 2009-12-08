@@ -175,8 +175,8 @@ rxdesc_alloc(struct vbus_enet_priv *priv, struct ioq_ring_desc *desc, size_t len
 		iov->len     = len;
 	} else {
 		desc->cookie = (u64)(unsigned long)skb;
-		desc->ptr    = (u64)__pa(skb->data);
-		desc->len    = len; /* total length  */
+		desc->ptr    = cpu_to_le64(__pa(skb->data));
+		desc->len    = cpu_to_le64(len); /* total length  */
 	}
 
 	desc->valid  = 1;
@@ -212,8 +212,8 @@ rx_pageq_refill(struct vbus_enet_priv *priv, gfp_t gfp_mask)
 
 		added = 1;
 		iter.desc->cookie = (u64)(unsigned long)page;
-		iter.desc->ptr    = (u64)__pa(page_address(page));
-		iter.desc->len    = PAGE_SIZE;
+		iter.desc->ptr    = cpu_to_le64(__pa(page_address(page)));
+		iter.desc->len    = cpu_to_le64(PAGE_SIZE);
 
 		ret = ioq_iter_push(&iter, 0);
 		BUG_ON(ret < 0);
@@ -257,9 +257,9 @@ rx_setup(struct vbus_enet_priv *priv)
 			size_t offset = (i * SG_DESC_SIZE);
 			void *addr = &priv->l4ro.pool[offset];
 
-			iter.desc->ptr    = (u64)offset;
+			iter.desc->ptr    = cpu_to_le64(offset);
 			iter.desc->cookie = (u64)(unsigned long)addr;
-			iter.desc->len    = SG_DESC_SIZE;
+			iter.desc->len    = cpu_to_le64(SG_DESC_SIZE);
 		}
 
 		rxdesc_alloc(priv, iter.desc, priv->dev->mtu);
@@ -428,17 +428,17 @@ tx_setup(struct vbus_enet_priv *priv)
 			size_t offset = (i * SG_DESC_SIZE);
 
 			vsg = (struct venet_sg *)&priv->pmtd.pool[offset];
-			iter.desc->ptr = (u64)offset;
+			iter.desc->ptr = cpu_to_le64(offset);
 		} else {
 			vsg = kzalloc(SG_DESC_SIZE, GFP_KERNEL);
 			if (!vsg)
 				return -ENOMEM;
 
-			iter.desc->ptr = (u64)__pa(vsg);
+			iter.desc->ptr = cpu_to_le64(__pa(vsg));
 		}
 
 		iter.desc->cookie = (u64)(unsigned long)vsg;
-		iter.desc->len    = SG_DESC_SIZE;
+		iter.desc->len    = cpu_to_le64(SG_DESC_SIZE);
 
 		ret = ioq_iter_seek(&iter, ioq_seek_next, 0, 0);
 		BUG_ON(ret < 0);
@@ -708,7 +708,7 @@ vbus_enet_flat_import(struct vbus_enet_priv *priv, struct ioq_ring_desc *desc)
 		return NULL;
 	}
 
-	skb_put(skb, desc->len);
+	skb_put(skb, le64_to_cpu(desc->len));
 
 	return skb;
 }
@@ -871,7 +871,7 @@ vbus_enet_tx_start(struct sk_buff *skb, struct net_device *dev)
 			iov->ptr = (u64)sg_phys(sg);
 		}
 
-		iter.desc->len = (u64)VSG_DESC_SIZE(vsg->count);
+		iter.desc->len = cpu_to_le64(VSG_DESC_SIZE(vsg->count));
 
 	} else {
 		/*
@@ -879,8 +879,8 @@ vbus_enet_tx_start(struct sk_buff *skb, struct net_device *dev)
 		 * ring.
 		 */
 		iter.desc->cookie = (u64)(unsigned long)skb;
-		iter.desc->len = (u64)skb->len;
-		iter.desc->ptr = (u64)__pa(skb->data);
+		iter.desc->len = cpu_to_le64(skb->len);
+		iter.desc->ptr = cpu_to_le64(__pa(skb->data));
 	}
 
 	iter.desc->valid  = 1;
@@ -1258,9 +1258,9 @@ vbus_enet_evq_negcap(struct vbus_enet_priv *priv, unsigned long count)
 			size_t offset = (i * query.evsize);
 			void *addr = &priv->evq.pool[offset];
 
-			iter.desc->ptr    = (u64)offset;
+			iter.desc->ptr    = cpu_to_le64(offset);
 			iter.desc->cookie = (u64)(unsigned long)addr;
-			iter.desc->len    = query.evsize;
+			iter.desc->len    = cpu_to_le64(query.evsize);
 
 			ret = ioq_iter_push(&iter, 0);
 			BUG_ON(ret < 0);

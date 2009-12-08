@@ -217,7 +217,7 @@ int vbus_driver_ioq_alloc(struct vbus_device_proxy *dev, const char *name,
 
 	head->magic     = IOQ_RING_MAGIC;
 	head->ver	= IOQ_RING_VER;
-	head->count     = count;
+	head->count     = cpu_to_le32(count);
 
 	ret = dev->ops->shm(dev, name, id, prio, head, len,
 			    &head->signal, &signal, 0);

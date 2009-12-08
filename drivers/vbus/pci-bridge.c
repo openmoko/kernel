@@ -579,8 +579,8 @@ eventq_init(int qlen)
 		BUG_ON(iter.desc->valid);
 
 		desc->cookie = (u64)(unsigned long)event;
-		desc->ptr    = (u64)__pa(event);
-		desc->len    = len; /* total length  */
+		desc->ptr    = cpu_to_le64(__pa(event));
+		desc->len    = cpu_to_le64(len); /* total length */
 		desc->valid  = 1;
 
 		/*
@@ -798,7 +798,7 @@ _ioq_init(size_t ringsize, struct ioq *ioq, struct ioq_ops *ops)
 
 	head->magic     = IOQ_RING_MAGIC;
 	head->ver	= IOQ_RING_VER;
-	head->count     = ringsize;
+	head->count     = cpu_to_le32(ringsize);
 
 	_signal_init(signal, &head->signal, &eventq_signal_ops);
 

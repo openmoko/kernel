@@ -66,7 +66,7 @@ struct vbus_pci_device {
 	struct work_struct       drop;
 };
 
-DEFINE_PER_CPU(struct vbus_pci_fastcall_desc, vbus_pci_percpu_fastcall)
+static DEFINE_PER_CPU(struct vbus_pci_fastcall_desc, vbus_pci_percpu_fastcall)
 ____cacheline_aligned;
 
 /*
@@ -123,7 +123,7 @@ vbus_pci_buscall(unsigned long nr, void *data, unsigned long len)
 	return ret;
 }
 
-struct vbus_pci_device *
+static struct vbus_pci_device *
 to_dev(struct vbus_device_proxy *vdev)
 {
 	return container_of(vdev, struct vbus_pci_device, vdev);
@@ -412,7 +412,7 @@ vbus_pci_device_release(struct vbus_device_proxy *vdev)
 	kfree(_dev);
 }
 
-struct vbus_device_proxy_ops vbus_pci_device_ops = {
+static struct vbus_device_proxy_ops vbus_pci_device_ops = {
 	.open    = vbus_pci_device_open,
 	.close   = vbus_pci_device_close,
 	.shm     = vbus_pci_device_shm,
@@ -667,7 +667,7 @@ static struct ioq_notifier eventq_notifier = {
 };
 
 /* Injected whenever the host issues an ioq_signal() on the eventq */
-irqreturn_t
+static irqreturn_t
 eventq_intr(int irq, void *dev)
 {
 	vbus_pci.stats.qnotify++;
@@ -995,7 +995,7 @@ static struct pci_driver vbus_pci_driver = {
 	.remove   = vbus_pci_remove,
 };
 
-int __init
+static int __init
 vbus_pci_init(void)
 {
 	memset(&vbus_pci, 0, sizeof(vbus_pci));

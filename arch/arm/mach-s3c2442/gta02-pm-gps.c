@@ -126,19 +126,18 @@ static ssize_t power_gps_write(struct device *dev,
 }
 
 #ifdef CONFIG_PM
-static int gta02_pm_gps_suspend(struct platform_device *pdev,
-				pm_message_t state)
+static int gta02_pm_gps_suspend(struct device *dev)
 {
 	if (!gta02_gps.keep_on_in_suspend ||
 		!gta02_gps.power_was_on)
 		gps_pwron_set(0);
 	else
-		dev_warn(&pdev->dev, "GTA02: keeping gps ON "
+		dev_warn(dev, "GTA02: keeping gps ON "
 			 "during suspend\n");
 	return 0;
 }
 
-static int gta02_pm_gps_resume(struct platform_device *pdev)
+static int gta02_pm_gps_resume(struct device *dev)
 {
 	if (!gta02_gps.keep_on_in_suspend && gta02_gps.power_was_on)
 		gps_pwron_set(1);
@@ -147,9 +146,16 @@ static int gta02_pm_gps_resume(struct platform_device *pdev)
 }
 
 static DEVICE_ATTR(keep_on_in_suspend, 0644, power_gps_read, power_gps_write);
+
+static struct dev_pm_ops gta02_gps_pm_ops = {
+	.suspend	= gta02_pm_gps_suspend,
+	.resume		= gta02_pm_gps_resume,
+};
+
+#define GTA02_GPS_PM_OPS (&gta02_gps_pm_ops)
+
 #else
-#define gta02_pm_gps_suspend	NULL
-#define gta02_pm_gps_resume	NULL
+#define GTA02_GPS_PM_OPS NULL
 #endif
 
 static DEVICE_ATTR(power_on, 0644, power_gps_read, power_gps_write);
@@ -218,10 +224,9 @@ static int gta02_pm_gps_remove(struct platform_device *pdev)
 static struct platform_driver gta02_pm_gps_driver = {
 	.probe		= gta02_pm_gps_probe,
 	.remove		= gta02_pm_gps_remove,
-	.suspend	= gta02_pm_gps_suspend,
-	.resume		= gta02_pm_gps_resume,
 	.driver		= {
 		.name		= "gta02-pm-gps",
+		.pm			= GTA02_GPS_PM_OPS,
 	},
 };
 

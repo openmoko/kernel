@@ -184,8 +184,7 @@ static DEVICE_ATTR(flowcontrolled, 0644, gsm_read, gsm_write);
 
 #ifdef CONFIG_PM
 
-static int gta02_gsm_resume(struct platform_device *pdev);
-static int gta02_gsm_suspend(struct platform_device *pdev, pm_message_t state)
+static int gta02_gsm_suspend(struct device *dev)
 {
 	/* GPIO state is saved/restored by S3C2410 core GPIO driver, so we
 	 * don't need to do much here. */
@@ -204,8 +203,7 @@ busy:
 	return -EBUSY;
 }
 
-static int
-gta02_gsm_suspend_late(struct platform_device *pdev, pm_message_t state)
+static int gta02_gsm_suspend_late(struct device *dev)
 {
 	/* Last chance: abort if GSM already interrupted */
 	if (s3c2410_gpio_getcfg(S3C2410_GPH(1)) == S3C2410_GPIO_OUTPUT) {
@@ -215,7 +213,7 @@ gta02_gsm_suspend_late(struct platform_device *pdev, pm_message_t state)
 	return 0;
 }
 
-static int gta02_gsm_resume(struct platform_device *pdev)
+static int gta02_gsm_resume(struct device *dev)
 {
 	/* GPIO state is saved/restored by S3C2410 core GPIO driver, so we
 	 * don't need to do much here. */
@@ -229,10 +227,17 @@ static int gta02_gsm_resume(struct platform_device *pdev)
 
 	return 0;
 }
+
+static struct dev_pm_ops gta02_gsm_pm_ops = {
+	.suspend	= gta02_gsm_suspend,
+	.suspend_noirq	= gta02_gsm_suspend_late,
+	.resume		= gta02_gsm_resume,
+};
+
+#define GTA02_GSM_PM_OPS (&gta02_gsm_pm_ops)
+
 #else
-#define gta02_gsm_suspend	NULL
-#define gta02_gsm_suspend_late	NULL
-#define gta02_gsm_resume	NULL
+#define GTA02_GSM_PM_OPS NULL
 #endif /* CONFIG_PM */
 
 static struct attribute *gta02_gsm_sysfs_entries[] = {
@@ -275,11 +280,9 @@ static int gta02_gsm_remove(struct platform_device *pdev)
 static struct platform_driver gta02_gsm_driver = {
 	.probe		= gta02_gsm_probe,
 	.remove		= gta02_gsm_remove,
-	.suspend	= gta02_gsm_suspend,
-	.suspend_late	= gta02_gsm_suspend_late,
-	.resume		= gta02_gsm_resume,
 	.driver		= {
-		.name		= "gta02-pm-gsm",
+		.name	= "gta02-pm-gsm",
+		.pm	= GTA02_GSM_PM_OPS,
 	},
 };
 

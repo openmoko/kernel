@@ -2,6 +2,7 @@
 #define _GTA02_H
 
 #include <mach/regs-gpio.h>
+#include <mach/regs-gpioj.h>
 
 /* Different hardware revisions, passed in ATAG_REVISION by u-boot */
 #define GTA02v1_SYSTEM_REV	0x00000310
@@ -80,5 +81,7 @@
 #define GTA02_PCB_ID2_1		S3C2410_GPD(4)
 
 int gta02_get_pcb_revision(void);
+
+extern struct pcf50633 *gta02_pcf;
 
 #endif /* _GTA02_H */

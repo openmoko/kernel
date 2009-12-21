@@ -32,3 +32,4 @@ obj-$(CONFIG_CHARGER_PCF50633)	+= pcf50633-charger.o
 obj-$(CONFIG_BATTERY_BQ27000_HDQ)	+= bq27000_battery.o
 
 obj-$(CONFIG_HDQ_GPIO_BITBANG)  += hdq.o
+obj-$(CONFIG_BATTERY_PLATFORM)	+= platform_battery.o

@@ -47,6 +47,7 @@ config MFD_GLAMO_DRM
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
+	select DRM_KMS_HELPER
 	help
 	  Direct Rendering Manager interface for the S-Media Glamo chip, as
 	  used in Openmoko FreeRunner (GTA02).

@@ -347,7 +347,7 @@ out_release_regs:
 	release_mem_region(gdrm->reg->start, resource_size(gdrm->reg));
 out_free:
 	kfree(gdrm);
-	pdev->dev.driver_data = NULL;
+	dev_set_drvdata(&pdev->dev, NULL);
 	return rc;
 }
 

@@ -160,7 +160,7 @@ static void s3c2410_ts_start_adc_conversion(void)
 }
 
 /* Callback for the s3c-adc API. */
-void adc_selected_f(unsigned selected)
+void adc_selected_f(struct s3c_adc_client *client, unsigned selected)
 {
 	ts.adc_selected = selected;
 }
@@ -299,7 +299,7 @@ static irqreturn_t stylus_updown(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static void stylus_adc_action(unsigned p0, unsigned p1, unsigned *conv_left)
+static void stylus_adc_action(struct s3c_adc_client *client, unsigned p0, unsigned p1, unsigned *conv_left)
 {
 	int buf[3];
 

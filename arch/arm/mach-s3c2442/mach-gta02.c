@@ -1019,6 +1019,8 @@ static void __init gta02_machine_init(void)
 	/* Set the panic callback to make AUX LED blink at ~5Hz. */
 	panic_blink = gta02_panic_blink;
 
+	s3c_device_ts.name = "s3c2440-ts";
+
 	s3c_pm_init();
 
 #ifdef CONFIG_CHARGER_PCF50633

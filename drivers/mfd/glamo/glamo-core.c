@@ -487,6 +487,19 @@ int __glamo_engine_enable(struct glamo_core *glamo, enum glamo_engine engine)
 		__reg_set_bit_mask(glamo, GLAMO_REG_CLOCK_GEN5_1,
 				   GLAMO_CLOCK_GEN51_EN_DIV_GCLK, 0xffff);
 		break;
+	case GLAMO_ENGINE_3D:
+		__reg_set_bit_mask(glamo, GLAMO_REG_CLOCK_3D,
+		                          GLAMO_CLOCK_3D_EN_M8CLK |
+		                          GLAMO_CLOCK_3D_EN_ECLK |
+		                          GLAMO_CLOCK_3D_EN_RCLK |
+		                          GLAMO_CLOCK_3D_DG_M8CLK |
+		                          GLAMO_CLOCK_3D_DG_RCLK |
+		                          GLAMO_CLOCK_3D_DG_ECLK, 0xffff);
+		/* Enable 3D MMIO */
+		__reg_set_bit_mask(glamo, GLAMO_REG_HOSTBUS(2),
+		                          GLAMO_HOSTBUS2_MMIO_EN_3D,
+		                          GLAMO_HOSTBUS2_MMIO_EN_3D);
+		break;
 	case GLAMO_ENGINE_CMDQ:
 		__reg_set_bit_mask(glamo, GLAMO_REG_CLOCK_2D,
 				   GLAMO_CLOCK_2D_EN_M6CLK, 0xffff);
@@ -621,6 +634,10 @@ struct glamo_script reset_regs[] = {
 	},
 	[GLAMO_ENGINE_2D] = {
 		GLAMO_REG_CLOCK_2D, GLAMO_CLOCK_2D_RESET
+	},
+	[GLAMO_ENGINE_3D] = {
+		GLAMO_REG_CLOCK_3D, GLAMO_CLOCK_3D_BACK_RESET |
+		                    GLAMO_CLOCK_3D_FRONT_RESET
 	},
 	[GLAMO_ENGINE_JPEG] = {
 		GLAMO_REG_CLOCK_JPEG, GLAMO_CLOCK_JPEG_RESET

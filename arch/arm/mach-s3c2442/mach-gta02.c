@@ -519,8 +519,7 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.max_uV = 3300000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
 				.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE | 
-							REGULATOR_CHANGE_VOLTAGE,
-				.always_on = 1,
+							REGULATOR_CHANGE_STATUS,
 			},
 			.num_consumer_supplies = ARRAY_SIZE(hcldo_consumers),
 			.consumer_supplies = hcldo_consumers,

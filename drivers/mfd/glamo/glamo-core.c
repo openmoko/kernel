@@ -1157,6 +1157,8 @@ static int glamo_suspend(struct device *dev)
 
 	spin_lock(&glamo->lock);
 
+	glamo->saved_irq_mask = __reg_read(glamo, GLAMO_REG_IRQ_ENABLE);
+
 	/* nuke interrupts */
 	__reg_write(glamo, GLAMO_REG_IRQ_ENABLE, 0x200);
 
@@ -1236,6 +1238,8 @@ static int glamo_resume(struct device *dev)
 			break;
 		}
 	}
+
+	__reg_write(glamo, GLAMO_REG_IRQ_ENABLE, glamo->saved_irq_mask);
 
 	spin_unlock(&glamo->lock);
 

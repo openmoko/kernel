@@ -37,6 +37,7 @@ struct glamo_core {
 	struct glamo_platform_data *pdata;
 	enum glamo_engine_state engine_state[__NUM_GLAMO_ENGINES];
 	spinlock_t lock;
+	uint16_t saved_irq_mask;
 };
 
 struct glamo_script {

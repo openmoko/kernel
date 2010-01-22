@@ -83,6 +83,9 @@
 #define GTA02_GPIO_GLAMO_BASE S3C_GPIO_END
 #define GTA02_GPIO_GLAMO(x) (GTA02_GPIO_GLAMO_BASE + (x))
 
+#define GTA02_GPIO_PCF_BASE (GTA02_GPIO_GLAMO_BASE + 32)
+#define GTA02_GPIO_PCF(x) (GTA02_GPIO_PCF_BASE + (x))
+
 int gta02_get_pcb_revision(void);
 
 extern struct pcf50633 *gta02_pcf;

@@ -259,7 +259,6 @@ static struct glamo_mmc_platform_data gta02_glamo_mmc_pdata = {
 
 static struct glamo_gpio_platform_data gta02_glamo_gpio_pdata = {
 	.base = GTA02_GPIO_GLAMO_BASE,
-	.registered = gta02_glamo_registered,
 };
 
 static struct glamo_platform_data gta02_glamo_pdata = {
@@ -314,6 +313,39 @@ static struct platform_device gta02_pm_wlan_dev = {
 	.name = "gta02-pm-wlan",
 };
 
+static struct regulator_consumer_supply gsm_supply_consumer = {
+	.dev = &gta02_pm_gsm_dev.dev,
+	.supply = "GSM",
+};
+
+static struct regulator_init_data gsm_supply_init_data = {
+	.constraints = {
+		.min_uV = 3700000,
+		.max_uV = 3700000,
+		.valid_modes_mask = REGULATOR_MODE_NORMAL,
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies = 1,
+	.consumer_supplies = &gsm_supply_consumer,
+};
+
+static struct fixed_voltage_config gsm_supply_config = {
+	.supply_name = "GSM",
+	.microvolts = 3700000,
+	.gpio = GTA02_GPIO_PCF(PCF50633_GPIO2),
+	.enable_high = 1,
+	.init_data = &gsm_supply_init_data,
+};
+
+static struct platform_device gta02_gsm_supply_device = {
+	.name = "reg-fixed-voltage",
+	.id = 1,
+	.dev = {
+		.platform_data = &gsm_supply_config,
+	},
+};
+
+
 #ifdef CONFIG_CHARGER_PCF50633
 /*
  * On GTA02 the 1A charger features a 48K resistor to 0V on the ID pin.
@@ -352,7 +384,7 @@ gta02_configure_pmu_for_charger(struct pcf50633 *pcf, void *unused, int res)
 		 * Sanity - stop GPO driving out now that we have a 1A charger
 		 * GPO controls USB Host power generation on GTA02
 		 */
-		pcf50633_gpio_set(pcf, PCF50633_GPO, 0);
+		/*pcf50633_gpio_set(pcf, PCF50633_GPO, 0);*/
 
 		ma = 1000;
 	} else
@@ -723,7 +755,6 @@ static void gta02_jbt6k74_probe_completed(struct device *dev)
 }
 
 const struct jbt6k74_platform_data jbt6k74_pdata = {
-	.probe_completed = gta02_jbt6k74_probe_completed,
 	.gpio_reset = GTA02_GPIO_GLAMO(4),
 };
 
@@ -870,12 +901,6 @@ struct platform_device gta02_platform_bat = {
 };
 
 /* HDQ */
-
-static void gta02_hdq_attach_child_devices(struct device *parent_device)
-{
-	bq27000_battery_device.dev.parent = parent_device;
-	platform_device_register(&bq27000_battery_device);
-}
 
 static void gta02_hdq_gpio_direction_out(void)
 {
@@ -1037,7 +1062,6 @@ const static struct s3c2410_ts_mach_info gta02_ts_cfg = {
 };
 
 struct hdq_platform_data gta02_hdq_platform_data = {
-	.attach_child_devices = gta02_hdq_attach_child_devices,
 	.gpio_dir_out = gta02_hdq_gpio_direction_out,
 	.gpio_dir_in = gta02_hdq_gpio_direction_in,
 	.gpio_set = gta02_hdq_gpio_set_value,
@@ -1046,7 +1070,6 @@ struct hdq_platform_data gta02_hdq_platform_data = {
 	.enable_fiq = gta02_fiq_enable,
 	.disable_fiq = gta02_fiq_disable,
 	.kick_fiq = gta02_fiq_kick,
-
 };
 
 struct platform_device gta02_hdq_device = {
@@ -1129,6 +1152,98 @@ static void gta02_poweroff(void)
 {
 	pcf50633_reg_set_bit_mask(gta02_pcf, PCF50633_REG_OOCSHDWN, 1, 1);
 }
+
+
+struct gta02_device_children {
+	const char *dev_name;
+	size_t num_children;
+	struct platform_device **children;
+	void (*probed_callback)(struct device *dev);
+};
+
+static struct platform_device* gta02_glamo_gpio_children[] = {
+	&spigpio_device,
+};
+
+static struct platform_device* gta02_pcf50633_gpio_children[] = {
+	&gta02_gsm_supply_device,
+};
+
+static struct platform_device* gta02_gsm_supply_children[] = {
+	&gta02_pm_gsm_dev,
+};
+
+static struct platform_device* gta02_hdq_children[] = {
+	&bq27000_battery_device,
+};
+
+static struct gta02_device_children gta02_device_children[] = {
+		{
+		.dev_name = "glamo-gpio.0",
+		.num_children = 1,
+		.children = gta02_glamo_gpio_children,
+	},
+	{
+		.dev_name = "hdq.0",
+		.num_children = 1,
+		.children = gta02_hdq_children,
+	},
+	{
+		.dev_name = "spi2.0",
+		.probed_callback = gta02_jbt6k74_probe_completed,
+	},
+	{
+		.dev_name = "pcf50633-gpio",
+		.num_children = 1,
+		.children = gta02_pcf50633_gpio_children,
+	},
+	{
+		.dev_name = "reg-fixed-voltage.1",
+		.num_children = 1,
+		.children = gta02_gsm_supply_children,
+	}
+};
+
+static int gta02_add_child_devices(struct device *parent,
+                                   struct platform_device **children,
+								   size_t num_children)
+{
+	size_t i;
+
+	for (i = 0; i < num_children; ++i)
+		children[i]->dev.parent = parent;
+
+	return platform_add_devices(children, num_children);
+}
+
+static int gta02_device_registered(struct notifier_block *block,
+                                   unsigned long action, void *data)
+{
+	struct device *dev = data;
+	const char *devname = dev_name(dev);
+	size_t i;
+
+	if (action != BUS_NOTIFY_BOUND_DRIVER)
+		return 0;
+
+	for (i = 0; i < ARRAY_SIZE(gta02_device_children); ++i) {
+		if (strcmp(devname, gta02_device_children[i].dev_name) == 0) {
+			gta02_add_child_devices(dev, gta02_device_children[i].children,
+			gta02_device_children[i].num_children);
+
+			if (gta02_device_children[i].probed_callback)
+				gta02_device_children[i].probed_callback(dev);
+			break;
+		}
+	}
+
+	return 0;
+}
+
+static struct notifier_block gta02_device_register_notifier = {
+	.notifier_call = gta02_device_registered,
+	.priority = INT_MAX,
+};
 
 /* On hardware rev 5 and earlier the leds are missing a resistor and reading
  * from their gpio pins will always return 0, so we have to shadow the

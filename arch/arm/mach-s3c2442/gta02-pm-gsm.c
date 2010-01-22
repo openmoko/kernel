@@ -19,6 +19,8 @@
 #include <linux/errno.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
+#include <linux/err.h>
+#include <linux/regulator/consumer.h>
 
 #include <mach/gpio.h>
 #include <asm/mach-types.h>
@@ -26,7 +28,6 @@
 #include <mach/hardware.h>
 
 #include <mach/gta02.h>
-#include <linux/mfd/pcf50633/gpio.h>
 #include <mach/regs-gpio.h>
 #include <mach/regs-gpioj.h>
 
@@ -38,6 +39,7 @@ extern void s3c24xx_serial_console_set_silence(int);
 struct gta02pm_priv {
 	int gpio_ndl_gsm;
 	struct console *con;
+	struct regulator *regulator;
 };
 
 static struct gta02pm_priv gta02_gsm;
@@ -62,7 +64,7 @@ static ssize_t gsm_read(struct device *dev, struct device_attribute *attr,
 			char *buf)
 {
 	if (!strcmp(attr->attr.name, "power_on")) {
-		if (pcf50633_gpio_get(gta02_pcf, PCF50633_GPIO2))
+		if (regulator_is_enabled(gta02_gsm.regulator))
 			goto out_1;
 	} else if (!strcmp(attr->attr.name, "download")) {
 		if (!s3c2410_gpio_getpin(GTA02_GPIO_nDL_GSM))
@@ -79,11 +81,17 @@ out_1:
 
 static void gsm_on_off(struct device *dev, int on)
 {
+
+	on = !!on;
+
+	if (on == regulator_is_enabled(gta02_gsm.regulator))
+		return;
+
 	if (!on) {
 		s3c2410_gpio_cfgpin(S3C2410_GPH(1), S3C2410_GPIO_INPUT);
 		s3c2410_gpio_cfgpin(S3C2410_GPH(2), S3C2410_GPIO_INPUT);
 
-		pcf50633_gpio_set(gta02_pcf, PCF50633_GPIO2, 0);
+		regulator_disable(gta02_gsm.regulator);
 
 		if (gta02_gsm.con) {
 			s3c24xx_serial_console_set_silence(0);
@@ -108,7 +116,7 @@ static void gsm_on_off(struct device *dev, int on)
 	s3c2410_gpio_cfgpin(S3C2410_GPH(1), S3C2410_GPH1_nRTS0);
 	s3c2410_gpio_cfgpin(S3C2410_GPH(2), S3C2410_GPH2_TXD0);
 
-	pcf50633_gpio_set(gta02_pcf, PCF50633_GPIO2, 7);
+	regulator_enable(gta02_gsm.regulator);
 
 	msleep(100);
 
@@ -263,6 +271,14 @@ static int __init gta02_gsm_probe(struct platform_device *pdev)
 	/* note that download initially disabled, and enforce that */
 	gta02_gsm.gpio_ndl_gsm = 1;
 	s3c2410_gpio_setpin(GTA02_GPIO_nDL_GSM, 1);
+
+	gta02_gsm.regulator = regulator_get_exclusive(&pdev->dev, "GSM");
+
+	if (IS_ERR(gta02_gsm.regulator)) {
+		dev_err(&pdev->dev, "Failed to get regulator: %d\n",
+		PTR_ERR(gta02_gsm.regulator));
+		return PTR_ERR(gta02_gsm.regulator);
+	}
 
 	/* GSM is to be initially off (at boot, or if this module inserted) */
 	gsm_on_off(&pdev->dev, 0);

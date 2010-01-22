@@ -51,6 +51,7 @@
 
 #include <linux/i2c.h>
 #include <linux/regulator/machine.h>
+#include <linux/regulator/fixed.h>
 
 #include <linux/mfd/pcf50633/core.h>
 #include <linux/mfd/pcf50633/mbc.h>
@@ -511,6 +512,8 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 	.chg_ref_current_ma = 1000,
 
 	.backlight_data = &gta02_backlight_data,
+
+	.gpio_base = GTA02_GPIO_PCF_BASE,
 
 	.reg_init_data = {
 		[PCF50633_REGULATOR_AUTO] = {
@@ -1103,7 +1106,6 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&gta02_pwm_leds_device,
 	&gta02_pm_gps_dev,
 	&gta02_pm_bt_dev,
-	&gta02_pm_gsm_dev,
 	&gta02_pm_wlan_dev,
 	&s3c_device_adc,
 };
@@ -1172,7 +1174,7 @@ static struct platform_device* gta02_hdq_children[] = {
 };
 
 static struct gta02_device_children gta02_device_children[] = {
-		{
+	{
 		.dev_name = "glamo-gpio.0",
 		.num_children = 1,
 		.children = gta02_glamo_gpio_children,
@@ -1334,6 +1336,9 @@ static void __init gta02_machine_init(void)
 	panic_blink = gta02_panic_blink;
 
 	s3c_device_ts.name = "s3c2440-ts";
+
+	bus_register_notifier(&platform_bus_type, &gta02_device_register_notifier);
+	bus_register_notifier(&spi_bus_type, &gta02_device_register_notifier);
 
 	gta02_hijack_gpb();
 

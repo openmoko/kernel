@@ -59,6 +59,12 @@
 #include <linux/mfd/pcf50633/pmic.h>
 #include <linux/mfd/pcf50633/backlight.h>
 
+#include <linux/input.h>
+#include <linux/gpio_keys.h>
+
+#include <linux/leds.h>
+#include <linux/leds_pwm.h>
+
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 #include <asm/mach/irq.h>
@@ -86,7 +92,11 @@
 #include <plat/pm.h>
 #include <plat/udc.h>
 #include <plat/gpio-cfg.h>
+#include <plat/gpio-core.h>
 #include <plat/iic.h>
+
+#include <mach/gta02-pm-gps.h>
+#include <mach/gta02-pm-wlan.h>
 
 #include <linux/jbt6k74.h>
 #include <linux/glamofb.h>
@@ -482,6 +492,7 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.min_uV = 3300000,
 				.max_uV = 3300000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
+				.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 				.always_on = 1,
 				.apply_uV = 1,
 				.state_mem = {
@@ -494,6 +505,7 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.min_uV = 1300000,
 				.max_uV = 1600000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
+				.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 				.always_on = 1,
 				.apply_uV = 1,
 			},
@@ -515,7 +527,8 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.min_uV = 2000000,
 				.max_uV = 3300000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
-				.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+				.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE | 
+							REGULATOR_CHANGE_VOLTAGE,
 				.always_on = 1,
 			},
 			.num_consumer_supplies = ARRAY_SIZE(hcldo_consumers),
@@ -526,6 +539,7 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.min_uV = 3300000,
 				.max_uV = 3300000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
+				.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 				.apply_uV = 1,
 				.state_mem = {
 					.enabled = 0,
@@ -537,6 +551,7 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.min_uV = 3300000,
 				.max_uV = 3300000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
+				.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 				.apply_uV = 1,
 			},
 		},
@@ -545,6 +560,7 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.min_uV = 3000000,
 				.max_uV = 3000000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
+				.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 				.apply_uV = 1,
 			},
 		},
@@ -553,6 +569,7 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.min_uV = 3200000,
 				.max_uV = 3200000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
+				.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 				.apply_uV = 1,
 			},
 			.num_consumer_supplies = ARRAY_SIZE(ldo4_consumers),
@@ -563,6 +580,7 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.min_uV = 3000000,
 				.max_uV = 3000000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
+				.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 				.apply_uV = 1,
 				.state_mem = {
 					.enabled = 1,
@@ -576,6 +594,7 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.min_uV = 3000000,
 				.max_uV = 3000000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
+				.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 			},
 			.num_consumer_supplies = ARRAY_SIZE(ldo6_consumers),
 			.consumer_supplies = ldo6_consumers,
@@ -585,6 +604,7 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.min_uV = 1800000,
 				.max_uV = 1800000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
+				.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 				.state_mem = {
 					.enabled = 1,
 				},
@@ -658,6 +678,7 @@ static struct s3c2410_platform_nand gta02_nand_info = {
 	.twrph1		= 15,
 	.nr_sets	= ARRAY_SIZE(gta02_nand_sets),
 	.sets		= gta02_nand_sets,
+	.software_ecc	= 1,
 };
 
 
@@ -666,11 +687,11 @@ static void gta02_udc_command(enum s3c2410_udc_cmd_e cmd)
 	switch (cmd) {
 	case S3C2410_UDC_P_ENABLE:
 		pr_debug("%s S3C2410_UDC_P_ENABLE\n", __func__);
-		gpio_direction_output(GTA02_GPIO_USB_PULLUP, 1);
+		gpio_set_value(GTA02_GPIO_USB_PULLUP, 1);
 		break;
 	case S3C2410_UDC_P_DISABLE:
 		pr_debug("%s S3C2410_UDC_P_DISABLE\n", __func__);
-		gpio_direction_output(GTA02_GPIO_USB_PULLUP, 0);
+		gpio_set_value(GTA02_GPIO_USB_PULLUP, 0);
 		break;
 	case S3C2410_UDC_P_RESET:
 		pr_debug("%s S3C2410_UDC_P_RESET\n", __func__);
@@ -684,52 +705,6 @@ static struct s3c2410_udc_mach_info gta02_udc_cfg = {
 	.udc_command	= gta02_udc_command,
 
 };
-
-/* Touchscreen configuration. */
-
-#ifdef CONFIG_TOUCHSCREEN_FILTER
-const static struct ts_filter_group_configuration gta02_ts_group = {
-	.length = 12,
-	.close_enough = 10,
-	.threshold = 6,		/* At least half of the points in a group. */
-	.attempts = 10,
-};
-
-const static struct ts_filter_median_configuration gta02_ts_median = {
-	.extent = 20,
-	.decimation_below = 3,
-	.decimation_threshold = 8 * 3,
-	.decimation_above = 4,
-};
-
-const static struct ts_filter_mean_configuration gta02_ts_mean = {
-	.length = 4,
-};
-
-const static struct ts_filter_linear_configuration gta02_ts_linear = {
-	.constants = {1, 0, 0, 0, 1, 0, 1},	/* Don't modify coords. */
-	.coord0 = 0,
-	.coord1 = 1,
-};
-#endif
-
-const static struct ts_filter_chain_configuration gta02_filter_configuration[] =
-{
-#ifdef CONFIG_TOUCHSCREEN_FILTER
-	{&ts_filter_group_api,		&gta02_ts_group.config},
-	{&ts_filter_median_api,		&gta02_ts_median.config},
-	{&ts_filter_mean_api,		&gta02_ts_mean.config},
-	{&ts_filter_linear_api,		&gta02_ts_linear.config},
-#endif
-	{NULL, NULL},
-};
-
-const static struct s3c2410_ts_mach_info gta02_ts_cfg = {
-	.delay = 10000,
-	.presc = 0xff, /* slow as we can go */
-	.filter_config = gta02_filter_configuration,
-};
-
 
 /* USB */
 static struct s3c2410_hcd_info gta02_usb_info = {
@@ -930,6 +905,137 @@ static struct resource gta02_hdq_resources[] = {
 	},
 };
 
+/* Buttons */
+static struct gpio_keys_button gta02_buttons[] = {
+	{
+		.gpio = GTA02_GPIO_AUX_KEY,
+		.code = KEY_PHONE,
+		.desc = "Aux",
+		.type = EV_KEY,
+		.debounce_interval = 100,
+	},
+	{
+		.gpio = GTA02_GPIO_HOLD_KEY,
+		.code = KEY_PAUSE,
+		.desc = "Hold",
+		.type = EV_KEY,
+		.debounce_interval = 100,
+	},
+};
+
+static struct gpio_keys_platform_data gta02_buttons_pdata = {
+	.buttons = gta02_buttons,
+	.nbuttons = ARRAY_SIZE(gta02_buttons),
+};
+
+static struct platform_device gta02_buttons_device = {
+	.name = "gpio-keys",
+	.id = -1,
+	.dev = {
+		.platform_data = &gta02_buttons_pdata,
+	},
+};
+
+/* LEDs */
+static struct gpio_led gta02_gpio_leds[] = {
+	{
+		.name	= "gta02:red:aux",
+		.gpio	= GTA02_GPIO_AUX_LED,
+	},
+};
+
+static struct gpio_led_platform_data gta02_gpio_leds_pdata = {
+	.leds = gta02_gpio_leds,
+	.num_leds = ARRAY_SIZE(gta02_gpio_leds),
+};
+
+static struct platform_device gta02_leds_device = {
+	.name	= "leds-gpio",
+	.id		= -1,
+	.dev = {
+		.platform_data = &gta02_gpio_leds_pdata,
+	},
+};
+
+static struct led_pwm gta02_pwm_leds[] = {
+	{
+		.name = "gta02:orange:power",
+		.max_brightness = 0xff,
+		.pwm_period_ns = 1000000,
+		.pwm_id = 0,
+	},
+	{
+		.name = "gta02:blue:power",
+		.max_brightness = 0xff,
+		.pwm_period_ns = 1000000,
+		.pwm_id = 1,
+	},
+	{
+		.name = "gta02::vibrator",
+		.max_brightness = 0x3f,
+		.pwm_period_ns = 60000000,
+		.pwm_id = 3,
+	}
+};
+
+static struct led_pwm_platform_data gta02_pwm_leds_pdata = {
+	.num_leds = ARRAY_SIZE(gta02_pwm_leds),
+	.leds = gta02_pwm_leds,
+};
+
+static struct platform_device gta02_pwm_leds_device = {
+	.name	= "leds_pwm",
+	.id	= -1,
+	.dev = {
+		.platform_data = &gta02_pwm_leds_pdata,
+	}
+};
+
+/* Touchscreen configuration. */
+
+#ifdef CONFIG_TOUCHSCREEN_FILTER
+const static struct ts_filter_group_configuration gta02_ts_group = {
+	.length = 12,
+	.close_enough = 10,
+	.threshold = 6,		/* At least half of the points in a group. */
+	.attempts = 10,
+};
+
+const static struct ts_filter_median_configuration gta02_ts_median = {
+	.extent = 20,
+	.decimation_below = 3,
+	.decimation_threshold = 8 * 3,
+	.decimation_above = 4,
+};
+
+const static struct ts_filter_mean_configuration gta02_ts_mean = {
+	.length = 4,
+};
+
+const static struct ts_filter_linear_configuration gta02_ts_linear = {
+	.constants = {1, 0, 0, 0, 1, 0, 1},	/* Don't modify coords. */
+	.coord0 = 0,
+	.coord1 = 1,
+};
+#endif
+
+const static struct ts_filter_chain_configuration gta02_filter_configuration[] =
+{
+#ifdef CONFIG_TOUCHSCREEN_FILTER
+	{&ts_filter_group_api,		&gta02_ts_group.config},
+	{&ts_filter_median_api,		&gta02_ts_median.config},
+	{&ts_filter_mean_api,		&gta02_ts_mean.config},
+	{&ts_filter_linear_api,		&gta02_ts_linear.config},
+#endif
+	{NULL, NULL},
+};
+
+const static struct s3c2410_ts_mach_info gta02_ts_cfg = {
+	.delay = 10000,
+	.presc = 0xff, /* slow as we can go */
+	.filter_config = gta02_filter_configuration,
+};
+
 struct hdq_platform_data gta02_hdq_platform_data = {
 	.attach_child_devices = gta02_hdq_attach_child_devices,
 	.gpio_dir_out = gta02_hdq_gpio_direction_out,
@@ -970,8 +1076,18 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&s3c_device_usbgadget,
 	&s3c_device_nand,
 	&gta02_nor_flash,
+	&s3c_device_timer[0],
+	&s3c_device_timer[1],
+	&s3c_device_timer[3],
 	&s3c_device_iis,
 	&s3c_device_i2c0,
+	&gta02_buttons_device,
+	&gta02_leds_device,
+	&gta02_pwm_leds_device,
+	&gta02_pm_gps_dev,
+	&gta02_pm_bt_dev,
+	&gta02_pm_gsm_dev,
+	&gta02_pm_wlan_dev,
 	&s3c_device_adc,
 };
 
@@ -1014,12 +1130,105 @@ static void gta02_poweroff(void)
 	pcf50633_reg_set_bit_mask(gta02_pcf, PCF50633_REG_OOCSHDWN, 1, 1);
 }
 
+/* On hardware rev 5 and earlier the leds are missing a resistor and reading
+ * from their gpio pins will always return 0, so we have to shadow the
+ * led states software */
+static unsigned long gpb_shadow;
+extern struct s3c_gpio_chip s3c24xx_gpios[];
+
+static void gta02_gpb_set(struct gpio_chip *chip,
+				unsigned offset, int value)
+{
+	void __iomem *base = S3C24XX_GPIO_BASE(S3C2410_GPB(0));
+	unsigned long flags;
+	unsigned long dat;
+
+	local_irq_save(flags);
+
+	dat = __raw_readl(base + 0x04) | gpb_shadow;
+	dat &= ~(1 << offset);
+	gpb_shadow &= ~(1 << offset);
+	if (value) {
+		dat |= 1 << offset;
+		switch (offset) {
+		case 0 ... 2:
+			gpb_shadow |= 1 << offset;
+			break;
+		default:
+			break;
+		}
+	}
+	__raw_writel(dat, base + 0x04);
+
+	local_irq_restore(flags);
+}
+
+static int gta02_gpb_get(struct gpio_chip *chip, unsigned offset)
+{
+	void __iomem *base = S3C24XX_GPIO_BASE(S3C2410_GPB(0));
+	unsigned long val;
+
+	val = __raw_readl(base + 0x04) | gpb_shadow;
+	val >>= offset;
+	val &= 1;
+
+	return val;
+}
+
+static void gta02_hijack_gpb(void)
+{
+/* Uncomment this, once support for S3C_SYSTEM_REV_ATAG has been merged
+ * upstream.
+	if (S3C_SYSTEM_REV_ATAG > GTA02v5_SYSTEM_REV)
+		return;
+*/
+
+	s3c24xx_gpios[1].chip.set = gta02_gpb_set;
+	s3c24xx_gpios[1].chip.get = gta02_gpb_get;
+}
+
+/*
+ * Allow the bootloader to enable hw ecc
+ * hardware_ecc=1|0
+ */
+static int __init hardware_ecc_setup(char *str)
+{
+	if (str && str[0] == '1')
+		gta02_nand_info.software_ecc = 0;
+	return 1;
+}
+__setup("hardware_ecc=", hardware_ecc_setup);
+
+static void gta02_request_gpios(void)
+{
+	int ret;
+	ret = gpio_request(GTA02_GPIO_USB_PULLUP, "USB pullup");
+	if (ret) {
+		printk(KERN_ERR "Failed to request USB pullup gpio pin: %d\n", ret);
+	} else {
+		ret = gpio_direction_output(GTA02_GPIO_USB_PULLUP, 0);
+		if (ret)
+			printk(KERN_ERR "Failed to set USB pullup gpio direction: %d\n", ret);
+	}
+}
+
+static void gta02_enable_pwm_pins(void)
+{
+	s3c2410_gpio_cfgpin(GTA02_GPIO_PWR_LED1, S3C2410_GPB0_TOUT0);
+	s3c2410_gpio_cfgpin(GTA02_GPIO_PWR_LED2, S3C2410_GPB1_TOUT1);
+	s3c2410_gpio_cfgpin(GTA02_GPIO_VIBRATOR_ON, S3C2410_GPB3_TOUT3);
+}
+
 static void __init gta02_machine_init(void)
 {
 	/* Set the panic callback to make AUX LED blink at ~5Hz. */
 	panic_blink = gta02_panic_blink;
 
 	s3c_device_ts.name = "s3c2440-ts";
+
+	gta02_hijack_gpb();
+
+	gta02_request_gpios();
 
 	s3c_pm_init();
 
@@ -1039,6 +1248,8 @@ static void __init gta02_machine_init(void)
 				ARRAY_SIZE(gta02_spi_board_info));
 
 	platform_add_devices(gta02_devices, ARRAY_SIZE(gta02_devices));
+	gta02_enable_pwm_pins();
+
 	pm_power_off = gta02_poweroff;
 }
 

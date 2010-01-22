@@ -210,12 +210,6 @@ static struct platform_device spigpio_device = {
 	},
 };
 
-static void gta02_glamo_registered(struct device *dev)
-{
-	spigpio_device.dev.parent = dev;
-	platform_device_register(&spigpio_device);
-}
-
 static struct fb_videomode gta02_glamo_modes[] = {
 	{
 		.name = "480x640",
@@ -259,7 +253,6 @@ static struct glamo_mmc_platform_data gta02_glamo_mmc_pdata = {
 
 static struct glamo_gpio_platform_data gta02_glamo_gpio_pdata = {
 	.base = GTA02_GPIO_GLAMO_BASE,
-	.registered = gta02_glamo_registered,
 };
 
 static struct glamo_platform_data gta02_glamo_pdata = {
@@ -1129,11 +1122,20 @@ struct gta02_device_children {
 	void (*probed_callback)(struct device *dev);
 };
 
+static struct platform_device* gta02_glamo_gpio_children[] = {
+	&spigpio_device,
+};
+
 static struct platform_device* gta02_hdq_children[] = {
 	&bq27000_battery_device,
 };
 
 static struct gta02_device_children gta02_device_children[] = {
+		{
+		.dev_name = "glamo-gpio.0",
+		.num_children = 1,
+		.children = gta02_glamo_gpio_children,
+	},
 	{
 		.dev_name = "hdq.0",
 		.num_children = 1,

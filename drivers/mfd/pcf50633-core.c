@@ -454,7 +454,7 @@ static irqreturn_t pcf50633_irq(int irq, void *data)
 
 static void
 pcf50633_client_dev_register(struct pcf50633 *pcf, const char *name,
-						struct platform_device **pdev)
+							struct platform_device **pdev)
 {
 	int ret;
 
@@ -621,7 +621,8 @@ static int __devinit pcf50633_probe(struct i2c_client *client,
 						&pcf->adc_pdev);
 	pcf50633_client_dev_register(pcf, "pcf50633-backlight",
 						&pcf->bl_pdev);
-
+	pcf50633_client_dev_register(pcf, "pcf50633-gpio",
+						&pcf->gpio_pdev);
 
 	for (i = 0; i < PCF50633_NUM_REGULATORS; i++) {
 		struct platform_device *pdev;
@@ -647,9 +648,9 @@ static int __devinit pcf50633_probe(struct i2c_client *client,
 	ret = sysfs_create_group(&client->dev.kobj, &pcf_attr_group);
 	if (ret)
 		dev_info(pcf->dev, "Failed to create sysfs entries\n");
-
-	if (pdata->probe_done)
-		pdata->probe_done(pcf);
+	
+	if (pcf->pdata->probe_done)
+		pcf->pdata->probe_done(pcf);
 
 	return 0;
 
@@ -670,6 +671,7 @@ static int __devexit pcf50633_remove(struct i2c_client *client)
 	free_irq(pcf->irq, pcf);
 	destroy_workqueue(pcf->work_queue);
 
+	platform_device_unregister(pcf->gpio_pdev);
 	platform_device_unregister(pcf->input_pdev);
 	platform_device_unregister(pcf->rtc_pdev);
 	platform_device_unregister(pcf->mbc_pdev);

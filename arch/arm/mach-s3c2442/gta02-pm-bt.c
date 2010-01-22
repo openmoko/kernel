@@ -23,7 +23,6 @@
 #include <asm/mach-types.h>
 
 #include <mach/gta02.h>
-#include <linux/mfd/pcf50633/gpio.h>
 
 #include <linux/regulator/consumer.h>
 

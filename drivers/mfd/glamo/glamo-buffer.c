@@ -245,6 +245,8 @@ int glamo_ioctl_gem_mmap(struct drm_device *dev, void *data,
 	if (!gobj->mmap_offset) {
 		ret = glamo_gem_create_mmap_offset(obj);
 		if (ret) {
+			printk(KERN_CRIT "Couldn't create mmap offset\n");
+			drm_gem_object_unreference(obj);
 			mutex_unlock(&dev->struct_mutex);
 			return ret;
 		}

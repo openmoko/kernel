@@ -32,7 +32,7 @@
 #include <mach/regs-gpioj.h>
 
 /* FIXME: Add interrupt handler counting irqs or something */
-static int gta_gsm_interrupts;
+static int gta02_gsm_interrupts;
 
 extern void s3c24xx_serial_console_set_silence(int);
 
@@ -175,7 +175,7 @@ static ssize_t gsm_write(struct device *dev, struct device_attribute *attr,
 
 	if (!strcmp(attr->attr.name, "flowcontrolled")) {
 		if (on) {
-			gta_gsm_interrupts = 0;
+			gta02_gsm_interrupts = 0;
 			s3c2410_gpio_setpin(S3C2410_GPH(1), 1);
 			s3c2410_gpio_cfgpin(S3C2410_GPH(1), S3C2410_GPIO_OUTPUT);
 		} else
@@ -197,14 +197,19 @@ static int gta02_gsm_suspend(struct device *dev)
 	/* GPIO state is saved/restored by S3C2410 core GPIO driver, so we
 	 * don't need to do much here. */
 
+
 	/* If flowcontrol asserted, abort if GSM already interrupted */
 	if (s3c2410_gpio_getcfg(S3C2410_GPH(1)) == S3C2410_GPIO_OUTPUT) {
-		if (gta_gsm_interrupts)
+		if (gta02_gsm_interrupts)
 			goto busy;
 	}
 
 	/* disable DL GSM to prevent jack_insert becoming 'floating' */
 	s3c2410_gpio_setpin(GTA02_GPIO_nDL_GSM, 1);
+
+	if (device_may_wakeup(dev))
+		enable_irq_wake(GTA02_IRQ_MODEM);
+
 	return 0;
 
 busy:
@@ -215,7 +220,7 @@ static int gta02_gsm_suspend_late(struct device *dev)
 {
 	/* Last chance: abort if GSM already interrupted */
 	if (s3c2410_gpio_getcfg(S3C2410_GPH(1)) == S3C2410_GPIO_OUTPUT) {
-		if (gta_gsm_interrupts)
+		if (gta02_gsm_interrupts)
 			return -EBUSY;
 	}
 	return 0;
@@ -223,6 +228,9 @@ static int gta02_gsm_suspend_late(struct device *dev)
 
 static int gta02_gsm_resume(struct device *dev)
 {
+	if (device_may_wakeup(dev))
+		disable_irq_wake(GTA02_IRQ_MODEM);
+
 	/* GPIO state is saved/restored by S3C2410 core GPIO driver, so we
 	 * don't need to do much here. */
 
@@ -261,34 +269,69 @@ static struct attribute_group gta02_gsm_attr_group = {
 	.attrs	= gta02_gsm_sysfs_entries,
 };
 
+static irqreturn_t gta02_gsm_irq(int irq, void *devid)
+{
+	gta02_gsm_interrupts++;
+	return IRQ_HANDLED;
+}
+
 static int __init gta02_gsm_probe(struct platform_device *pdev)
 {
+	int ret;
+
 	gta02_gsm.con = find_s3c24xx_console();
 	if (!gta02_gsm.con)
 		dev_warn(&pdev->dev,
 			 "cannot find S3C24xx console driver\n");
 
-	/* note that download initially disabled, and enforce that */
-	gta02_gsm.gpio_ndl_gsm = 1;
-	s3c2410_gpio_setpin(GTA02_GPIO_nDL_GSM, 1);
-
 	gta02_gsm.regulator = regulator_get_exclusive(&pdev->dev, "GSM");
 
 	if (IS_ERR(gta02_gsm.regulator)) {
-		dev_err(&pdev->dev, "Failed to get regulator: %d\n",
-		PTR_ERR(gta02_gsm.regulator));
-		return PTR_ERR(gta02_gsm.regulator);
+		ret = PTR_ERR(gta02_gsm.regulator);
+		dev_err(&pdev->dev, "Failed to get regulator: %d\n", ret);
+		return ret;
 	}
+
+	ret = request_irq(GTA02_IRQ_MODEM, gta02_gsm_irq,
+			IRQF_DISABLED | IRQF_TRIGGER_RISING, "modem", NULL);
+
+	if (ret) {
+		regulator_put(gta02_gsm.regulator);
+		dev_err(&pdev->dev, "Failed to get modem irq: %d\n", ret);
+		goto err_regulator_put;
+	}
+
+	ret = sysfs_create_group(&pdev->dev.kobj, &gta02_gsm_attr_group);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to create sysfs entries: %d\n", ret);
+		goto err_free_irq;
+	}
+
+	device_init_wakeup(&pdev->dev, 1);
 
 	/* GSM is to be initially off (at boot, or if this module inserted) */
 	gsm_on_off(&pdev->dev, 0);
 
-	return sysfs_create_group(&pdev->dev.kobj, &gta02_gsm_attr_group);
+	/* note that download initially disabled, and enforce that */
+	gta02_gsm.gpio_ndl_gsm = 1;
+	s3c2410_gpio_setpin(GTA02_GPIO_nDL_GSM, 1);
+
+	return 0;
+err_free_irq:
+	free_irq(GTA02_IRQ_MODEM, NULL);
+err_regulator_put:
+	regulator_put(gta02_gsm.regulator);
+
+	return ret;
 }
 
 static int gta02_gsm_remove(struct platform_device *pdev)
 {
+	gsm_on_off(&pdev->dev, 0);
+
 	sysfs_remove_group(&pdev->dev.kobj, &gta02_gsm_attr_group);
+	free_irq(GTA02_IRQ_MODEM, NULL);
+	regulator_put(gta02_gsm.regulator);
 
 	return 0;
 }

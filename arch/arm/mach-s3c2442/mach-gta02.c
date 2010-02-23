@@ -52,6 +52,7 @@
 #include <linux/i2c.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
+#include <linux/regulator/userspace-consumer.h>
 
 #include <linux/mfd/pcf50633/core.h>
 #include <linux/mfd/pcf50633/mbc.h>
@@ -340,6 +341,23 @@ static struct platform_device gta02_gsm_supply_device = {
 	},
 };
 
+static struct regulator_bulk_data gta02_gps_consumer_supply = {
+	.supply = "GPS",
+};
+
+static struct regulator_userspace_consumer_data gta02_gps_consumer_data = {
+	.name		= "GPS",
+	.num_supplies	= 1,
+	.supplies	= &gta02_gps_consumer_supply,
+};
+
+static struct platform_device gta02_gps_userspace_consumer = {
+	.name	= "reg-userspace-consumer",
+	.dev	= {
+		.platform_data = &gta02_gps_consumer_data,
+	},
+};
+
 
 #ifdef CONFIG_CHARGER_PCF50633
 /*
@@ -474,6 +492,10 @@ static struct regulator_consumer_supply ldo5_consumers[] = {
 		.dev = &gta02_pm_gps_dev.dev,
 		.supply = "RF_3V",
 	},
+	{
+		.dev = &gta02_gps_userspace_consumer.dev,
+		.supply = "GPS",
+	},
 };
 
 static struct regulator_consumer_supply hcldo_consumers[] = {
@@ -557,7 +579,8 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.max_uV = 3300000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
 				.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE | 
-							REGULATOR_CHANGE_STATUS,
+							REGULATOR_CHANGE_VOLTAGE,
+				.always_on = 1,
 			},
 			.num_consumer_supplies = ARRAY_SIZE(hcldo_consumers),
 			.consumer_supplies = hcldo_consumers,
@@ -731,7 +754,6 @@ static void gta02_udc_command(enum s3c2410_udc_cmd_e cmd)
 static struct s3c2410_udc_mach_info gta02_udc_cfg = {
 	.vbus_draw	= gta02_udc_vbus_draw,
 	.udc_command	= gta02_udc_command,
-
 };
 
 /* USB */
@@ -1116,6 +1138,7 @@ static struct platform_device *gta02_devices_pmu_children[] = {
 	&gta02_glamo_dev,
 	&s3c_device_timer[2],
 	&gta02_hdq_device,
+	&gta02_gps_userspace_consumer
 };
 
 

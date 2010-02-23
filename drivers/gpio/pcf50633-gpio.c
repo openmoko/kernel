@@ -85,7 +85,7 @@ static void pcf50633_gpio_set_value(struct gpio_chip *chip, unsigned gpio, int v
 
 	reg = PCF50633_REG_GPIOCFG(gpio);
 
-	pcf50633_reg_set_bit_mask(pcf, reg, 0x07, value ? 0x0 : 0x7);
+	pcf50633_reg_set_bit_mask(pcf, reg, 0x07, value ? 0x7 : 0x0);
 }
 
 static int pcf50633_gpio_get_value(struct gpio_chip *chip, unsigned gpio)

@@ -253,64 +253,24 @@ static void glamofb_on(struct fb_info *info)
 {
 	struct glamofb_par *par = info->par;
 	struct drm_device *dev = par->dev;
-	struct drm_crtc *crtc;
-	struct drm_encoder *encoder;
-	int i;
+	struct glamodrm_handle *gdrm = dev->dev_private;
 
-	/*
-	 * For each CRTC in this fb, find all associated encoders
-	 * and turn them off, then turn off the CRTC.
-	 */
-	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
-		struct drm_crtc_helper_funcs *crtc_funcs = crtc->helper_private;
+	printk(KERN_CRIT "Turning on display...\n");
 
-		for (i = 0; i < par->crtc_count; i++)
-			if (crtc->base.id == par->crtc_ids[i])
-				break;
+	gdrm = dev->dev_private;
 
-		crtc_funcs->dpms(crtc, DRM_MODE_DPMS_ON);
-
-		/* Found a CRTC on this fb, now find encoders */
-		list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
-			if (encoder->crtc == crtc) {
-				struct drm_encoder_helper_funcs *encoder_funcs;
-				encoder_funcs = encoder->helper_private;
-				encoder_funcs->dpms(encoder, DRM_MODE_DPMS_ON);
-			}
-		}
-	}
+	glamo_lcd_power(gdrm, 1);
 }
 
 static void glamofb_off(struct fb_info *info, int dpms_mode)
 {
 	struct glamofb_par *par = info->par;
 	struct drm_device *dev = par->dev;
-	struct drm_crtc *crtc;
-	struct drm_encoder *encoder;
-	int i;
+	struct glamodrm_handle *gdrm = dev->dev_private;
 
-	/*
-	 * For each CRTC in this fb, find all associated encoders
-	 * and turn them off, then turn off the CRTC.
-	 */
-	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
-		struct drm_crtc_helper_funcs *crtc_funcs = crtc->helper_private;
+	printk(KERN_CRIT "Turning off display...\n");
 
-		for (i = 0; i < par->crtc_count; i++)
-			if (crtc->base.id == par->crtc_ids[i])
-				break;
-
-		/* Found a CRTC on this fb, now find encoders */
-		list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
-			if (encoder->crtc == crtc) {
-				struct drm_encoder_helper_funcs *encoder_funcs;
-				encoder_funcs = encoder->helper_private;
-				encoder_funcs->dpms(encoder, dpms_mode);
-			}
-		}
-		if (dpms_mode == DRM_MODE_DPMS_OFF)
-			crtc_funcs->dpms(crtc, dpms_mode);
-	}
+	glamo_lcd_power(gdrm, 0);
 }
 
 static int glamofb_blank(int blank, struct fb_info *info)

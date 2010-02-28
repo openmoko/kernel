@@ -239,14 +239,6 @@ static int glamo_run_lcd_script(struct glamodrm_handle *gdrm,
 }
 
 
-extern void jbt6k74_action(int val);
-
-/* Power on/off */
-static void glamo_crtc_dpms(struct drm_crtc *crtc, int mode)
-{
-}
-
-
 static bool glamo_crtc_mode_fixup(struct drm_crtc *crtc,
                                   struct drm_display_mode *mode,
                                   struct drm_display_mode *adjusted_mode)
@@ -274,6 +266,12 @@ static int glamo_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 	/* Dig out our handle */
 	gcrtc = to_glamo_crtc(crtc);
 	gdrm = gcrtc->gdrm;	/* Here it is! */
+
+	if ( !gcrtc->pixel_clock_on ) {
+		printk(KERN_WARNING "[glamo-drm] Refusing to set base while "
+		                    "pixel clock is off.\n");
+		return -EBUSY;
+	}
 
 	gfb = to_glamo_framebuffer(crtc->fb);
 	obj = gfb->obj;
@@ -305,6 +303,12 @@ static int glamo_crtc_mode_set(struct drm_crtc *crtc,
 	/* Dig out our handle */
 	gcrtc = to_glamo_crtc(crtc);
 	gdrm = gcrtc->gdrm;	/* Here it is! */
+
+	if ( !gcrtc->pixel_clock_on ) {
+		printk(KERN_WARNING "[glamo-drm] Refusing to set mode while "
+		                    "pixel clock is off.\n");
+		return -EBUSY;
+	}
 
 	glamo_lcd_cmd_mode(gdrm, 1);
 
@@ -354,7 +358,44 @@ static int glamo_crtc_mode_set(struct drm_crtc *crtc,
 
 	glamo_crtc_mode_set_base(crtc, 0, 0, old_fb);
 
+	gcrtc->current_mode = *mode;
+	gcrtc->current_mode_set = 1;
+	gcrtc->current_fb = old_fb;
+
 	return 0;
+}
+
+
+extern void jbt6k74_action(int val);
+
+/* This is not the right place to switch power on/off, because the helper
+ * stuff ends up calling this before/after setting the mode.  We can't
+ * set modes with the display off (although backlight off would be OK) */
+static void glamo_crtc_dpms(struct drm_crtc *crtc, int mode)
+{
+	/* do nothing */
+}
+
+
+void glamo_lcd_power(struct glamodrm_handle *gdrm, int mode)
+{
+	struct drm_crtc *crtc = gdrm->crtc;
+	struct glamo_crtc *gcrtc = to_glamo_crtc(crtc);
+
+	if ( mode ) {
+		glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_LCD);
+		gcrtc->pixel_clock_on = 1;
+		jbt6k74_action(1);
+		if ( gcrtc->current_mode_set ) {
+			glamo_crtc_mode_set(crtc, &gcrtc->current_mode,
+			                    &gcrtc->current_mode, 0, 0,
+			                    gcrtc->current_fb);
+		}
+	} else {
+		jbt6k74_action(0);
+		glamo_engine_suspend(gdrm->glamo_core, GLAMO_ENGINE_LCD);
+		gcrtc->pixel_clock_on = 0;
+	}
 }
 
 
@@ -725,6 +766,8 @@ int glamo_display_init(struct drm_device *dev)
 	                   + sizeof(struct drm_connector *), GFP_KERNEL);
 	if (glamo_crtc == NULL) return 1;
 	glamo_crtc->gdrm = gdrm;
+	gdrm->crtc = (struct drm_crtc *)glamo_crtc;
+	glamo_crtc->pixel_clock_on = 1;
 	glamo_crtc->blank_mode = DRM_MODE_DPMS_OFF;
 	drm_crtc_init(dev, &glamo_crtc->base, &glamo_crtc_funcs);
 	drm_crtc_helper_add(&glamo_crtc->base, &glamo_crtc_helper_funcs);
@@ -808,62 +851,23 @@ int glamo_display_init(struct drm_device *dev)
 
 void glamo_display_suspend(struct glamodrm_handle *gdrm)
 {
-	gdrm->saved_width = reg_read_lcd(gdrm, GLAMO_REG_LCD_WIDTH);
-	gdrm->saved_height = reg_read_lcd(gdrm, GLAMO_REG_LCD_HEIGHT);
-	gdrm->saved_pitch = reg_read_lcd(gdrm, GLAMO_REG_LCD_PITCH);
-	gdrm->saved_htotal = reg_read_lcd(gdrm, GLAMO_REG_LCD_HORIZ_TOTAL);
-	gdrm->saved_hrtrst = reg_read_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_START);
-	gdrm->saved_hrtren = reg_read_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_END);
-	gdrm->saved_hdspst = reg_read_lcd(gdrm, GLAMO_REG_LCD_HORIZ_DISP_START);
-	gdrm->saved_hdspen = reg_read_lcd(gdrm, GLAMO_REG_LCD_HORIZ_DISP_END);
-	gdrm->saved_vtotal = reg_read_lcd(gdrm, GLAMO_REG_LCD_VERT_TOTAL);
-	gdrm->saved_vrtrst = reg_read_lcd(gdrm, GLAMO_REG_LCD_VERT_RETR_START);
-	gdrm->saved_vrtren = reg_read_lcd(gdrm, GLAMO_REG_LCD_VERT_RETR_END);
-	gdrm->saved_vdspst = reg_read_lcd(gdrm, GLAMO_REG_LCD_VERT_DISP_START);
-	gdrm->saved_vdspen = reg_read_lcd(gdrm, GLAMO_REG_LCD_VERT_DISP_END);
+	/* do nothing */
 }
 
 
 void glamo_display_resume(struct glamodrm_handle *gdrm)
 {
+	struct drm_crtc *crtc = gdrm->crtc;
+	struct glamo_crtc *gcrtc = to_glamo_crtc(crtc);
+
 	glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_LCD);
 	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_LCD);
 	glamo_run_lcd_script(gdrm, lcd_init_script,
 	                           ARRAY_SIZE(lcd_init_script));
 
-	/* Restore timings */
-	glamo_lcd_cmd_mode(gdrm, 1);
-	glamo_engine_reclock(gdrm->glamo_core, GLAMO_ENGINE_LCD,
-	                     gdrm->saved_clock);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_WIDTH, GLAMO_LCD_WIDTH_MASK,
-	                     gdrm->saved_width);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HEIGHT, GLAMO_LCD_HEIGHT_MASK,
-	                     gdrm->saved_height);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_PITCH, GLAMO_LCD_PITCH_MASK,
-	                     gdrm->saved_pitch);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_TOTAL,
-	                     GLAMO_LCD_HV_TOTAL_MASK, gdrm->saved_htotal);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_START,
-	                     GLAMO_LCD_HV_RETR_START_MASK, gdrm->saved_hrtrst);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_RETR_END,
-	                     GLAMO_LCD_HV_RETR_END_MASK, gdrm->saved_hrtren);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_DISP_START,
-	                     GLAMO_LCD_HV_RETR_DISP_START_MASK,
-	                     gdrm->saved_hdspst);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_HORIZ_DISP_END,
-	                     GLAMO_LCD_HV_RETR_DISP_END_MASK,
-	                     gdrm->saved_hdspen);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_TOTAL,
-	                     GLAMO_LCD_HV_TOTAL_MASK, gdrm->saved_vtotal);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_RETR_START,
-	                     GLAMO_LCD_HV_RETR_START_MASK, gdrm->saved_vrtrst);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_RETR_END,
-	                     GLAMO_LCD_HV_RETR_END_MASK, gdrm->saved_vrtren);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_DISP_START,
-	                     GLAMO_LCD_HV_RETR_DISP_START_MASK,
-	                     gdrm->saved_vdspst);
-	reg_set_bit_mask_lcd(gdrm, GLAMO_REG_LCD_VERT_DISP_END,
-	                     GLAMO_LCD_HV_RETR_DISP_END_MASK,
-	                     gdrm->saved_vdspen);
-	glamo_lcd_cmd_mode(gdrm, 0);
+	if ( gcrtc->current_mode_set ) {
+		glamo_crtc_mode_set(crtc, &gcrtc->current_mode,
+		                    &gcrtc->current_mode, 0, 0,
+		                    gcrtc->current_fb);
+	}
 }

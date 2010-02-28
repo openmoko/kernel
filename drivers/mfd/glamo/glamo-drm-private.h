@@ -106,6 +106,9 @@ struct glamodrm_handle {
 
 	/* A scratch block */
 	struct drm_mm_node *scratch;
+
+	/* We only have one */
+	struct drm_crtc *crtc;
 };
 
 
@@ -118,11 +121,18 @@ struct drm_glamo_gem_object {
 
 
 struct glamo_crtc {
+
 	struct drm_crtc base;
 	struct glamodrm_handle *gdrm;
 	/* a mode_set for fbdev users on this crtc */
 	struct drm_mode_set mode_set;
 	int blank_mode;
+
+	int pixel_clock_on;
+
+	int current_mode_set;
+	struct drm_display_mode current_mode;
+	struct drm_framebuffer *current_fb;
 };
 
 

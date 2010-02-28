@@ -36,4 +36,6 @@ extern int glamo_framebuffer_create(struct drm_device *dev,
 extern void glamo_display_suspend(struct glamodrm_handle *gdrm);
 extern void glamo_display_resume(struct glamodrm_handle *gdrm);
 
+extern void glamo_lcd_power(struct glamodrm_handle *gdrm, int mode);
+
 #endif /* __GLAMO_DISPLAY_H */

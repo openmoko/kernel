@@ -13,7 +13,6 @@
  */
 struct jbt6k74_platform_data {
 	void (*probe_completed)(struct device *dev);
-	void (*enable_pixel_clock)(struct device *dev, int enable);
 
 	int gpio_reset;
 };

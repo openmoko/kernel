@@ -177,37 +177,35 @@ static int glamofb_set_par(struct fb_info *info)
 	struct drm_device *dev = par->dev;
 	struct fb_var_screeninfo *var = &info->var;
 	int i;
+	struct drm_crtc *crtc;
+	int ret;
 
 	DRM_DEBUG("%d %d\n", var->xres, var->pixclock);
 
 	if (var->pixclock != -1) {
-
-		DRM_ERROR("PIXEL CLOCK SET\n");
-		return -EINVAL;
-	} else {
-		struct drm_crtc *crtc;
-		int ret;
-
-		list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
-			struct glamo_crtc *glamo_crtc = to_glamo_crtc(crtc);
-
-			for (i = 0; i < par->crtc_count; i++)
-				if (crtc->base.id == par->crtc_ids[i])
-					break;
-
-			if (i == par->crtc_count)
-				continue;
-
-			if (crtc->fb == glamo_crtc->mode_set.fb) {
-				mutex_lock(&dev->mode_config.mutex);
-				ret = crtc->funcs->set_config(&glamo_crtc->mode_set);
-				mutex_unlock(&dev->mode_config.mutex);
-				if (ret)
-					return ret;
-			}
-		}
-		return 0;
+		DRM_ERROR("Warning: userspace gave me a pixel clock value (%i)"
+		          "- I'm ignoring it.\n", var->pixclock);
 	}
+
+	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
+		struct glamo_crtc *glamo_crtc = to_glamo_crtc(crtc);
+
+		for (i = 0; i < par->crtc_count; i++)
+			if (crtc->base.id == par->crtc_ids[i])
+				break;
+
+		if (i == par->crtc_count)
+			continue;
+
+		if (crtc->fb == glamo_crtc->mode_set.fb) {
+			mutex_lock(&dev->mode_config.mutex);
+			ret = crtc->funcs->set_config(&glamo_crtc->mode_set);
+			mutex_unlock(&dev->mode_config.mutex);
+			if (ret)
+				return ret;
+		}
+	}
+	return 0;
 }
 
 static int glamofb_pan_display(struct fb_var_screeninfo *var,

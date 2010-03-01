@@ -456,43 +456,53 @@ static void glamo_connector_destroy(struct drm_connector *connector)
 
 static int glamo_connector_get_modes(struct drm_connector *connector)
 {
-	struct drm_display_mode *mode;
 	struct glamo_fb_platform_data *fb_info;
 	struct glamo_output *goutput = to_glamo_output(connector);
 	struct glamodrm_handle *gdrm = goutput->gdrm;
+	int i;
 
 	/* Dig out the record which will tell us about the hardware */
 	fb_info = gdrm->glamo_core->pdata->fb_data;
 
-	mode = drm_mode_create(connector->dev);
-	if (!mode)
-		return 0;
-	/* Fill in 'mode' here */
-	mode->type = DRM_MODE_TYPE_DEFAULT | DRM_MODE_TYPE_PREFERRED;
+	for ( i=0; i<fb_info->num_modes; i++ ) {
 
-	/* Convert framebuffer timings into KMS timings */
-	mode->clock = 1000000000UL / fb_info->modes[0].pixclock; /* ps -> kHz */
-	mode->clock *= 1000; /* kHz -> Hz */
-	mode->hdisplay = fb_info->modes[0].xres;
-	mode->hsync_start = fb_info->modes[0].right_margin + mode->hdisplay;
-	mode->hsync_end = mode->hsync_start + fb_info->modes[0].hsync_len;
-	mode->htotal = mode->hsync_end + fb_info->modes[0].left_margin;
-	mode->hskew = 0;
+		struct drm_display_mode *mode;
 
-	mode->vdisplay = fb_info->modes[0].yres;
-	mode->vsync_start = fb_info->modes[0].lower_margin + mode->vdisplay;
-	mode->vsync_end = mode->vsync_start + fb_info->modes[0].vsync_len;
-	mode->vtotal = mode->vsync_end + fb_info->modes[0].upper_margin;
-	mode->vscan = 0;
+		mode = drm_mode_create(connector->dev);
+		if ( !mode ) continue;
 
-	/* Physical size */
-	mode->width_mm = fb_info->width;
-	mode->height_mm = fb_info->height;
+		mode->type = DRM_MODE_TYPE_DEFAULT | DRM_MODE_TYPE_PREFERRED;
 
-	drm_mode_set_name(mode);
-	drm_mode_probed_add(connector, mode);
+		/* Convert framebuffer timings into KMS timings.
+		 * First:  ps -> kHz */
+		mode->clock = 1000000000UL / fb_info->modes[i].pixclock;
+		mode->clock *= 1000; /* then kHz -> Hz */
+		mode->hdisplay = fb_info->modes[i].xres;
+		mode->hsync_start = fb_info->modes[i].right_margin
+		                     + mode->hdisplay;
+		mode->hsync_end = mode->hsync_start
+		                     + fb_info->modes[i].hsync_len;
+		mode->htotal = mode->hsync_end + fb_info->modes[i].left_margin;
+		mode->hskew = 0;
 
-	return 1;	/* one mode, for now */
+		mode->vdisplay = fb_info->modes[i].yres;
+		mode->vsync_start = fb_info->modes[i].lower_margin
+		                     + mode->vdisplay;
+		mode->vsync_end = mode->vsync_start
+		                   + fb_info->modes[i].vsync_len;
+		mode->vtotal = mode->vsync_end + fb_info->modes[i].upper_margin;
+		mode->vscan = 0;
+
+		/* Physical size */
+		mode->width_mm = fb_info->width;
+		mode->height_mm = fb_info->height;
+
+		drm_mode_set_name(mode);
+		drm_mode_probed_add(connector, mode);
+
+	}
+
+	return fb_info->num_modes;
 }
 
 

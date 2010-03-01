@@ -795,7 +795,7 @@ int glamo_display_init(struct drm_device *dev)
 
 	/* Initialise the connector */
 	drm_connector_init(dev, connector, &glamo_connector_funcs,
-	                   DRM_MODE_CONNECTOR_Unknown);
+	                   DRM_MODE_CONNECTOR_LVDS);
 	drm_sysfs_connector_add(connector);
 	connector->interlace_allowed = 0;
 	connector->doublescan_allowed = 0;

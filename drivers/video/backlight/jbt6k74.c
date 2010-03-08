@@ -101,15 +101,6 @@ enum jbt_register {
 	JBT_REG_HCLOCK_QVGA		= 0xed,
 };
 
-enum jbt_resolution {
-	JBT_RESOLUTION_VGA,
-	JBT_RESOLUTION_QVGA,
-};
-
-enum jbt_power_mode {
-	JBT_POWER_MODE_OFF,
-	JBT_POWER_MODE_NORMAL,
-};
 
 static const char *jbt_power_mode_names[] = {
 	[JBT_POWER_MODE_OFF]		= "off",
@@ -120,6 +111,7 @@ static const char *jbt_resolution_names[] = {
 	[JBT_RESOLUTION_VGA] = "vga",
 	[JBT_RESOLUTION_QVGA] = "qvga",
 };
+
 
 struct jbt_info {
 	struct mutex lock;		/* protects this structure */
@@ -138,6 +130,8 @@ struct jbt_info {
 	uint16_t tx_buf[3];
 	uint16_t reg_cache[0xEE];
 };
+
+struct jbt_info *jbt_global;
 
 #define JBT_COMMAND	0x000
 #define JBT_DATA	0x100
@@ -401,8 +395,9 @@ static int jbt6k74_set_resolution(struct jbt_info *jbt,
 
 	if (jbt->power_mode == JBT_POWER_MODE_NORMAL) {
 
-		/* first transition into sleep */
+		/* "Reboot" the LCM */
 		ret = jbt_normal_to_off(jbt);
+		mdelay(1000);
 		ret |= jbt_off_to_normal(jbt);
 
 		if (ret) {
@@ -609,22 +604,6 @@ static int jbt6k74_get_power(struct lcd_device *ld)
 	}
 }
 
-/* This is utterly, totally horrible.  I'm REALLY sorry... */
-struct jbt_info *jbt_global;
-void jbt6k74_action(int val)
-{
-	if ( !jbt_global ) {
-		printk(KERN_CRIT "JBT not initialised!!!\n");
-		return;
-	}
-	if ( val == 0 ) {
-		jbt6k74_enter_power_mode(jbt_global, JBT_POWER_MODE_OFF);
-	} else {
-		jbt6k74_enter_power_mode(jbt_global, JBT_POWER_MODE_NORMAL);
-	}
-}
-EXPORT_SYMBOL_GPL(jbt6k74_action);
-
 struct lcd_ops jbt6k74_lcd_ops = {
 	.set_power = jbt6k74_set_power,
 	.get_power = jbt6k74_get_power,
@@ -757,6 +736,32 @@ static int __devexit jbt_remove(struct spi_device *spi)
 
 	return 0;
 }
+
+/* Begin horrible layering violations (in the interest of making stuff work) */
+
+int jbt6k74_setresolution(enum jbt_resolution new_resolution)
+{
+	if ( !jbt_global ) {
+		printk(KERN_CRIT "JBT not initialised!!!\n");
+		return -1;
+	}
+	jbt6k74_set_resolution(jbt_global, new_resolution);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(jbt6k74_setresolution);
+
+/* This is utterly, totally horrible.  I'm REALLY sorry... */
+void jbt6k74_setpower(enum jbt_power_mode new_power)
+{
+	if ( !jbt_global ) {
+		printk(KERN_CRIT "JBT not initialised!!!\n");
+		return;
+	}
+	jbt6k74_enter_power_mode(jbt_global, new_power);
+}
+EXPORT_SYMBOL_GPL(jbt6k74_setpower);
+
+/* End horrible layering violations */
 
 #ifdef CONFIG_PM
 static int jbt_suspend(struct spi_device *spi, pm_message_t state)

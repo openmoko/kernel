@@ -52,19 +52,18 @@
  *
  */
 
-#define DEBUG 1
-
 #include <drm/drmP.h>
 #include <drm/glamo_drm.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_crtc.h>
+#include <linux/glamofb.h>
+#include <linux/jbt6k74.h>
 
 #include "glamo-core.h"
 #include "glamo-drm-private.h"
 #include "glamo-regs.h"
 #include "glamo-kms-fb.h"
 #include "glamo-display.h"
-#include <linux/glamofb.h>
 
 
 #define GLAMO_LCD_WIDTH_MASK 0x03FF
@@ -356,6 +355,12 @@ static int glamo_crtc_mode_set(struct drm_crtc *crtc,
 
 	glamo_lcd_cmd_mode(gdrm, 0);
 
+	if ( mode->hdisplay == 240 ) {
+		jbt6k74_setresolution(JBT_RESOLUTION_QVGA);
+	} else {
+		jbt6k74_setresolution(JBT_RESOLUTION_VGA);
+	}
+
 	glamo_crtc_mode_set_base(crtc, 0, 0, old_fb);
 
 	gcrtc->current_mode = *mode;
@@ -365,8 +370,6 @@ static int glamo_crtc_mode_set(struct drm_crtc *crtc,
 	return 0;
 }
 
-
-extern void jbt6k74_action(int val);
 
 /* This is not the right place to switch power on/off, because the helper
  * stuff ends up calling this before/after setting the mode.  We can't
@@ -385,14 +388,14 @@ void glamo_lcd_power(struct glamodrm_handle *gdrm, int mode)
 	if ( mode ) {
 		glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_LCD);
 		gcrtc->pixel_clock_on = 1;
-		jbt6k74_action(1);
+		jbt6k74_setpower(JBT_POWER_MODE_NORMAL);
 		if ( gcrtc->current_mode_set ) {
 			glamo_crtc_mode_set(crtc, &gcrtc->current_mode,
 			                    &gcrtc->current_mode, 0, 0,
 			                    gcrtc->current_fb);
 		}
 	} else {
-		jbt6k74_action(0);
+		jbt6k74_setpower(JBT_POWER_MODE_OFF);
 		glamo_engine_suspend(gdrm->glamo_core, GLAMO_ENGINE_LCD);
 		gcrtc->pixel_clock_on = 0;
 	}

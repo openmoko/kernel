@@ -3,6 +3,20 @@
 
 #include <linux/spi/spi.h>
 
+enum jbt_resolution {
+	JBT_RESOLUTION_VGA,
+	JBT_RESOLUTION_QVGA,
+};
+
+enum jbt_power_mode {
+	JBT_POWER_MODE_OFF,
+	JBT_POWER_MODE_NORMAL,
+};
+
+extern void jbt6k74_setpower(enum jbt_power_mode new_power);
+extern int jbt6k74_setresolution(enum jbt_resolution new_resolution);
+
+
 /*
  *  struct jbt6k74_platform_data - Platform data for jbt6k74 driver
  *  @probe_completed: Callback to be called when the driver has been

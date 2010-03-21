@@ -267,9 +267,9 @@ static int glamo_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 	gdrm = gcrtc->gdrm;	/* Here it is! */
 
 	if ( !gcrtc->pixel_clock_on ) {
-		printk(KERN_WARNING "[glamo-drm] Refusing to set base while "
-		                    "pixel clock is off.\n");
-		return -EBUSY;
+		printk(KERN_WARNING "[glamo-drm] Display is off - "
+		                    "enabling it before setting base.\n");
+		glamo_lcd_power(gdrm, 1);
 	}
 
 	gfb = to_glamo_framebuffer(crtc->fb);
@@ -304,9 +304,9 @@ static int glamo_crtc_mode_set(struct drm_crtc *crtc,
 	gdrm = gcrtc->gdrm;	/* Here it is! */
 
 	if ( !gcrtc->pixel_clock_on ) {
-		printk(KERN_WARNING "[glamo-drm] Refusing to set mode while "
-		                    "pixel clock is off.\n");
-		return -EBUSY;
+		printk(KERN_WARNING "[glamo-drm] Display is off - "
+		                    "enabling it before setting mode.\n");
+		glamo_lcd_power(gdrm, 1);
 	}
 
 	glamo_lcd_cmd_mode(gdrm, 1);
@@ -377,28 +377,6 @@ static int glamo_crtc_mode_set(struct drm_crtc *crtc,
 static void glamo_crtc_dpms(struct drm_crtc *crtc, int mode)
 {
 	/* do nothing */
-}
-
-
-void glamo_lcd_power(struct glamodrm_handle *gdrm, int mode)
-{
-	struct drm_crtc *crtc = gdrm->crtc;
-	struct glamo_crtc *gcrtc = to_glamo_crtc(crtc);
-
-	if ( mode ) {
-		glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_LCD);
-		gcrtc->pixel_clock_on = 1;
-		jbt6k74_setpower(JBT_POWER_MODE_NORMAL);
-		if ( gcrtc->current_mode_set ) {
-			glamo_crtc_mode_set(crtc, &gcrtc->current_mode,
-			                    &gcrtc->current_mode, 0, 0,
-			                    gcrtc->current_fb);
-		}
-	} else {
-		jbt6k74_setpower(JBT_POWER_MODE_OFF);
-		glamo_engine_suspend(gdrm->glamo_core, GLAMO_ENGINE_LCD);
-		gcrtc->pixel_clock_on = 0;
-	}
 }
 
 
@@ -859,6 +837,28 @@ int glamo_display_init(struct drm_device *dev)
 	printk(KERN_INFO "[glamo-drm] Registered panic notifier\n");
 
 	return 0;
+}
+
+
+void glamo_lcd_power(struct glamodrm_handle *gdrm, int mode)
+{
+	struct drm_crtc *crtc = gdrm->crtc;
+	struct glamo_crtc *gcrtc = to_glamo_crtc(crtc);
+
+	if ( mode ) {
+		glamo_engine_enable(gdrm->glamo_core, GLAMO_ENGINE_LCD);
+		gcrtc->pixel_clock_on = 1;
+		jbt6k74_setpower(JBT_POWER_MODE_NORMAL);
+		if ( gcrtc->current_mode_set ) {
+			glamo_crtc_mode_set(crtc, &gcrtc->current_mode,
+			                    &gcrtc->current_mode, 0, 0,
+			                    gcrtc->current_fb);
+		}
+	} else {
+		jbt6k74_setpower(JBT_POWER_MODE_OFF);
+		glamo_engine_suspend(gdrm->glamo_core, GLAMO_ENGINE_LCD);
+		gcrtc->pixel_clock_on = 0;
+	}
 }
 
 

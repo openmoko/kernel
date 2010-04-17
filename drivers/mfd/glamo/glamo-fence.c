@@ -98,7 +98,7 @@ static void glamo_fence_emit(struct glamo_fence *fence)
 
 static void glamo_fence_enable(struct glamodrm_handle *gdrm)
 {
-	enable_irq(GLAMO_IRQ_2D);
+	enable_irq( GLAMO_IRQ_2D);
 }
 
 
@@ -168,7 +168,6 @@ static void glamo_fence_debodge(struct glamodrm_handle *gdrm)
 
 	glamo_cmdq_wait(gdrm, GLAMO_ENGINE_ALL);
 	glamo_engine_reset(gdrm->glamo_core, GLAMO_ENGINE_2D);
-	glamo_fence_enable(gdrm);
 
 	read_lock(&gdrm->fence_list_lock);
 	list_for_each(tmp, &gdrm->fence_list) {

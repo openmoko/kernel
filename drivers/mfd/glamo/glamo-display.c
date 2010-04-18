@@ -522,6 +522,7 @@ static bool glamo_encoder_mode_fixup(struct drm_encoder *encoder,
                                  struct drm_display_mode *mode,
                                  struct drm_display_mode *adjusted_mode)
 {
+	if ( mode->clock == 0 ) return false;
 	return true;
 }
 

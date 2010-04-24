@@ -217,7 +217,7 @@ static int jbt_init_regs(struct jbt_info *jbt)
 	 * to avoid red / blue flicker
 	 */
 	ret |= jbt_reg_write(jbt, JBT_REG_ASW_SLEW, 0x00 | (1 << 5));
-	ret |= jbt_reg_write(jbt, JBT_REG_DUMMY_DISPLAY, 0x00);
+	ret |= jbt_reg_write(jbt, JBT_REG_DUMMY_DISPLAY, 0xff);
 
 	ret |= jbt_reg_write(jbt, JBT_REG_SLEEP_OUT_FR_A, 0x11);
 	ret |= jbt_reg_write(jbt, JBT_REG_SLEEP_OUT_FR_B, 0x11);

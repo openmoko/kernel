@@ -10,11 +10,13 @@ enum jbt_resolution {
 
 enum jbt_power_mode {
 	JBT_POWER_MODE_OFF,
+	JBT_POWER_MODE_STANDBY,
 	JBT_POWER_MODE_NORMAL,
 };
 
 extern void jbt6k74_setpower(enum jbt_power_mode new_power);
-extern int jbt6k74_setresolution(enum jbt_resolution new_resolution);
+extern int jbt6k74_prepare_resolutionchange(enum jbt_resolution new_resolution);
+extern int jbt6k74_finish_resolutionchange(enum jbt_resolution new_resolution);
 
 
 /*

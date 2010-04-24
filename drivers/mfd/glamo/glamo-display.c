@@ -307,6 +307,7 @@ static int glamo_crtc_mode_set(struct drm_crtc *crtc,
 		printk(KERN_WARNING "[glamo-drm] Display is off - "
 		                    "enabling it before setting mode.\n");
 		glamo_lcd_power(gdrm, 1);
+		msleep(500);
 	}
 
 	glamo_lcd_cmd_mode(gdrm, 1);
@@ -355,13 +356,13 @@ static int glamo_crtc_mode_set(struct drm_crtc *crtc,
 
 	glamo_lcd_cmd_mode(gdrm, 0);
 
-	if ( mode->hdisplay == 240 ) {
-		jbt6k74_setresolution(JBT_RESOLUTION_QVGA);
-	} else {
-		jbt6k74_setresolution(JBT_RESOLUTION_VGA);
-	}
-
 	glamo_crtc_mode_set_base(crtc, 0, 0, old_fb);
+
+	if ( mode->hdisplay == 240 ) {
+		jbt6k74_finish_resolutionchange(JBT_RESOLUTION_QVGA);
+	} else {
+		jbt6k74_finish_resolutionchange(JBT_RESOLUTION_VGA);
+	}
 
 	gcrtc->current_mode = *mode;
 	gcrtc->current_mode_set = 1;

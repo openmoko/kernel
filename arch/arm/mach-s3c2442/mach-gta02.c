@@ -228,7 +228,7 @@ static struct fb_videomode gta02_glamo_modes[] = {
 		.name = "240x320",
 		.xres = 240,
 		.yres = 320,
-		.pixclock	= 100000,
+		.pixclock	= 40816,
 		.left_margin	= 8,
 		.right_margin	= 16,
 		.upper_margin	= 2,
@@ -556,7 +556,7 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.min_uV = 2000000,
 				.max_uV = 3300000,
 				.valid_modes_mask = REGULATOR_MODE_NORMAL,
-				.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE | 
+				.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 							REGULATOR_CHANGE_STATUS,
 			},
 			.num_consumer_supplies = ARRAY_SIZE(hcldo_consumers),

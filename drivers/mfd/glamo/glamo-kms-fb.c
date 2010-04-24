@@ -253,8 +253,6 @@ static void glamofb_on(struct fb_info *info)
 	struct drm_device *dev = par->dev;
 	struct glamodrm_handle *gdrm = dev->dev_private;
 
-	printk(KERN_CRIT "Turning on display...\n");
-
 	gdrm = dev->dev_private;
 
 	glamo_lcd_power(gdrm, 1);
@@ -265,8 +263,6 @@ static void glamofb_off(struct fb_info *info, int dpms_mode)
 	struct glamofb_par *par = info->par;
 	struct drm_device *dev = par->dev;
 	struct glamodrm_handle *gdrm = dev->dev_private;
-
-	printk(KERN_CRIT "Turning off display...\n");
 
 	glamo_lcd_power(gdrm, 0);
 }

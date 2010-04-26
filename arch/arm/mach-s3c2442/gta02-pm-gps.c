@@ -14,17 +14,12 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/delay.h>
 #include <linux/platform_device.h>
 
 #include <mach/hardware.h>
 #include <mach/gpio-fns.h>
 
-#include <asm/mach-types.h>
-
 #include <mach/gta02.h>
-#include <linux/mfd/pcf50633/core.h>
-#include <linux/mfd/pcf50633/pmic.h>
 
 #include <linux/regulator/consumer.h>
 #include <linux/err.h>
@@ -184,22 +179,6 @@ static int __init gta02_pm_gps_probe(struct platform_device *pdev)
 	}
 
 	dev_info(&pdev->dev, "starting\n");
-
-	/*
-	 * Here we should call the code that handles the set GPS power
-	 * off action.  But, the regulator API does not allow us to
-	 * reassert regulator state, and when we read the regulator API
-	 * logical state, it can differ from the actual state,  So
-	 * a workaround for this is to just set the regulator off in the
-	 * PMU directly.  Because that's different from normal flow, we
-	 * have to reproduce other things from the OFF action here too.
-	 */
-
-	/*
-	 * u-boot enables LDO5 (GPS), which doesn't make sense and
-	 * causes confusion. We therefore disable the regulator here.
-	 */
-	pcf50633_reg_write(gta02_pcf, PCF50633_REG_LDO5ENA, 0);
 
 	/*
 	 * take care not to power unpowered GPS from UART TX

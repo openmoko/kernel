@@ -360,19 +360,11 @@ static struct platform_device gta02_glamo_dev = {
 static void
 gta02_configure_pmu_for_charger(struct pcf50633 *pcf, void *unused, int res)
 {
-	int  ma;
+	int ma;
 
-	/* Interpret charger type */
-	if (res < ((ADC_NOM_CHG_DETECT_USB + ADC_NOM_CHG_DETECT_1A) / 2)) {
-
-		/*
-		 * Sanity - stop GPO driving out now that we have a 1A charger
-		 * GPO controls USB Host power generation on GTA02
-		 */
-		pcf50633_gpio_set(pcf, PCF50633_GPO, 0);
-
+	if (res < ((ADC_NOM_CHG_DETECT_USB + ADC_NOM_CHG_DETECT_1A) / 2))
 		ma = 1000;
-	} else
+	else
 		ma = 100;
 
 	pcf50633_mbc_usb_curlim_set(pcf, ma);
@@ -928,7 +920,7 @@ static struct platform_device* gta02_gsm_supply_children[] = {
 
 static struct gta02_device_children gta02_device_children[] = {
 	{
-		.dev_name = "pcf50633-gpio",
+		.dev_name = "pcf50633-gpio.0",
 		.num_children = 1,
 		.children = gta02_pcf50633_gpio_children,
 	},

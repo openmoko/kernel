@@ -93,6 +93,8 @@
 #include <plat/gpio-cfg.h>
 #include <plat/iic.h>
 
+#include <mach/gta02-pm-gps.h>
+
 static struct pcf50633 *gta02_pcf;
 
 /*
@@ -150,6 +152,10 @@ static struct s3c2410_uartcfg gta02_uartcfgs[] = {
 
 static struct platform_device gta02_pm_bt_dev = {
 	.name = "gta02-pm-bt",
+};
+
+static struct platform_device gta02_pm_gps_dev = {
+	.name = "gta02-pm-gps",
 };
 
 #ifdef CONFIG_CHARGER_PCF50633
@@ -270,6 +276,13 @@ static struct regulator_consumer_supply ldo4_consumers[] = {
 	},
 };
 
+static struct regulator_consumer_supply ldo5_consumers[] = {
+	{
+		.dev = &gta02_pm_gps_dev.dev,
+		.supply = "RF_3V",
+	},
+};
+
 struct pcf50633_platform_data gta02_pcf_pdata = {
 	.resumers = {
 		[0] =	PCF50633_INT1_USBINS |
@@ -371,6 +384,8 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 				.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 				.apply_uV = 1,
 			},
+			.num_consumer_supplies = ARRAY_SIZE(ldo5_consumers),
+			.consumer_supplies = ldo5_consumers,
 		},
 		[PCF50633_REGULATOR_LDO6] = {
 			.constraints = {
@@ -649,6 +664,7 @@ static struct platform_device *gta02_devices[] __initdata = {
 	&gta02_buttons_device,
 	&gta02_leds_device,
 	&gta02_pwm_leds_device,
+	&gta02_pm_gps_dev,
 	&gta02_pm_bt_dev,
 };
 

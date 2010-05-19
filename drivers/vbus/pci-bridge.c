@@ -22,6 +22,7 @@
 #include <linux/pci.h>
 #include <linux/mm.h>
 #include <linux/workqueue.h>
+#include <linux/slab.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/ioq.h>

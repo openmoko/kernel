@@ -19,6 +19,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/slab.h>
 #include <linux/vbus_driver.h>
 
 MODULE_AUTHOR("Gregory Haskins");

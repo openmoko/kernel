@@ -53,7 +53,7 @@ static DEFINE_MUTEX(battery_mutex);
 
 struct bq27x00_device_info;
 struct bq27x00_access_methods {
-	int (*read)(u8 reg, int *rt_value, int b_single,
+	int (*read)(u8 reg, int *rt_value, bool single,
 		struct bq27x00_device_info *di);
 };
 
@@ -62,11 +62,11 @@ enum bq27x00_chip { BQ27000, BQ27500 };
 struct bq27x00_device_info {
 	struct device 		*dev;
 	int			id;
-	struct bq27x00_access_methods	*bus;
-	struct power_supply	bat;
 	enum bq27x00_chip	chip;
 
-	struct i2c_client	*client;
+	struct bq27x00_access_methods	bus;
+
+	struct power_supply	bat;
 };
 
 static enum power_supply_property bq27x00_battery_props[] = {
@@ -87,10 +87,10 @@ static enum power_supply_property bq27x00_battery_props[] = {
  * Common code for BQ27x00 devices
  */
 
-static int bq27x00_read(u8 reg, int *rt_value, int b_single,
+static int bq27x00_read(u8 reg, int *rt_value, bool single,
 			struct bq27x00_device_info *di)
 {
-	return di->bus->read(reg, rt_value, b_single, di);
+	return di->bus.read(reg, rt_value, single, di);
 }
 
 /*
@@ -317,23 +317,35 @@ static int bq27x00_battery_get_property(struct power_supply *psy,
 	return ret;
 }
 
-static void bq27x00_powersupply_init(struct bq27x00_device_info *di)
+static int bq27x00_powersupply_init(struct bq27x00_device_info *di)
 {
+	int ret;
+
 	di->bat.type = POWER_SUPPLY_TYPE_BATTERY;
 	di->bat.properties = bq27x00_battery_props;
 	di->bat.num_properties = ARRAY_SIZE(bq27x00_battery_props);
 	di->bat.get_property = bq27x00_battery_get_property;
 	di->bat.external_power_changed = NULL;
+
+	ret = power_supply_register(di->dev, &di->bat);
+	if (ret) {
+		dev_err(di->dev, "failed to register battery: %d\n", ret);
+		return ret;
+	}
+
+	dev_info(di->dev, "support ver. %s enabled\n", DRIVER_VERSION);
+
+	return 0;
 }
 
 /*
  * i2c specific code
  */
 
-static int bq27x00_read_i2c(u8 reg, int *rt_value, int b_single,
+static int bq27x00_read_i2c(u8 reg, int *rt_value, bool single,
 			struct bq27x00_device_info *di)
 {
-	struct i2c_client *client = di->client;
+	struct i2c_client *client = to_i2c_client(di->dev);
 	struct i2c_msg msg[1];
 	unsigned char data[2];
 	int err;
@@ -350,7 +362,7 @@ static int bq27x00_read_i2c(u8 reg, int *rt_value, int b_single,
 	err = i2c_transfer(client->adapter, msg, 1);
 
 	if (err >= 0) {
-		if (!b_single)
+		if (!single)
 			msg->len = 2;
 		else
 			msg->len = 1;
@@ -358,7 +370,7 @@ static int bq27x00_read_i2c(u8 reg, int *rt_value, int b_single,
 		msg->flags = I2C_M_RD;
 		err = i2c_transfer(client->adapter, msg, 1);
 		if (err >= 0) {
-			if (!b_single)
+			if (!single)
 				*rt_value = get_unaligned_le16(data);
 			else
 				*rt_value = data[0];
@@ -374,7 +386,6 @@ static int bq27x00_battery_probe(struct i2c_client *client,
 {
 	char *name;
 	struct bq27x00_device_info *di;
-	struct bq27x00_access_methods *bus;
 	int num;
 	int retval = 0;
 
@@ -401,38 +412,22 @@ static int bq27x00_battery_probe(struct i2c_client *client,
 		retval = -ENOMEM;
 		goto batt_failed_2;
 	}
+
 	di->id = num;
 	di->chip = id->driver_data;
 
-	bus = kzalloc(sizeof(*bus), GFP_KERNEL);
-	if (!bus) {
-		dev_err(&client->dev, "failed to allocate access method "
-					"data\n");
-		retval = -ENOMEM;
-		goto batt_failed_3;
-	}
-
 	i2c_set_clientdata(client, di);
+
 	di->dev = &client->dev;
 	di->bat.name = name;
-	bus->read = &bq27x00_read_i2c;
-	di->bus = bus;
-	di->client = client;
 
-	bq27x00_powersupply_init(di);
+	di->bus.read = &bq27x00_read_i2c;
 
-	retval = power_supply_register(&client->dev, &di->bat);
-	if (retval) {
-		dev_err(&client->dev, "failed to register battery\n");
-		goto batt_failed_4;
-	}
-
-	dev_info(&client->dev, "support ver. %s enabled\n", DRIVER_VERSION);
+	if (bq27x00_powersupply_init(di))
+		goto batt_failed_3;
 
 	return 0;
 
-batt_failed_4:
-	kfree(bus);
 batt_failed_3:
 	kfree(di);
 batt_failed_2:
@@ -451,7 +446,6 @@ static int bq27x00_battery_remove(struct i2c_client *client)
 
 	power_supply_unregister(&di->bat);
 
-	kfree(di->bus);
 	kfree(di->bat.name);
 
 	mutex_lock(&battery_mutex);

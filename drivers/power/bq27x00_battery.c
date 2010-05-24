@@ -149,7 +149,7 @@ static int bq27x00_battery_current(struct bq27x00_device_info *di)
 
 	if (di->chip == BQ27500) {
 		/* bq27500 returns signed value */
-		curr = (int)(s16)curr;
+		curr = (int)((s16)curr) * 1000;
 	} else {
 		ret = bq27x00_read(BQ27x00_REG_FLAGS, &flags, 0, di);
 		if (ret < 0) {
@@ -160,9 +160,10 @@ static int bq27x00_battery_current(struct bq27x00_device_info *di)
 			dev_dbg(di->dev, "negative current!\n");
 			curr = -curr;
 		}
+		curr = curr * 357 / 2;
 	}
 
-	return curr * 1000;
+	return curr;
 }
 
 /*

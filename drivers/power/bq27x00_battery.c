@@ -33,6 +33,7 @@
 #define BQ27x00_REG_VOLT		0x08
 #define BQ27x00_REG_AI			0x14
 #define BQ27x00_REG_FLAGS		0x0A
+#define BQ27x00_REG_LMD			0x12
 #define BQ27x00_REG_TTE			0x16
 #define BQ27x00_REG_TTF			0x18
 #define BQ27x00_REG_TTECP		0x26
@@ -79,6 +80,7 @@ static enum power_supply_property bq27x00_battery_props[] = {
 	POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG,
 	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
+	POWER_SUPPLY_PROP_CHARGE_FULL,
 };
 
 /*
@@ -241,6 +243,24 @@ static int bq27x00_battery_time(struct bq27x00_device_info *di, int reg,
 	return 0;
 }
 
+static int bq27x00_battery_charge_full(struct bq27x00_device_info *di)
+{
+	int charge;
+
+	charge = bq27x00_read(BQ27x00_REG_LMD, 0, di);
+	if (charge < 0) {
+		dev_err(di->dev, "error reading register charge full: %d\n", charge);
+		return ret;
+	}
+
+	if (di->chip == BQ27500)
+		charge *= 1000;
+	else
+		charge = charge * 357 / 2;
+
+	return charge;
+}
+
 #define to_bq27x00_device_info(x) container_of((x), \
 				struct bq27x00_device_info, bat);
 
@@ -286,6 +306,9 @@ static int bq27x00_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
 		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		ret = bq27x00_battery_charge_full(di);
 		break;
 	default:
 		return -EINVAL;

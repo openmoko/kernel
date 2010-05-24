@@ -42,6 +42,7 @@
 #define BQ27x00_REG_TTECP		0x26
 
 #define BQ27000_REG_RSOC		0x0B /* Relative State-of-Charge */
+#define BQ27000_FLAG_VDQ		BIT(3)
 #define BQ27000_FLAG_CHGS		BIT(7)
 
 #define BQ27500_REG_SOC			0x2c
@@ -94,6 +95,7 @@ static enum power_supply_property bq27x00_battery_props[] = {
 	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
+	POWER_SUPPLY_PROP_HEALTH,
 };
 
 /*
@@ -293,6 +295,20 @@ static int bq27x00_simple_value(int value,
 	return 0;
 }
 
+static int bq27x00_battery_health(struct bq27x00_device_info *di,
+	union power_supply_propval *val)
+{
+	if (di->values.flags < 0)
+		return di->values.flags;
+
+	if (di->values.flags & BQ27000_FLAG_VDQ)
+		val->intval = POWER_SUPPLY_HEALTH_GOOD;
+	else
+		val->intval = POWER_SUPPLY_HEALTH_UNKNOWN;
+
+	return 0;
+}
+
 #define to_bq27x00_device_info(x) container_of((x), \
 				struct bq27x00_device_info, bat);
 
@@ -345,6 +361,9 @@ static int bq27x00_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		ret = bq27x00_simple_value(di->values.charge_full, val);
+		break;
+	case POWER_SUPPLY_PROP_HEALTH:
+		ret = bq27x00_battery_health(di, val);
 		break;
 	default:
 		return -EINVAL;

@@ -319,6 +319,12 @@ static void glamo_irq_demux_handler(unsigned int irq, struct irq_desc *desc)
 	desc->status &= ~IRQ_INPROGRESS;
 }
 
+struct glamo_engine_reg_set {
+	uint16_t reg;
+	uint16_t mask_suspended;
+	uint16_t mask_enabled;
+};
+
 /*
 debugfs
 */
@@ -381,12 +387,6 @@ static const struct file_operations debugfs_regs_ops = {
 	.llseek = seq_lseek,
 	.write = debugfs_regs_write,
 	.release	= single_release,
-};
-
-struct glamo_engine_reg_set {
-	uint16_t reg;
-	uint16_t mask_suspended;
-	uint16_t mask_enabled;
 };
 
 static void glamo_init_debugfs(struct glamo_core *glamo)

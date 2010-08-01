@@ -42,7 +42,7 @@
 #include <linux/slab.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 #include <linux/pm.h>
 
@@ -393,7 +393,8 @@ static void glamo_init_debugfs(struct glamo_core *glamo)
 {
 	glamo->debugfs_dir = debugfs_create_dir("glamo3362", NULL);
 	if (glamo->debugfs_dir)
-		debugfs_create_file("regs", S_IRUGO | S_IWUSR, glamo->debugfs_dir,
+		debugfs_create_file("regs", S_IRUGO | S_IWUSR,
+				    glamo->debugfs_dir,
 				    glamo, &debugfs_regs_ops);
 	else
 		dev_warn(&glamo->pdev->dev, "Failed to set up debugfs.\n");

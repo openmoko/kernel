@@ -42,7 +42,7 @@
 #include <linux/slab.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 #include <linux/pm.h>
 
@@ -319,6 +319,12 @@ static void glamo_irq_demux_handler(unsigned int irq, struct irq_desc *desc)
 	desc->status &= ~IRQ_INPROGRESS;
 }
 
+struct glamo_engine_reg_set {
+	uint16_t reg;
+	uint16_t mask_suspended;
+	uint16_t mask_enabled;
+};
+
 /*
 debugfs
 */
@@ -383,17 +389,12 @@ static const struct file_operations debugfs_regs_ops = {
 	.release	= single_release,
 };
 
-struct glamo_engine_reg_set {
-	uint16_t reg;
-	uint16_t mask_suspended;
-	uint16_t mask_enabled;
-};
-
 static void glamo_init_debugfs(struct glamo_core *glamo)
 {
 	glamo->debugfs_dir = debugfs_create_dir("glamo3362", NULL);
 	if (glamo->debugfs_dir)
-		debugfs_create_file("regs", S_IRUGO | S_IWUSR, glamo->debugfs_dir,
+		debugfs_create_file("regs", S_IRUGO | S_IWUSR,
+				    glamo->debugfs_dir,
 				    glamo, &debugfs_regs_ops);
 	else
 		dev_warn(&glamo->pdev->dev, "Failed to set up debugfs.\n");

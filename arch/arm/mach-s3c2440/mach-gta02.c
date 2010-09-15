@@ -664,6 +664,8 @@ static void gta02_pmu_attach_child_devices(struct pcf50633 *pcf)
 
 	platform_add_devices(gta02_devices_pmu_children,
 			     ARRAY_SIZE(gta02_devices_pmu_children));
+
+	regulator_has_full_constraints();
 }
 
 static void gta02_poweroff(void)

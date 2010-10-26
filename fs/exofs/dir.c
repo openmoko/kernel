@@ -261,9 +261,7 @@ exofs_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		struct page *page = exofs_get_page(inode, n);
 
 		if (IS_ERR(page)) {
-			EXOFS_ERR("ERROR: "
-				   "bad page in #%lu",
-				   inode->i_ino);
+			EXOFS_ERR("ERROR: bad page in #%lu", inode->i_ino);
 			filp->f_pos += PAGE_CACHE_SIZE - offset;
 			return PTR_ERR(page);
 		}
@@ -282,8 +280,7 @@ exofs_readdir(struct file *filp, void *dirent, filldir_t filldir)
 							EXOFS_DIR_REC_LEN(1);
 		for (; (char *)de <= limit; de = exofs_next_entry(de)) {
 			if (de->rec_len == 0) {
-				EXOFS_ERR("ERROR: "
-					"zero-length directory entry");
+				EXOFS_ERR("ERROR: zero-length directory entry");
 				exofs_put_page(page);
 				return -EIO;
 			}
@@ -342,9 +339,8 @@ struct exofs_dir_entry *exofs_find_entry(struct inode *dir,
 			kaddr += exofs_last_byte(dir, n) - reclen;
 			while ((char *) de <= kaddr) {
 				if (de->rec_len == 0) {
-					EXOFS_ERR(
-						"ERROR: exofs_find_entry: "
-						"zero-length directory entry");
+					EXOFS_ERR("ERROR: exofs_find_entry: "
+						 "zero-length directory entry");
 					exofs_put_page(page);
 					goto out;
 				}
@@ -491,7 +487,8 @@ int exofs_add_link(struct dentry *dentry, struct inode *inode)
 		exofs_put_page(page);
 	}
 
-	EXOFS_ERR("exofs_add_link: BAD dentry=%p or inode=%p", dentry, inode);
+	EXOFS_ERR("exofs_add_link: BAD dentry=%p or inode=%lu",
+		  dentry, inode->i_ino);
 	return -EINVAL;
 
 got_it:

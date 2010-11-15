@@ -469,15 +469,6 @@ config DEBUG_MUTEXES
 	 This feature allows mutex semantics violations to be detected and
 	 reported.
 
-config BKL
-	bool "Big Kernel Lock" if (SMP || PREEMPT)
-	default !(SMP || PREEMPT)
-	help
-	  This is the traditional lock that is used in old code instead
-	  of proper locking. The big kernel lock will go away in 2.6.39,
-	  so all modules that still depend on it need to be changed or
-	  they will be removed as well.
-
 config DEBUG_LOCK_ALLOC
 	bool "Lock debugging: detect incorrect freeing of live locks"
 	depends on DEBUG_KERNEL && TRACE_IRQFLAGS_SUPPORT && STACKTRACE_SUPPORT && LOCKDEP_SUPPORT

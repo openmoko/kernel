@@ -471,12 +471,12 @@ config DEBUG_MUTEXES
 
 config BKL
 	bool "Big Kernel Lock" if (SMP || PREEMPT)
-	default y
+	default !(SMP || PREEMPT)
 	help
 	  This is the traditional lock that is used in old code instead
-	  of proper locking. All drivers that use the BKL should depend
-	  on this symbol.
-	  Say Y here unless you are working on removing the BKL.
+	  of proper locking. The big kernel lock will go away in 2.6.39,
+	  so all modules that still depend on it need to be changed or
+	  they will be removed as well.
 
 config DEBUG_LOCK_ALLOC
 	bool "Lock debugging: detect incorrect freeing of live locks"

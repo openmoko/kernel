@@ -497,7 +497,7 @@ static void __init emergency_stack_init(void)
 }
 
 /*
- * Called into from start_kernel, after lock_kernel has been called.
+ * Called into from start_kernel.
  * Initializes bootmem, which is unsed to manage page allocation until
  * mem_init is called.
  */

@@ -631,7 +631,7 @@ static struct fb_ops s3c2410fb_ops = {
  *	cache.  Once this area is remapped, all virtual memory
  *	access to the video memory should occur at the new region.
  */
-static int __init s3c2410fb_map_video_memory(struct fb_info *info)
+static int __devinit s3c2410fb_map_video_memory(struct fb_info *info)
 {
 	struct s3c2410fb_info *fbi = info->par;
 	dma_addr_t map_dma;
@@ -814,7 +814,7 @@ static inline void s3c2410fb_cpufreq_deregister(struct s3c2410fb_info *info)
 
 static char driver_name[] = "s3c2410fb";
 
-static int __init s3c24xxfb_probe(struct platform_device *pdev,
+static int __devinit s3c24xxfb_probe(struct platform_device *pdev,
 				  enum s3c_drv_type drv_type)
 {
 	struct s3c2410fb_info *info;

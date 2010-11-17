@@ -18,6 +18,7 @@
 #include <sound/core.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
+#include <sound/tlv.h>
 
 #include "lm4857.h"
 
@@ -35,7 +36,7 @@ static void lm4857_write_regs(void)
 		return;
 
 	if (i2c_master_send(lm4857.i2c, lm4857.regs, 4) != 4)
-		dev_err(&lm4857_i2c->dev, "lm4857: i2c write failed\n");
+		dev_err(&lm4857.i2c->dev, "lm4857: i2c write failed\n");
 }
 
 static int lm4857_get_reg(struct snd_kcontrol *kcontrol,
@@ -139,9 +140,9 @@ static const struct snd_kcontrol_new lm4857_controls[] = {
 int lm4857_add_controls(struct snd_soc_codec *codec)
 {
 	return snd_soc_add_controls(codec, lm4857_controls,
-				ARRAY_SIZE(lm5857_controls));
+				ARRAY_SIZE(lm4857_controls));
 }
-EXPORT_GPL(lm4857_add_controlls);
+EXPORT_SYMBOL_GPL(lm4857_add_controls);
 
 static int __devinit lm4857_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
@@ -159,7 +160,7 @@ static int __devexit lm4857_remove(struct i2c_client *client)
 
 static void lm4857_shutdown(struct i2c_client *client)
 {
-	lm4857_regs[LM4857_CTRL] &= 0xf0;
+	lm4857.regs[LM4857_CTRL] &= 0xf0;
 	lm4857_write_regs();
 }
 
@@ -167,7 +168,7 @@ static void lm4857_shutdown(struct i2c_client *client)
 
 static int lm4857_suspend(struct i2c_client *client, pm_message_t state)
 {
-	lm4857.state = lm4857_regs[LM4857_CTRL] & 0xf;
+	lm4857.state = lm4857.regs[LM4857_CTRL] & 0xf;
 
 	if (lm4857.state)
 		lm4857_shutdown(client);
@@ -178,7 +179,7 @@ static int lm4857_suspend(struct i2c_client *client, pm_message_t state)
 static int lm4857_resume(struct i2c_client *dev)
 {
 	if (lm4857.state) {
-		lm4857_regs[LM4857_CTRL] |= (lm4857.state & 0x0f);
+		lm4857.regs[LM4857_CTRL] |= (lm4857.state & 0x0f);
 		lm4857_write_regs();
 	}
 	return 0;

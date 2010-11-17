@@ -618,6 +618,13 @@ config RTC_DRV_NUC900
 	  If you say yes here you get support for the RTC subsystem of the
 	  NUC910/NUC920 used in embedded systems.
 
+config RTC_DRV_PCF50606
+	depends on MFD_PCF50606
+	tristate "NXP PCF50606 RTC"
+	help
+	  If you say yes here you get support for the RTC subsystem of the
+	  NXP PCF50606 used in embedded systems.
+
 comment "on-CPU RTC drivers"
 
 config RTC_DRV_OMAP

@@ -22,6 +22,7 @@
 #include <linux/rtc.h>
 #include <linux/bcd.h>
 #include <linux/err.h>
+#include <linux/slab.h>
 
 #include <linux/mfd/pcf50606/core.h>
 

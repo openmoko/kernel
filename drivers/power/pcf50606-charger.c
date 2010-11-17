@@ -22,6 +22,7 @@
 #include <linux/sysfs.h>
 #include <linux/platform_device.h>
 #include <linux/power_supply.h>
+#include <linux/slab.h>
 
 #include <linux/mfd/pcf50606/core.h>
 #include <linux/mfd/pcf50606/mbc.h>
@@ -203,7 +204,7 @@ static int __devinit pcf50606_mbc_probe(struct platform_device *pdev)
 		pcf50606_register_irq(mbc->pcf, mbc_irq_handlers[i],
 					pcf50606_mbc_irq_handler, mbc);
 
-	ret = sysfs_create_file(&pdev->dev.kobj,  &dev_attr_charge_mode)
+	ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_charge_mode.attr);
 	if (ret)
 		dev_err(mbc->pcf->dev, "failed to create sysfs entries\n");
 

@@ -22,6 +22,7 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/completion.h>
+#include <linux/slab.h>
 
 #include <linux/mfd/pcf50606/core.h>
 #include <linux/mfd/pcf50606/adc.h>

@@ -24,6 +24,7 @@
 #include <linux/irq.h>
 #include <linux/device.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 
 #include <linux/mfd/pcf50606/core.h>
 

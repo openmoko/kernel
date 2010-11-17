@@ -316,7 +316,7 @@ static void gta01_pmu_regulator_registered(struct pcf50606 *pcf, int id)
 		platform_device_register(&gta01_pm_gps_dev);
 }
 
-static struct pcf50606_platform_data gta01_pcf_pdata = {
+static struct pcf50606_platform_data gta01_pcf_pdata __devinitdata = {
 	.resumers = {
 			[0] = 	PCF50606_INT1_ALARM |
 				PCF50606_INT1_ONKEYF |

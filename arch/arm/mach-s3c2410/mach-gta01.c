@@ -823,7 +823,7 @@ static struct s3c2410_hcd_info gta01_usb_info = {
 };
 
 static struct platform_device *gta01_devices[] __initdata = {
-	&s3c_device_usb,
+	&s3c_device_ohci,
 	&s3c_device_lcd,
 	&s3c_device_wdt,
 	&s3c_device_i2c0,
@@ -912,7 +912,7 @@ static void __init gta01_machine_init(void)
 		gta01_i2c_devs[0].irq = GTA01Bv2_IRQ_PCF50606;
 	}
 
-	s3c_device_usb.dev.platform_data = &gta01_usb_info;
+	s3c_ohci_set_platdata(&gta01_usb_info);
 	s3c_device_nand.dev.platform_data = &gta01_nand_info;
 	s3c_device_sdi.dev.platform_data = &gta01_mmc_cfg;
 

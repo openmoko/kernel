@@ -184,6 +184,7 @@ config MACH_NEO1973_GTA01
 	select POWER_SUPPLY
 	select BATTERY_GTA01
 	select S3C24XX_ADC
+	select S3C_DEV_NAND
 	help
 	  Say Y here if you are using the FIC Neo1973 GSM Phone
 

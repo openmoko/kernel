@@ -78,6 +78,7 @@
 #include <plat/iic.h>
 #include <plat/mci.h>
 #include <plat/usb-control.h>
+#include <plat/ts.h>
 /*#include <mach/neo1973-pm-gsm.h>*/
 
 #include <linux/jbt6k74.h>
@@ -89,16 +90,6 @@
 #include <linux/leds_pwm.h>
 
 #include <linux/gpio.h>
-
-/*
-#include <../drivers/input/touchscreen/ts_filter_chain.h>
-#ifdef CONFIG_TOUCHSCREEN_FILTER
-#include <../drivers/input/touchscreen/ts_filter_linear.h>
-#include <../drivers/input/touchscreen/ts_filter_mean.h>
-#include <../drivers/input/touchscreen/ts_filter_median.h>
-#include <../drivers/input/touchscreen/ts_filter_group.h>
-#endif
-*/
 
 static void gta01_pmu_attach_child_devices(struct pcf50606 *pcf);
 
@@ -640,53 +631,13 @@ static struct s3c2410_udc_mach_info gta01_udc_cfg = {
 	.udc_command	= gta01_udc_command,
 };
 
-/* Touchscreen configuration. */
+/* Touchscreen */
 
-#if 0
-
-#ifdef CONFIG_TOUCHSCREEN_FILTER
-const static struct ts_filter_group_configuration gta01_ts_group = {
-	.length = 12,
-	.close_enough = 10,
-	.threshold = 6,		/* At least half of the points in a group. */
-	.attempts = 10,
-};
-
-const static struct ts_filter_median_configuration gta01_ts_median = {
-	.extent = 20,
-	.decimation_below = 3,
-	.decimation_threshold = 8 * 3,
-	.decimation_above = 4,
-};
-
-const static struct ts_filter_mean_configuration gta01_ts_mean = {
-	.length = 4,
-};
-
-const static struct ts_filter_linear_configuration gta01_ts_linear = {
-	.constants = {1, 0, 0, 0, 1, 0, 1},	/* Don't modify coords. */
-	.coord0 = 0,
-	.coord1 = 1,
-};
-#endif
-
-const static struct ts_filter_chain_configuration gta01_filter_configuration[] =
-{
-#ifdef CONFIG_TOUCHSCREEN_FILTER
-	{&ts_filter_group_api,		&gta01_ts_group.config},
-	{&ts_filter_median_api,		&gta01_ts_median.config},
-	{&ts_filter_mean_api,		&gta01_ts_mean.config},
-	{&ts_filter_linear_api,		&gta01_ts_linear.config},
-#endif
-	{NULL, NULL},
-};
-
-const static struct s3c2410_ts_mach_info gta01_ts_cfg = {
+static struct s3c2410_ts_mach_info gta01_ts_cfg = {
 	.delay = 10000,
 	.presc = 0xff, /* slow as we can go */
-	.filter_config = gta01_filter_configuration,
+	.oversampling_shift = 2,
 };
-#endif
 
 /* SPI / Display */
 
@@ -832,7 +783,7 @@ static struct platform_device *gta01_devices[] __initdata = {
 	&s3c_device_usbgadget,
 	&s3c_device_nand,
 	&s3c_device_adc,
-/*	&s3c_device_ts,*/
+	&s3c_device_ts,
 	&s3c_device_timer[0],
 	&s3c_device_timer[3],
 	&gta01_bl_device,
@@ -922,7 +873,7 @@ static void __init gta01_machine_init(void)
 	s3c24xx_udc_set_platdata(&gta01_udc_cfg);
 	s3c_i2c0_set_platdata(NULL);
 
-/*	set_s3c2410ts_info(&gta01_ts_cfg);*/
+	s3c24xx_ts_set_platdata(&gta01_ts_cfg);
 
 #if 0
 	switch (S3C_SYSTEM_REV_ATAG) {

@@ -17,16 +17,18 @@
 #include <linux/nmi.h>
 #include <linux/module.h>
 
+#ifdef CONFIG_HARDLOCKUP_DETECTOR
 u64 hw_nmi_get_sample_period(void)
 {
 	return (u64)(cpu_khz) * 1000 * 60;
 }
+#endif
 
-#ifdef ARCH_HAS_NMI_WATCHDOG
 
 /* For reliability, we're prepared to waste bits here. */
 static DECLARE_BITMAP(backtrace_mask, NR_CPUS) __read_mostly;
 
+#ifdef arch_trigger_all_cpu_backtrace
 void arch_trigger_all_cpu_backtrace(void)
 {
 	int i;
@@ -93,16 +95,4 @@ early_initcall(register_trigger_all_cpu_backtrace);
 #endif
 
 /* STUB calls to mimic old nmi_watchdog behaviour */
-#if defined(CONFIG_X86_LOCAL_APIC)
-unsigned int nmi_watchdog = NMI_NONE;
-EXPORT_SYMBOL(nmi_watchdog);
-void acpi_nmi_enable(void) { return; }
-void acpi_nmi_disable(void) { return; }
-#endif
-atomic_t nmi_active = ATOMIC_INIT(0);           /* oprofile uses this */
-EXPORT_SYMBOL(nmi_active);
 int unknown_nmi_panic;
-void cpu_nmi_set_wd_enabled(void) { return; }
-void stop_apic_nmi_watchdog(void *unused) { return; }
-void setup_apic_nmi_watchdog(void *unused) { return; }
-int __init check_nmi_watchdog(void) { return 0; }

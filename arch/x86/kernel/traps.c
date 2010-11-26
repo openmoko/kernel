@@ -398,15 +398,6 @@ static notrace __kprobes void default_do_nmi(struct pt_regs *regs)
 							== NOTIFY_STOP)
 			return;
 
-#ifndef CONFIG_LOCKUP_DETECTOR
-		/*
-		 * Ok, so this is none of the documented NMI sources,
-		 * so it must be the NMI watchdog.
-		 */
-		if (nmi_watchdog_tick(regs, reason))
-			return;
-		if (!do_nmi_callback(regs, cpu))
-#endif /* !CONFIG_LOCKUP_DETECTOR */
 			unknown_nmi_error(reason, regs);
 #else
 		unknown_nmi_error(reason, regs);
@@ -446,14 +437,12 @@ do_nmi(struct pt_regs *regs, long error_code)
 
 void stop_nmi(void)
 {
-	acpi_nmi_disable();
 	ignore_nmis++;
 }
 
 void restart_nmi(void)
 {
 	ignore_nmis--;
-	acpi_nmi_enable();
 }
 
 /* May run on IST stack. */

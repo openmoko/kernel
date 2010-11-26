@@ -1073,7 +1073,7 @@ static int perf_event_refresh(struct perf_event *event, int refresh)
 	/*
 	 * not supported on inherited events
 	 */
-	if (event->attr.inherit)
+	if (event->attr.inherit || !is_sampling_event(event))
 		return -EINVAL;
 
 	atomic_add(refresh, &event->event_limit);
@@ -2514,7 +2514,7 @@ static int perf_event_period(struct perf_event *event, u64 __user *arg)
 	int ret = 0;
 	u64 value;
 
-	if (!event->attr.sample_period)
+	if (!is_sampling_event(event))
 		return -EINVAL;
 
 	if (copy_from_user(&value, arg, sizeof(value)))
@@ -4240,6 +4240,13 @@ static int __perf_event_overflow(struct perf_event *event, int nmi,
 	struct hw_perf_event *hwc = &event->hw;
 	int ret = 0;
 
+	/*
+	 * Non-sampling counters might still use the PMI to fold short
+	 * hardware counters, ignore those.
+	 */
+	if (unlikely(!is_sampling_event(event)))
+		return 0;
+
 	if (!throttle) {
 		hwc->interrupts++;
 	} else {
@@ -4385,7 +4392,7 @@ static void perf_swevent_event(struct perf_event *event, u64 nr,
 	if (!regs)
 		return;
 
-	if (!hwc->sample_period)
+	if (!is_sampling_event(event))
 		return;
 
 	if (nr == 1 && hwc->sample_period == 1 && !event->attr.freq)
@@ -4548,7 +4555,7 @@ static int perf_swevent_add(struct perf_event *event, int flags)
 	struct hw_perf_event *hwc = &event->hw;
 	struct hlist_head *head;
 
-	if (hwc->sample_period) {
+	if (is_sampling_event(event)) {
 		hwc->last_period = hwc->sample_period;
 		perf_swevent_set_period(event);
 	}
@@ -4917,31 +4924,33 @@ static enum hrtimer_restart perf_swevent_hrtimer(struct hrtimer *hrtimer)
 static void perf_swevent_start_hrtimer(struct perf_event *event)
 {
 	struct hw_perf_event *hwc = &event->hw;
+	s64 period;
+
+	if (!is_sampling_event(event))
+		return;
 
 	hrtimer_init(&hwc->hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	hwc->hrtimer.function = perf_swevent_hrtimer;
-	if (hwc->sample_period) {
-		s64 period = local64_read(&hwc->period_left);
 
-		if (period) {
-			if (period < 0)
-				period = 10000;
+	period = local64_read(&hwc->period_left);
+	if (period) {
+		if (period < 0)
+			period = 10000;
 
-			local64_set(&hwc->period_left, 0);
-		} else {
-			period = max_t(u64, 10000, hwc->sample_period);
-		}
-		__hrtimer_start_range_ns(&hwc->hrtimer,
+		local64_set(&hwc->period_left, 0);
+	} else {
+		period = max_t(u64, 10000, hwc->sample_period);
+	}
+	__hrtimer_start_range_ns(&hwc->hrtimer,
 				ns_to_ktime(period), 0,
 				HRTIMER_MODE_REL_PINNED, 0);
-	}
 }
 
 static void perf_swevent_cancel_hrtimer(struct perf_event *event)
 {
 	struct hw_perf_event *hwc = &event->hw;
 
-	if (hwc->sample_period) {
+	if (is_sampling_event(event)) {
 		ktime_t remaining = hrtimer_get_remaining(&hwc->hrtimer);
 		local64_set(&hwc->period_left, ktime_to_ns(remaining));
 

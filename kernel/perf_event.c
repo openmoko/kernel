@@ -133,6 +133,28 @@ static void unclone_ctx(struct perf_event_context *ctx)
 	}
 }
 
+static u32 perf_event_pid(struct perf_event *event, struct task_struct *p)
+{
+	/*
+	 * only top level events have the pid namespace they were created in
+	 */
+	if (event->parent)
+		event = event->parent;
+
+	return task_tgid_nr_ns(p, event->ns);
+}
+
+static u32 perf_event_tid(struct perf_event *event, struct task_struct *p)
+{
+	/*
+	 * only top level events have the pid namespace they were created in
+	 */
+	if (event->parent)
+		event = event->parent;
+
+	return task_pid_nr_ns(p, event->ns);
+}
+
 /*
  * If we inherit events we want to return the parent event id
  * to userspace.
@@ -312,9 +334,84 @@ list_add_event(struct perf_event *event, struct perf_event_context *ctx)
 		ctx->nr_stat++;
 }
 
+/*
+ * Called at perf_event creation and when events are attached/detached from a
+ * group.
+ */
+static void perf_event__read_size(struct perf_event *event)
+{
+	int entry = sizeof(u64); /* value */
+	int size = 0;
+	int nr = 1;
+
+	if (event->attr.read_format & PERF_FORMAT_TOTAL_TIME_ENABLED)
+		size += sizeof(u64);
+
+	if (event->attr.read_format & PERF_FORMAT_TOTAL_TIME_RUNNING)
+		size += sizeof(u64);
+
+	if (event->attr.read_format & PERF_FORMAT_ID)
+		entry += sizeof(u64);
+
+	if (event->attr.read_format & PERF_FORMAT_GROUP) {
+		nr += event->group_leader->nr_siblings;
+		size += sizeof(u64);
+	}
+
+	size += entry * nr;
+	event->read_size = size;
+}
+
+static void perf_event__header_size(struct perf_event *event)
+{
+	struct perf_sample_data *data;
+	u64 sample_type = event->attr.sample_type;
+	u16 size = 0;
+
+	perf_event__read_size(event);
+
+	if (sample_type & PERF_SAMPLE_IP)
+		size += sizeof(data->ip);
+
+	if (sample_type & PERF_SAMPLE_ADDR)
+		size += sizeof(data->addr);
+
+	if (sample_type & PERF_SAMPLE_PERIOD)
+		size += sizeof(data->period);
+
+	if (sample_type & PERF_SAMPLE_READ)
+		size += event->read_size;
+
+	event->header_size = size;
+}
+
+static void perf_event__id_header_size(struct perf_event *event)
+{
+	struct perf_sample_data *data;
+	u64 sample_type = event->attr.sample_type;
+	u16 size = 0;
+
+	if (sample_type & PERF_SAMPLE_TID)
+		size += sizeof(data->tid_entry);
+
+	if (sample_type & PERF_SAMPLE_TIME)
+		size += sizeof(data->time);
+
+	if (sample_type & PERF_SAMPLE_ID)
+		size += sizeof(data->id);
+
+	if (sample_type & PERF_SAMPLE_STREAM_ID)
+		size += sizeof(data->stream_id);
+
+	if (sample_type & PERF_SAMPLE_CPU)
+		size += sizeof(data->cpu_entry);
+
+	event->id_header_size = size;
+}
+
 static void perf_group_attach(struct perf_event *event)
 {
-	struct perf_event *group_leader = event->group_leader;
+	struct perf_event *group_leader = event->group_leader, *pos;
 
 	/*
 	 * We can have double attach due to group movement in perf_event_open.
@@ -333,6 +430,11 @@ static void perf_group_attach(struct perf_event *event)
 
 	list_add_tail(&event->group_entry, &group_leader->sibling_list);
 	group_leader->nr_siblings++;
+
+	perf_event__header_size(group_leader);
+
+	list_for_each_entry(pos, &group_leader->sibling_list, group_entry)
+		perf_event__header_size(pos);
 }
 
 /*
@@ -391,7 +493,7 @@ static void perf_group_detach(struct perf_event *event)
 	if (event->group_leader != event) {
 		list_del_init(&event->group_entry);
 		event->group_leader->nr_siblings--;
-		return;
+		goto out;
 	}
 
 	if (!list_empty(&event->group_entry))
@@ -410,6 +512,12 @@ static void perf_group_detach(struct perf_event *event)
 		/* Inherit group flags from the previous leader */
 		sibling->group_flags = event->group_flags;
 	}
+
+out:
+	perf_event__header_size(event->group_leader);
+
+	list_for_each_entry(tmp, &event->group_leader->sibling_list, group_entry)
+		perf_event__header_size(tmp);
 }
 
 static inline int
@@ -2289,31 +2397,6 @@ static int perf_release(struct inode *inode, struct file *file)
 	return perf_event_release_kernel(event);
 }
 
-static int perf_event_read_size(struct perf_event *event)
-{
-	int entry = sizeof(u64); /* value */
-	int size = 0;
-	int nr = 1;
-
-	if (event->attr.read_format & PERF_FORMAT_TOTAL_TIME_ENABLED)
-		size += sizeof(u64);
-
-	if (event->attr.read_format & PERF_FORMAT_TOTAL_TIME_RUNNING)
-		size += sizeof(u64);
-
-	if (event->attr.read_format & PERF_FORMAT_ID)
-		entry += sizeof(u64);
-
-	if (event->attr.read_format & PERF_FORMAT_GROUP) {
-		nr += event->group_leader->nr_siblings;
-		size += sizeof(u64);
-	}
-
-	size += entry * nr;
-
-	return size;
-}
-
 u64 perf_event_read_value(struct perf_event *event, u64 *enabled, u64 *running)
 {
 	struct perf_event *child;
@@ -2428,7 +2511,7 @@ perf_read_hw(struct perf_event *event, char __user *buf, size_t count)
 	if (event->state == PERF_EVENT_STATE_ERROR)
 		return 0;
 
-	if (count < perf_event_read_size(event))
+	if (count < event->read_size)
 		return -ENOSPC;
 
 	WARN_ON_ONCE(event->ctx->parent_ctx);
@@ -3305,6 +3388,73 @@ __always_inline void perf_output_copy(struct perf_output_handle *handle,
 	} while (len);
 }
 
+static void __perf_event_header__init_id(struct perf_event_header *header,
+					 struct perf_sample_data *data,
+					 struct perf_event *event)
+{
+	u64 sample_type = event->attr.sample_type;
+
+	data->type = sample_type;
+	header->size += event->id_header_size;
+
+	if (sample_type & PERF_SAMPLE_TID) {
+		/* namespace issues */
+		data->tid_entry.pid = perf_event_pid(event, current);
+		data->tid_entry.tid = perf_event_tid(event, current);
+	}
+
+	if (sample_type & PERF_SAMPLE_TIME)
+		data->time = perf_clock();
+
+	if (sample_type & PERF_SAMPLE_ID)
+		data->id = primary_event_id(event);
+
+	if (sample_type & PERF_SAMPLE_STREAM_ID)
+		data->stream_id = event->id;
+
+	if (sample_type & PERF_SAMPLE_CPU) {
+		data->cpu_entry.cpu	 = raw_smp_processor_id();
+		data->cpu_entry.reserved = 0;
+	}
+}
+
+static void perf_event_header__init_id(struct perf_event_header *header,
+				       struct perf_sample_data *data,
+				       struct perf_event *event)
+{
+	if (event->attr.sample_id_all)
+		__perf_event_header__init_id(header, data, event);
+}
+
+static void __perf_event__output_id_sample(struct perf_output_handle *handle,
+					   struct perf_sample_data *data)
+{
+	u64 sample_type = data->type;
+
+	if (sample_type & PERF_SAMPLE_TID)
+		perf_output_put(handle, data->tid_entry);
+
+	if (sample_type & PERF_SAMPLE_TIME)
+		perf_output_put(handle, data->time);
+
+	if (sample_type & PERF_SAMPLE_ID)
+		perf_output_put(handle, data->id);
+
+	if (sample_type & PERF_SAMPLE_STREAM_ID)
+		perf_output_put(handle, data->stream_id);
+
+	if (sample_type & PERF_SAMPLE_CPU)
+		perf_output_put(handle, data->cpu_entry);
+}
+
+static void perf_event__output_id_sample(struct perf_event *event,
+					 struct perf_output_handle *handle,
+					 struct perf_sample_data *sample)
+{
+	if (event->attr.sample_id_all)
+		__perf_event__output_id_sample(handle, sample);
+}
+
 int perf_output_begin(struct perf_output_handle *handle,
 		      struct perf_event *event, unsigned int size,
 		      int nmi, int sample)
@@ -3312,6 +3462,7 @@ int perf_output_begin(struct perf_output_handle *handle,
 	struct perf_buffer *buffer;
 	unsigned long tail, offset, head;
 	int have_lost;
+	struct perf_sample_data sample_data;
 	struct {
 		struct perf_event_header header;
 		u64			 id;
@@ -3338,8 +3489,12 @@ int perf_output_begin(struct perf_output_handle *handle,
 		goto out;
 
 	have_lost = local_read(&buffer->lost);
-	if (have_lost)
-		size += sizeof(lost_event);
+	if (have_lost) {
+		lost_event.header.size = sizeof(lost_event);
+		perf_event_header__init_id(&lost_event.header, &sample_data,
+					   event);
+		size += lost_event.header.size;
+	}
 
 	perf_output_get_handle(handle);
 
@@ -3370,11 +3525,11 @@ int perf_output_begin(struct perf_output_handle *handle,
 	if (have_lost) {
 		lost_event.header.type = PERF_RECORD_LOST;
 		lost_event.header.misc = 0;
-		lost_event.header.size = sizeof(lost_event);
 		lost_event.id          = event->id;
 		lost_event.lost        = local_xchg(&buffer->lost, 0);
 
 		perf_output_put(handle, lost_event);
+		perf_event__output_id_sample(event, handle, &sample_data);
 	}
 
 	return 0;
@@ -3405,28 +3560,6 @@ void perf_output_end(struct perf_output_handle *handle)
 
 	perf_output_put_handle(handle);
 	rcu_read_unlock();
-}
-
-static u32 perf_event_pid(struct perf_event *event, struct task_struct *p)
-{
-	/*
-	 * only top level events have the pid namespace they were created in
-	 */
-	if (event->parent)
-		event = event->parent;
-
-	return task_tgid_nr_ns(p, event->ns);
-}
-
-static u32 perf_event_tid(struct perf_event *event, struct task_struct *p)
-{
-	/*
-	 * only top level events have the pid namespace they were created in
-	 */
-	if (event->parent)
-		event = event->parent;
-
-	return task_pid_nr_ns(p, event->ns);
 }
 
 static void perf_output_read_one(struct perf_output_handle *handle,
@@ -3603,61 +3736,16 @@ void perf_prepare_sample(struct perf_event_header *header,
 {
 	u64 sample_type = event->attr.sample_type;
 
-	data->type = sample_type;
-
 	header->type = PERF_RECORD_SAMPLE;
-	header->size = sizeof(*header);
+	header->size = sizeof(*header) + event->header_size;
 
 	header->misc = 0;
 	header->misc |= perf_misc_flags(regs);
 
-	if (sample_type & PERF_SAMPLE_IP) {
+	__perf_event_header__init_id(header, data, event);
+
+	if (sample_type & PERF_SAMPLE_IP)
 		data->ip = perf_instruction_pointer(regs);
-
-		header->size += sizeof(data->ip);
-	}
-
-	if (sample_type & PERF_SAMPLE_TID) {
-		/* namespace issues */
-		data->tid_entry.pid = perf_event_pid(event, current);
-		data->tid_entry.tid = perf_event_tid(event, current);
-
-		header->size += sizeof(data->tid_entry);
-	}
-
-	if (sample_type & PERF_SAMPLE_TIME) {
-		data->time = perf_clock();
-
-		header->size += sizeof(data->time);
-	}
-
-	if (sample_type & PERF_SAMPLE_ADDR)
-		header->size += sizeof(data->addr);
-
-	if (sample_type & PERF_SAMPLE_ID) {
-		data->id = primary_event_id(event);
-
-		header->size += sizeof(data->id);
-	}
-
-	if (sample_type & PERF_SAMPLE_STREAM_ID) {
-		data->stream_id = event->id;
-
-		header->size += sizeof(data->stream_id);
-	}
-
-	if (sample_type & PERF_SAMPLE_CPU) {
-		data->cpu_entry.cpu		= raw_smp_processor_id();
-		data->cpu_entry.reserved	= 0;
-
-		header->size += sizeof(data->cpu_entry);
-	}
-
-	if (sample_type & PERF_SAMPLE_PERIOD)
-		header->size += sizeof(data->period);
-
-	if (sample_type & PERF_SAMPLE_READ)
-		header->size += perf_event_read_size(event);
 
 	if (sample_type & PERF_SAMPLE_CALLCHAIN) {
 		int size = 1;
@@ -3722,23 +3810,26 @@ perf_event_read_event(struct perf_event *event,
 			struct task_struct *task)
 {
 	struct perf_output_handle handle;
+	struct perf_sample_data sample;
 	struct perf_read_event read_event = {
 		.header = {
 			.type = PERF_RECORD_READ,
 			.misc = 0,
-			.size = sizeof(read_event) + perf_event_read_size(event),
+			.size = sizeof(read_event) + event->read_size,
 		},
 		.pid = perf_event_pid(event, task),
 		.tid = perf_event_tid(event, task),
 	};
 	int ret;
 
+	perf_event_header__init_id(&read_event.header, &sample, event);
 	ret = perf_output_begin(&handle, event, read_event.header.size, 0, 0);
 	if (ret)
 		return;
 
 	perf_output_put(&handle, read_event);
 	perf_output_read(&handle, event);
+	perf_event__output_id_sample(event, &handle, &sample);
 
 	perf_output_end(&handle);
 }
@@ -3768,14 +3859,16 @@ static void perf_event_task_output(struct perf_event *event,
 				     struct perf_task_event *task_event)
 {
 	struct perf_output_handle handle;
+	struct perf_sample_data	sample;
 	struct task_struct *task = task_event->task;
-	int size, ret;
+	int ret, size = task_event->event_id.header.size;
 
-	size  = task_event->event_id.header.size;
-	ret = perf_output_begin(&handle, event, size, 0, 0);
+	perf_event_header__init_id(&task_event->event_id.header, &sample, event);
 
+	ret = perf_output_begin(&handle, event,
+				task_event->event_id.header.size, 0, 0);
 	if (ret)
-		return;
+		goto out;
 
 	task_event->event_id.pid = perf_event_pid(event, task);
 	task_event->event_id.ppid = perf_event_pid(event, current);
@@ -3785,7 +3878,11 @@ static void perf_event_task_output(struct perf_event *event,
 
 	perf_output_put(&handle, task_event->event_id);
 
+	perf_event__output_id_sample(event, &handle, &sample);
+
 	perf_output_end(&handle);
+out:
+	task_event->event_id.header.size = size;
 }
 
 static int perf_event_task_match(struct perf_event *event)
@@ -3898,11 +3995,16 @@ static void perf_event_comm_output(struct perf_event *event,
 				     struct perf_comm_event *comm_event)
 {
 	struct perf_output_handle handle;
+	struct perf_sample_data sample;
 	int size = comm_event->event_id.header.size;
-	int ret = perf_output_begin(&handle, event, size, 0, 0);
+	int ret;
+
+	perf_event_header__init_id(&comm_event->event_id.header, &sample, event);
+	ret = perf_output_begin(&handle, event,
+				comm_event->event_id.header.size, 0, 0);
 
 	if (ret)
-		return;
+		goto out;
 
 	comm_event->event_id.pid = perf_event_pid(event, comm_event->task);
 	comm_event->event_id.tid = perf_event_tid(event, comm_event->task);
@@ -3910,7 +4012,12 @@ static void perf_event_comm_output(struct perf_event *event,
 	perf_output_put(&handle, comm_event->event_id);
 	perf_output_copy(&handle, comm_event->comm,
 				   comm_event->comm_size);
+
+	perf_event__output_id_sample(event, &handle, &sample);
+
 	perf_output_end(&handle);
+out:
+	comm_event->event_id.header.size = size;
 }
 
 static int perf_event_comm_match(struct perf_event *event)
@@ -3955,7 +4062,6 @@ static void perf_event_comm_event(struct perf_comm_event *comm_event)
 	comm_event->comm_size = size;
 
 	comm_event->event_id.header.size = sizeof(comm_event->event_id) + size;
-
 	rcu_read_lock();
 	list_for_each_entry_rcu(pmu, &pmus, entry) {
 		cpuctx = get_cpu_ptr(pmu->pmu_cpu_context);
@@ -4034,11 +4140,15 @@ static void perf_event_mmap_output(struct perf_event *event,
 				     struct perf_mmap_event *mmap_event)
 {
 	struct perf_output_handle handle;
+	struct perf_sample_data sample;
 	int size = mmap_event->event_id.header.size;
-	int ret = perf_output_begin(&handle, event, size, 0, 0);
+	int ret;
 
+	perf_event_header__init_id(&mmap_event->event_id.header, &sample, event);
+	ret = perf_output_begin(&handle, event,
+				mmap_event->event_id.header.size, 0, 0);
 	if (ret)
-		return;
+		goto out;
 
 	mmap_event->event_id.pid = perf_event_pid(event, current);
 	mmap_event->event_id.tid = perf_event_tid(event, current);
@@ -4046,7 +4156,12 @@ static void perf_event_mmap_output(struct perf_event *event,
 	perf_output_put(&handle, mmap_event->event_id);
 	perf_output_copy(&handle, mmap_event->file_name,
 				   mmap_event->file_size);
+
+	perf_event__output_id_sample(event, &handle, &sample);
+
 	perf_output_end(&handle);
+out:
+	mmap_event->event_id.header.size = size;
 }
 
 static int perf_event_mmap_match(struct perf_event *event,
@@ -4199,6 +4314,7 @@ void perf_event_mmap(struct vm_area_struct *vma)
 static void perf_log_throttle(struct perf_event *event, int enable)
 {
 	struct perf_output_handle handle;
+	struct perf_sample_data sample;
 	int ret;
 
 	struct {
@@ -4220,11 +4336,15 @@ static void perf_log_throttle(struct perf_event *event, int enable)
 	if (enable)
 		throttle_event.header.type = PERF_RECORD_UNTHROTTLE;
 
-	ret = perf_output_begin(&handle, event, sizeof(throttle_event), 1, 0);
+	perf_event_header__init_id(&throttle_event.header, &sample, event);
+
+	ret = perf_output_begin(&handle, event,
+				throttle_event.header.size, 1, 0);
 	if (ret)
 		return;
 
 	perf_output_put(&handle, throttle_event);
+	perf_event__output_id_sample(event, &handle, &sample);
 	perf_output_end(&handle);
 }
 
@@ -5715,6 +5835,12 @@ SYSCALL_DEFINE5(perf_event_open,
 	mutex_unlock(&current->perf_event_mutex);
 
 	/*
+	 * Precalculate sample_data sizes
+	 */
+	perf_event__header_size(event);
+	perf_event__id_header_size(event);
+
+	/*
 	 * Drop the reference on the group_event after placing the
 	 * new event on the sibling_list. This ensures destruction
 	 * of the group leader will find the pointer to itself in
@@ -6065,6 +6191,12 @@ inherit_event(struct perf_event *parent_event,
 
 	child_event->ctx = child_ctx;
 	child_event->overflow_handler = parent_event->overflow_handler;
+
+	/*
+	 * Precalculate sample_data sizes
+	 */
+	perf_event__header_size(child_event);
+	perf_event__id_header_size(child_event);
 
 	/*
 	 * Link it up in the child's context:

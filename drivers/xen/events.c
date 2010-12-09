@@ -414,6 +414,7 @@ static int find_unbound_irq(void)
 	if (bottom == nr_irqs)
 		goto no_irqs;
 
+retry:
 	/* This loop starts from the top of IRQ space and goes down.
 	 * We need this b/c if we have a PCI device in a Xen PV guest
 	 * we do not have an IO-APIC (though the backend might have them)
@@ -437,6 +438,14 @@ static int find_unbound_irq(void)
 		goto no_irqs;
 
 	res = irq_alloc_desc_at(irq, -1);
+	if (res == -EEXIST) {
+		top--;
+		if (bottom > top)
+			printk(KERN_ERR "Eating in GSI/MSI space (%d)!" \
+				" Your PCI device might not work!\n", top);
+		if (top > NR_IRQS_LEGACY)
+			goto retry;
+	}
 
 	if (WARN_ON(res != irq))
 		return -1;

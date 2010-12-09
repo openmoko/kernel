@@ -1244,7 +1244,9 @@ struct task_struct {
 #endif
 
 	struct list_head tasks;
+#ifdef CONFIG_SMP
 	struct plist_node pushable_tasks;
+#endif
 
 	struct mm_struct *mm, *active_mm;
 #if defined(SPLIT_RSS_COUNTING)

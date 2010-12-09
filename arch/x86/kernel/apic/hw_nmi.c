@@ -24,11 +24,17 @@ u64 hw_nmi_get_sample_period(void)
 }
 #endif
 
-
+#ifndef CONFIG_HARDLOCKUP_DETECTOR
+void touch_nmi_watchdog(void)
+{
+	touch_softlockup_watchdog();
+}
+EXPORT_SYMBOL(touch_nmi_watchdog);
+#endif
+#ifdef arch_trigger_all_cpu_backtrace
 /* For reliability, we're prepared to waste bits here. */
 static DECLARE_BITMAP(backtrace_mask, NR_CPUS) __read_mostly;
 
-#ifdef arch_trigger_all_cpu_backtrace
 void arch_trigger_all_cpu_backtrace(void)
 {
 	int i;
@@ -93,6 +99,3 @@ static int __init register_trigger_all_cpu_backtrace(void)
 }
 early_initcall(register_trigger_all_cpu_backtrace);
 #endif
-
-/* STUB calls to mimic old nmi_watchdog behaviour */
-int unknown_nmi_panic;

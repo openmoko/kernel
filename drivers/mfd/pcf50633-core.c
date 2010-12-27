@@ -238,17 +238,138 @@ static SIMPLE_DEV_PM_OPS(pcf50633_pm, pcf50633_suspend, pcf50633_resume);
 		.id = -1, \
 	} \
 
+#define PCF50633_CELL_RESOURCES(_name, _resources) \
+	{ \
+		.name = _name, \
+		.num_resources = ARRAY_SIZE(_resources), \
+		.resources = _resources, \
+		.id = -1, \
+	} \
+
 #define PCF50633_CELL_ID(_name, _id) \
 	{ \
 		.name = _name, \
 		.id = _id, \
 	} \
 
+static struct resource pcf50633_adc_resources[] = {
+	{
+		.start = PCF50633_IRQ_ADCRDY,
+		.end = PCF50633_IRQ_ADCRDY,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+static struct resource pcf50633_input_resources[] = {
+	{
+		.start = PCF50633_IRQ_ONKEYR,
+		.end = PCF50633_IRQ_ONKEYR,
+		.flags = IORESOURCE_IRQ,
+		.name = "released",
+	},
+	{
+		.start = PCF50633_IRQ_ONKEYF,
+		.end = PCF50633_IRQ_ONKEYF,
+		.flags = IORESOURCE_IRQ,
+		.name = "pressed",
+	}
+};
+
+static struct resource pcf50633_rtc_resources[] = {
+	{
+		.start = PCF50633_IRQ_ALARM,
+		.end = PCF50633_IRQ_ALARM,
+		.flags = IORESOURCE_IRQ,
+		.name = "alarm",
+	},
+	{
+		.start = PCF50633_IRQ_SECOND,
+		.end = PCF50633_IRQ_SECOND,
+		.flags = IORESOURCE_IRQ,
+		.name = "second",
+	}
+};
+
+static struct resource pcf50633_mbc_resources[] = {
+	{
+		.start = PCF50633_IRQ_ADPINS,
+		.end = PCF50633_IRQ_ADPINS,
+		.flags = IORESOURCE_IRQ,
+		.name = "AD insert",
+	},
+	{
+		.start = PCF50633_IRQ_ADPREM,
+		.end = PCF50633_IRQ_ADPREM,
+		.flags = IORESOURCE_IRQ,
+		.name = "AD remove",
+	},
+	{
+		.start = PCF50633_IRQ_USBINS,
+		.end = PCF50633_IRQ_USBINS,
+		.flags = IORESOURCE_IRQ,
+		.name = "USB insert",
+	},
+	{
+		.start = PCF50633_IRQ_USBREM,
+		.end = PCF50633_IRQ_USBREM,
+		.flags = IORESOURCE_IRQ,
+		.name = "USB remove",
+	},
+	{
+		.start = PCF50633_IRQ_BATFULL,
+		.end = PCF50633_IRQ_BATFULL,
+		.flags = IORESOURCE_IRQ,
+		.name = "Battery full",
+	},
+	{
+		.start = PCF50633_IRQ_CHGHALT,
+		.end = PCF50633_IRQ_CHGHALT,
+		.flags = IORESOURCE_IRQ,
+		.name = "Charging halt",
+	},
+	{
+		.start = PCF50633_IRQ_THLIMON,
+		.end = PCF50633_IRQ_THLIMON,
+		.flags = IORESOURCE_IRQ,
+		.name = "THLIM on",
+	},
+	{
+		.start = PCF50633_IRQ_THLIMOFF,
+		.end = PCF50633_IRQ_THLIMOFF,
+		.flags = IORESOURCE_IRQ,
+		.name = "THLIM off",
+	},
+	{
+		.start = PCF50633_IRQ_USBLIMON,
+		.end = PCF50633_IRQ_USBINS,
+		.flags = IORESOURCE_IRQ,
+		.name = "USB limit on",
+	},
+	{
+		.start = PCF50633_IRQ_USBLIMOFF,
+		.end = PCF50633_IRQ_USBLIMOFF,
+		.flags = IORESOURCE_IRQ,
+		.name = "USB limit off",
+	},
+	{
+		.start = PCF50633_IRQ_LOWSYS,
+		.end = PCF50633_IRQ_LOWSYS,
+		.flags = IORESOURCE_IRQ,
+		.name = "Low system power",
+	},
+	{
+		.start = PCF50633_IRQ_LOWBAT,
+		.end = PCF50633_IRQ_LOWBAT,
+		.flags = IORESOURCE_IRQ,
+		.name = "Low battery",
+	},
+};
+
 static struct mfd_cell pcf50633_cells[] = {
-	PCF50633_CELL("pcf50633-input"),
-	PCF50633_CELL("pcf50633-rtc"),
-	PCF50633_CELL("pcf50633-mbc"),
-	PCF50633_CELL("pcf50633-adc"),
+	PCF50633_CELL_RESOURCES("pcf50633-input", pcf50633_input_resources),
+	PCF50633_CELL_RESOURCES("pcf50633-rtc", pcf50633_rtc_resources),
+	PCF50633_CELL_RESOURCES("pcf50633-mbc", pcf50633_mbc_resources),
+	PCF50633_CELL_RESOURCES("pcf50633-adc", pcf50633_adc_resources),
 	PCF50633_CELL("pcf50633-backlight"),
 	PCF50633_CELL("pcf50633-gpio"),
 	PCF50633_CELL_ID("pcf50633-regltr", 0),
@@ -303,7 +424,7 @@ static int __devinit pcf50633_probe(struct i2c_client *client,
 	pcf50633_irq_init(pcf, client->irq);
 
 	ret = mfd_add_devices(pcf->dev, 0, pcf50633_cells,
-			ARRAY_SIZE(pcf50633_cells), NULL, 0);
+			ARRAY_SIZE(pcf50633_cells), NULL, pcf->pdata->irq_base);
 	if (ret) {
 		dev_err(pcf->dev, "Failed to add mfd cells.\n");
 		goto err_free;

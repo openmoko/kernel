@@ -272,6 +272,7 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 
 	.backlight_data = &gta02_backlight_data,
 	.gpio_base = GTA02_GPIO_PCF_BASE,
+	.irq_base = GTA02_PCF50633_IRQ_BASE,
 
 	.reg_init_data = {
 		[PCF50633_REGULATOR_AUTO] = {

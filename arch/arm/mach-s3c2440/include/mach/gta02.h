@@ -84,6 +84,9 @@
 #define GTA02_GPIO_PCF_BASE (GTA02_GPIO_GLAMO_BASE + 32)
 #define GTA02_GPIO_PCF(x) (GTA02_GPIO_PCF_BASE + (x))
 
+#define GTA02_GLAMO_IRQ_BASE IRQ_BOARD_START
+#define GTA02_PCF50633_IRQ_BASE (GTA02_GLAMO_IRQ_BASE + 9)
+
 int gta02_get_pcb_revision(void);
 
 #endif /* _GTA02_H */

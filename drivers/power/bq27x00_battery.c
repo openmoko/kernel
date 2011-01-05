@@ -381,6 +381,13 @@ static void bq27x00_battery_work(struct work_struct *work)
 	schedule_delayed_work(&di->work, 60 * HZ);
 }
 
+static void bq27x00_external_power_changed(struct power_supply *psy)
+{
+	struct bq27x00_device_info *di = to_bq27x00_device_info(psy);
+
+	schedule_delayed_work(&di->work, 0);
+}
+
 static int bq27x00_powersupply_init(struct bq27x00_device_info *di)
 {
 	int ret;
@@ -389,7 +396,7 @@ static int bq27x00_powersupply_init(struct bq27x00_device_info *di)
 	di->bat.properties = bq27x00_battery_props;
 	di->bat.num_properties = ARRAY_SIZE(bq27x00_battery_props);
 	di->bat.get_property = bq27x00_battery_get_property;
-	di->bat.external_power_changed = NULL;
+	di->bat.external_power_changed = bq27x00_external_power_changed;
 
 	INIT_DELAYED_WORK(&di->work, bq27x00_battery_work);
 

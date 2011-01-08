@@ -240,11 +240,13 @@ static const struct dev_pm_ops pcf50633_pm_ops = {
 #define PCF50633_CELL(_name) \
 	{ \
 		.name = _name, \
+		.id = -1, \
 	} \
 
 #define PCF50633_CELL_RESOURCES(_name, _resources) \
 	{ \
 		.name = _name, \
+		.id = -1, \
 		.num_resources = ARRAY_SIZE(_resources), \
 		.resources = _resources, \
 	} \

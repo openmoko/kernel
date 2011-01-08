@@ -15,7 +15,6 @@
 #define __LINUX_MFD_PCF50633_CORE_H
 
 #include <linux/i2c.h>
-#include <linux/workqueue.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/power_supply.h>
@@ -130,8 +129,6 @@ struct pcf50633 {
 
 	struct pcf50633_platform_data *pdata;
 	int irq;
-	struct work_struct irq_work;
-	struct workqueue_struct *work_queue;
 	struct mutex lock;
 	struct mutex irq_lock;
 

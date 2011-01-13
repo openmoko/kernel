@@ -54,7 +54,7 @@
 				     sizeof(struct acpi_table_erst)))
 
 #define SPIN_UNIT		100			/* 100ns */
-/* Firmware should respond within 1 miliseconds */
+/* Firmware should respond within 1 milliseconds */
 #define FIRMWARE_TIMEOUT	(1 * NSEC_PER_MSEC)
 #define FIRMWARE_MAX_STALL	50			/* 50us */
 

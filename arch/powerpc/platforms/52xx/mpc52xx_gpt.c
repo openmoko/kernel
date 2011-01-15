@@ -93,7 +93,7 @@ struct mpc52xx_gpt_priv {
 	struct irq_host *irqhost;
 	u32 ipb_freq;
 	u8 wdt_mode;
-
+	int cascade_virq;
 #if defined(CONFIG_GPIOLIB)
 	struct gpio_chip gc;
 #endif
@@ -137,19 +137,40 @@ DEFINE_MUTEX(mpc52xx_gpt_list_mutex);
 
 static void mpc52xx_gpt_irq_unmask(unsigned int virq)
 {
+	/*
+	 * The IrqEn bit of the GPT is not a mask bit, but it disables
+	 * interrupt generation. Instead, the interrupt is masked one
+	 * level down the cascade. Note that masking one level down
+	 * the cascade is only valid here because the GPT as interrupt
+	 * controller only serves one IRQ.
+	 */
 	struct mpc52xx_gpt_priv *gpt = get_irq_chip_data(virq);
-	unsigned long flags;
-
-	spin_lock_irqsave(&gpt->lock, flags);
-	setbits32(&gpt->regs->mode, MPC52xx_GPT_MODE_IRQ_EN);
-	spin_unlock_irqrestore(&gpt->lock, flags);
+	enable_irq(gpt->cascade_virq);
 }
 
 static void mpc52xx_gpt_irq_mask(unsigned int virq)
 {
 	struct mpc52xx_gpt_priv *gpt = get_irq_chip_data(virq);
+	disable_irq(gpt->cascade_virq);
+}
+
+static void mpc52xx_gpt_irq_enable(unsigned int virq)
+{
+	struct mpc52xx_gpt_priv *gpt = get_irq_chip_data(virq);
 	unsigned long flags;
 
+	dev_dbg(gpt->dev, "%s %d\n", __func__, virq);
+	spin_lock_irqsave(&gpt->lock, flags);
+	setbits32(&gpt->regs->mode, MPC52xx_GPT_MODE_IRQ_EN);
+	spin_unlock_irqrestore(&gpt->lock, flags);
+}
+
+static void mpc52xx_gpt_irq_disable(unsigned int virq)
+{
+	struct mpc52xx_gpt_priv *gpt = get_irq_chip_data(virq);
+	unsigned long flags;
+
+	dev_dbg(gpt->dev, "%s %d\n", __func__, virq);
 	spin_lock_irqsave(&gpt->lock, flags);
 	clrbits32(&gpt->regs->mode, MPC52xx_GPT_MODE_IRQ_EN);
 	spin_unlock_irqrestore(&gpt->lock, flags);
@@ -186,6 +207,8 @@ static struct irq_chip mpc52xx_gpt_irq_chip = {
 	.name = "MPC52xx GPT",
 	.unmask = mpc52xx_gpt_irq_unmask,
 	.mask = mpc52xx_gpt_irq_mask,
+	.enable = mpc52xx_gpt_irq_enable,
+	.disable = mpc52xx_gpt_irq_disable,
 	.ack = mpc52xx_gpt_irq_ack,
 	.set_type = mpc52xx_gpt_irq_set_type,
 };
@@ -270,7 +293,7 @@ mpc52xx_gpt_irq_setup(struct mpc52xx_gpt_priv *gpt, struct device_node *node)
 	if ((mode & MPC52xx_GPT_MODE_MS_MASK) == 0)
 		out_be32(&gpt->regs->mode, mode | MPC52xx_GPT_MODE_MS_IC);
 	spin_unlock_irqrestore(&gpt->lock, flags);
-
+	gpt->cascade_virq = cascade_virq;
 	dev_dbg(gpt->dev, "%s() complete. virq=%i\n", __func__, cascade_virq);
 }
 

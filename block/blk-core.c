@@ -149,39 +149,29 @@ EXPORT_SYMBOL(blk_rq_init);
 static void req_bio_endio(struct request *rq, struct bio *bio,
 			  unsigned int nbytes, int error)
 {
-	struct request_queue *q = rq->q;
+	if (error)
+		clear_bit(BIO_UPTODATE, &bio->bi_flags);
+	else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
+		error = -EIO;
 
-	if (&q->flush_rq != rq) {
-		if (error)
-			clear_bit(BIO_UPTODATE, &bio->bi_flags);
-		else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
-			error = -EIO;
-
-		if (unlikely(nbytes > bio->bi_size)) {
-			printk(KERN_ERR "%s: want %u bytes done, %u left\n",
-			       __func__, nbytes, bio->bi_size);
-			nbytes = bio->bi_size;
-		}
-
-		if (unlikely(rq->cmd_flags & REQ_QUIET))
-			set_bit(BIO_QUIET, &bio->bi_flags);
-
-		bio->bi_size -= nbytes;
-		bio->bi_sector += (nbytes >> 9);
-
-		if (bio_integrity(bio))
-			bio_integrity_advance(bio, nbytes);
-
-		if (bio->bi_size == 0)
-			bio_endio(bio, error);
-	} else {
-		/*
-		 * Okay, this is the sequenced flush request in
-		 * progress, just record the error;
-		 */
-		if (error && !q->flush_err)
-			q->flush_err = error;
+	if (unlikely(nbytes > bio->bi_size)) {
+		printk(KERN_ERR "%s: want %u bytes done, %u left\n",
+		       __func__, nbytes, bio->bi_size);
+		nbytes = bio->bi_size;
 	}
+
+	if (unlikely(rq->cmd_flags & REQ_QUIET))
+		set_bit(BIO_QUIET, &bio->bi_flags);
+
+	bio->bi_size -= nbytes;
+	bio->bi_sector += (nbytes >> 9);
+
+	if (bio_integrity(bio))
+		bio_integrity_advance(bio, nbytes);
+
+	/* don't actually finish bio if it's part of flush sequence */
+	if (bio->bi_size == 0 && !(rq->cmd_flags & REQ_FLUSH_SEQ))
+		bio_endio(bio, error);
 }
 
 void blk_dump_rq_flags(struct request *rq, char *msg)
@@ -540,7 +530,9 @@ struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id)
 	init_timer(&q->unplug_timer);
 	setup_timer(&q->timeout, blk_rq_timed_out_timer, (unsigned long) q);
 	INIT_LIST_HEAD(&q->timeout_list);
-	INIT_LIST_HEAD(&q->pending_flushes);
+	INIT_LIST_HEAD(&q->flush_queue[0]);
+	INIT_LIST_HEAD(&q->flush_queue[1]);
+	INIT_LIST_HEAD(&q->flush_data_in_flight);
 	INIT_WORK(&q->unplug_work, blk_unplug_work);
 
 	kobject_init(&q->kobj, &blk_queue_ktype);
@@ -1219,7 +1211,7 @@ static int __make_request(struct request_queue *q, struct bio *bio)
 	spin_lock_irq(q->queue_lock);
 
 	if (bio->bi_rw & (REQ_FLUSH | REQ_FUA)) {
-		where = ELEVATOR_INSERT_FRONT;
+		where = ELEVATOR_INSERT_FLUSH;
 		goto get_rq;
 	}
 
@@ -1804,7 +1796,7 @@ static void blk_account_io_done(struct request *req)
 	 * normal IO on queueing nor completion.  Accounting the
 	 * containing request is enough.
 	 */
-	if (blk_do_io_stat(req) && req != &req->q->flush_rq) {
+	if (blk_do_io_stat(req) && !(req->cmd_flags & REQ_FLUSH_SEQ)) {
 		unsigned long duration = jiffies - req->start_time;
 		const int rw = rq_data_dir(req);
 		struct hd_struct *part;

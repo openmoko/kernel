@@ -232,9 +232,8 @@ cifs_reconnect(struct TCP_Server_Info *server)
 static int check2ndT2(struct smb_hdr *pSMB, unsigned int maxBufSize)
 {
 	struct smb_t2_rsp *pSMBt;
-	int total_data_size;
-	int data_in_this_rsp;
 	int remaining;
+	__u16 total_data_size, data_in_this_rsp;
 
 	if (pSMB->Command != SMB_COM_TRANSACTION2)
 		return 0;
@@ -248,8 +247,8 @@ static int check2ndT2(struct smb_hdr *pSMB, unsigned int maxBufSize)
 
 	pSMBt = (struct smb_t2_rsp *)pSMB;
 
-	total_data_size = le16_to_cpu(pSMBt->t2_rsp.TotalDataCount);
-	data_in_this_rsp = le16_to_cpu(pSMBt->t2_rsp.DataCount);
+	total_data_size = get_unaligned_le16(&pSMBt->t2_rsp.TotalDataCount);
+	data_in_this_rsp = get_unaligned_le16(&pSMBt->t2_rsp.DataCount);
 
 	remaining = total_data_size - data_in_this_rsp;
 
@@ -275,21 +274,18 @@ static int coalesce_t2(struct smb_hdr *psecond, struct smb_hdr *pTargetSMB)
 {
 	struct smb_t2_rsp *pSMB2 = (struct smb_t2_rsp *)psecond;
 	struct smb_t2_rsp *pSMBt  = (struct smb_t2_rsp *)pTargetSMB;
-	int total_data_size;
-	int total_in_buf;
-	int remaining;
-	int total_in_buf2;
 	char *data_area_of_target;
 	char *data_area_of_buf2;
-	__u16 byte_count;
+	int remaining;
+	__u16 byte_count, total_data_size, total_in_buf, total_in_buf2;
 
-	total_data_size = le16_to_cpu(pSMBt->t2_rsp.TotalDataCount);
+	total_data_size = get_unaligned_le16(&pSMBt->t2_rsp.TotalDataCount);
 
-	if (total_data_size != le16_to_cpu(pSMB2->t2_rsp.TotalDataCount)) {
+	if (total_data_size !=
+	    get_unaligned_le16(&pSMB2->t2_rsp.TotalDataCount))
 		cFYI(1, "total data size of primary and secondary t2 differ");
-	}
 
-	total_in_buf = le16_to_cpu(pSMBt->t2_rsp.DataCount);
+	total_in_buf = get_unaligned_le16(&pSMBt->t2_rsp.DataCount);
 
 	remaining = total_data_size - total_in_buf;
 
@@ -299,28 +295,28 @@ static int coalesce_t2(struct smb_hdr *psecond, struct smb_hdr *pTargetSMB)
 	if (remaining == 0) /* nothing to do, ignore */
 		return 0;
 
-	total_in_buf2 = le16_to_cpu(pSMB2->t2_rsp.DataCount);
+	total_in_buf2 = get_unaligned_le16(&pSMB2->t2_rsp.DataCount);
 	if (remaining < total_in_buf2) {
 		cFYI(1, "transact2 2nd response contains too much data");
 	}
 
 	/* find end of first SMB data area */
 	data_area_of_target = (char *)&pSMBt->hdr.Protocol +
-				le16_to_cpu(pSMBt->t2_rsp.DataOffset);
+				get_unaligned_le16(&pSMBt->t2_rsp.DataOffset);
 	/* validate target area */
 
-	data_area_of_buf2 = (char *) &pSMB2->hdr.Protocol +
-					le16_to_cpu(pSMB2->t2_rsp.DataOffset);
+	data_area_of_buf2 = (char *)&pSMB2->hdr.Protocol +
+				get_unaligned_le16(&pSMB2->t2_rsp.DataOffset);
 
 	data_area_of_target += total_in_buf;
 
 	/* copy second buffer into end of first buffer */
 	memcpy(data_area_of_target, data_area_of_buf2, total_in_buf2);
 	total_in_buf += total_in_buf2;
-	pSMBt->t2_rsp.DataCount = cpu_to_le16(total_in_buf);
-	byte_count = le16_to_cpu(BCC_LE(pTargetSMB));
+	put_unaligned_le16(total_in_buf, &pSMBt->t2_rsp.DataCount);
+	byte_count = get_bcc_le(pTargetSMB);
 	byte_count += total_in_buf2;
-	BCC_LE(pTargetSMB) = cpu_to_le16(byte_count);
+	put_bcc_le(byte_count, pTargetSMB);
 
 	byte_count = pTargetSMB->smb_buf_length;
 	byte_count += total_in_buf2;
@@ -334,7 +330,6 @@ static int coalesce_t2(struct smb_hdr *psecond, struct smb_hdr *pTargetSMB)
 		return 0; /* we are done */
 	} else /* more responses to go */
 		return 1;
-
 }
 
 static void
@@ -1573,6 +1568,9 @@ cifs_find_tcp_session(struct sockaddr *addr, struct smb_vol *vol)
 
 	spin_lock(&cifs_tcp_ses_lock);
 	list_for_each_entry(server, &cifs_tcp_ses_list, tcp_ses_list) {
+		if (!net_eq(cifs_net_ns(server), current->nsproxy->net_ns))
+			continue;
+
 		if (!match_address(server, addr,
 				   (struct sockaddr *)&vol->srcaddr))
 			continue;
@@ -1602,6 +1600,8 @@ cifs_put_tcp_session(struct TCP_Server_Info *server)
 		spin_unlock(&cifs_tcp_ses_lock);
 		return;
 	}
+
+	put_net(cifs_net_ns(server));
 
 	list_del_init(&server->tcp_ses_list);
 	spin_unlock(&cifs_tcp_ses_lock);
@@ -1677,6 +1677,7 @@ cifs_get_tcp_session(struct smb_vol *volume_info)
 		goto out_err;
 	}
 
+	cifs_set_net_ns(tcp_ses, get_net(current->nsproxy->net_ns));
 	tcp_ses->hostname = extract_hostname(volume_info->UNC);
 	if (IS_ERR(tcp_ses->hostname)) {
 		rc = PTR_ERR(tcp_ses->hostname);
@@ -1756,6 +1757,8 @@ cifs_get_tcp_session(struct smb_vol *volume_info)
 
 out_err_crypto_release:
 	cifs_crypto_shash_release(tcp_ses);
+
+	put_net(cifs_net_ns(tcp_ses));
 
 out_err:
 	if (tcp_ses) {
@@ -2268,8 +2271,8 @@ generic_ip_connect(struct TCP_Server_Info *server)
 	}
 
 	if (socket == NULL) {
-		rc = sock_create_kern(sfamily, SOCK_STREAM,
-				      IPPROTO_TCP, &socket);
+		rc = __sock_create(cifs_net_ns(server), sfamily, SOCK_STREAM,
+				   IPPROTO_TCP, &socket, 1);
 		if (rc < 0) {
 			cERROR(1, "Error %d creating socket", rc);
 			server->ssocket = NULL;
@@ -2937,8 +2940,8 @@ CIFSTCon(unsigned int xid, struct cifsSesInfo *ses,
 	TCONX_RSP *pSMBr;
 	unsigned char *bcc_ptr;
 	int rc = 0;
-	int length, bytes_left;
-	__u16 count;
+	int length;
+	__u16 bytes_left, count;
 
 	if (ses == NULL)
 		return -EIO;
@@ -3032,7 +3035,7 @@ CIFSTCon(unsigned int xid, struct cifsSesInfo *ses,
 		tcon->need_reconnect = false;
 		tcon->tid = smb_buffer_response->Tid;
 		bcc_ptr = pByteArea(smb_buffer_response);
-		bytes_left = BCC(smb_buffer_response);
+		bytes_left = get_bcc(smb_buffer_response);
 		length = strnlen(bcc_ptr, bytes_left - 2);
 		if (smb_buffer->Flags2 & SMBFLG2_UNICODE)
 			is_unicode = true;

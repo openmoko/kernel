@@ -540,7 +540,7 @@ static u64 sched_vslice(struct cfs_rq *cfs_rq, struct sched_entity *se)
 }
 
 static void update_cfs_load(struct cfs_rq *cfs_rq, int global_update);
-static void update_cfs_shares(struct cfs_rq *cfs_rq, long weight_delta);
+static void update_cfs_shares(struct cfs_rq *cfs_rq);
 
 /*
  * Update the current task's runtime statistics. Skip current tasks that
@@ -722,10 +722,10 @@ static void update_cfs_load(struct cfs_rq *cfs_rq, int global_update)
 	u64 now, delta;
 	unsigned long load = cfs_rq->load.weight;
 
-	if (!cfs_rq)
+	if (cfs_rq->tg == &root_task_group)
 		return;
 
-	now = rq_of(cfs_rq)->clock;
+	now = rq_of(cfs_rq)->clock_task;
 	delta = now - cfs_rq->load_stamp;
 
 	/* truncate load history at 4 idle periods */
@@ -733,6 +733,7 @@ static void update_cfs_load(struct cfs_rq *cfs_rq, int global_update)
 	    now - cfs_rq->load_last > 4 * period) {
 		cfs_rq->load_period = 0;
 		cfs_rq->load_avg = 0;
+		delta = period - 1;
 	}
 
 	cfs_rq->load_stamp = now;
@@ -763,16 +764,15 @@ static void update_cfs_load(struct cfs_rq *cfs_rq, int global_update)
 		list_del_leaf_cfs_rq(cfs_rq);
 }
 
-static long calc_cfs_shares(struct cfs_rq *cfs_rq, struct task_group *tg,
-				long weight_delta)
+static long calc_cfs_shares(struct cfs_rq *cfs_rq, struct task_group *tg)
 {
 	long load_weight, load, shares;
 
-	load = cfs_rq->load.weight + weight_delta;
+	load = cfs_rq->load.weight;
 
 	load_weight = atomic_read(&tg->load_weight);
-	load_weight -= cfs_rq->load_contribution;
 	load_weight += load;
+	load_weight -= cfs_rq->load_contribution;
 
 	shares = (tg->shares * load);
 	if (load_weight)
@@ -790,7 +790,7 @@ static void update_entity_shares_tick(struct cfs_rq *cfs_rq)
 {
 	if (cfs_rq->load_unacc_exec_time > sysctl_sched_shares_window) {
 		update_cfs_load(cfs_rq, 0);
-		update_cfs_shares(cfs_rq, 0);
+		update_cfs_shares(cfs_rq);
 	}
 }
 # else /* CONFIG_SMP */
@@ -798,8 +798,7 @@ static void update_cfs_load(struct cfs_rq *cfs_rq, int global_update)
 {
 }
 
-static inline long calc_cfs_shares(struct cfs_rq *cfs_rq, struct task_group *tg,
-				long weight_delta)
+static inline long calc_cfs_shares(struct cfs_rq *cfs_rq, struct task_group *tg)
 {
 	return tg->shares;
 }
@@ -824,14 +823,11 @@ static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
 		account_entity_enqueue(cfs_rq, se);
 }
 
-static void update_cfs_shares(struct cfs_rq *cfs_rq, long weight_delta)
+static void update_cfs_shares(struct cfs_rq *cfs_rq)
 {
 	struct task_group *tg;
 	struct sched_entity *se;
 	long shares;
-
-	if (!cfs_rq)
-		return;
 
 	tg = cfs_rq->tg;
 	se = tg->se[cpu_of(rq_of(cfs_rq))];
@@ -841,7 +837,7 @@ static void update_cfs_shares(struct cfs_rq *cfs_rq, long weight_delta)
 	if (likely(se->load.weight == tg->shares))
 		return;
 #endif
-	shares = calc_cfs_shares(cfs_rq, tg, weight_delta);
+	shares = calc_cfs_shares(cfs_rq, tg);
 
 	reweight_entity(cfs_rq_of(se), se, shares);
 }
@@ -850,7 +846,7 @@ static void update_cfs_load(struct cfs_rq *cfs_rq, int global_update)
 {
 }
 
-static inline void update_cfs_shares(struct cfs_rq *cfs_rq, long weight_delta)
+static inline void update_cfs_shares(struct cfs_rq *cfs_rq)
 {
 }
 
@@ -981,8 +977,8 @@ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	 */
 	update_curr(cfs_rq);
 	update_cfs_load(cfs_rq, 0);
-	update_cfs_shares(cfs_rq, se->load.weight);
 	account_entity_enqueue(cfs_rq, se);
+	update_cfs_shares(cfs_rq);
 
 	if (flags & ENQUEUE_WAKEUP) {
 		place_entity(cfs_rq, se, 0);
@@ -1044,7 +1040,7 @@ dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	update_cfs_load(cfs_rq, 0);
 	account_entity_dequeue(cfs_rq, se);
 	update_min_vruntime(cfs_rq);
-	update_cfs_shares(cfs_rq, 0);
+	update_cfs_shares(cfs_rq);
 
 	/*
 	 * Normalize the entity after updating the min_vruntime because the
@@ -1285,7 +1281,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		struct cfs_rq *cfs_rq = cfs_rq_of(se);
 
 		update_cfs_load(cfs_rq, 0);
-		update_cfs_shares(cfs_rq, 0);
+		update_cfs_shares(cfs_rq);
 	}
 
 	hrtick_update(rq);
@@ -1315,7 +1311,7 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		struct cfs_rq *cfs_rq = cfs_rq_of(se);
 
 		update_cfs_load(cfs_rq, 0);
-		update_cfs_shares(cfs_rq, 0);
+		update_cfs_shares(cfs_rq);
 	}
 
 	hrtick_update(rq);
@@ -1432,7 +1428,7 @@ static inline unsigned long effective_load(struct task_group *tg, int cpu,
 
 static int wake_affine(struct sched_domain *sd, struct task_struct *p, int sync)
 {
-	unsigned long this_load, load;
+	s64 this_load, load;
 	int idx, this_cpu, prev_cpu;
 	unsigned long tl_per_task;
 	struct task_group *tg;
@@ -1471,8 +1467,8 @@ static int wake_affine(struct sched_domain *sd, struct task_struct *p, int sync)
 	 * Otherwise check if either cpus are near enough in load to allow this
 	 * task to be woken on this_cpu.
 	 */
-	if (this_load) {
-		unsigned long this_eff_load, prev_eff_load;
+	if (this_load > 0) {
+		s64 this_eff_load, prev_eff_load;
 
 		this_eff_load = 100;
 		this_eff_load *= power_of(prev_cpu);
@@ -2126,7 +2122,7 @@ static int update_shares_cpu(struct task_group *tg, int cpu)
 	 * We need to update shares after updating tg->load_weight in
 	 * order to adjust the weight of groups with long running tasks.
 	 */
-	update_cfs_shares(cfs_rq, 0);
+	update_cfs_shares(cfs_rq);
 
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
 
@@ -4082,33 +4078,62 @@ static void task_fork_fair(struct task_struct *p)
  * Priority of the task has changed. Check to see if we preempt
  * the current task.
  */
-static void prio_changed_fair(struct rq *rq, struct task_struct *p,
-			      int oldprio, int running)
+static void
+prio_changed_fair(struct rq *rq, struct task_struct *p, int oldprio)
 {
+	if (!p->se.on_rq)
+		return;
+
 	/*
 	 * Reschedule if we are currently running on this runqueue and
 	 * our priority decreased, or if we are not currently running on
 	 * this runqueue and our priority is higher than the current's
 	 */
-	if (running) {
+	if (rq->curr == p) {
 		if (p->prio > oldprio)
 			resched_task(rq->curr);
 	} else
 		check_preempt_curr(rq, p, 0);
 }
 
+static void switched_from_fair(struct rq *rq, struct task_struct *p)
+{
+	struct sched_entity *se = &p->se;
+	struct cfs_rq *cfs_rq = cfs_rq_of(se);
+
+	/*
+	 * Ensure the task's vruntime is normalized, so that when its
+	 * switched back to the fair class the enqueue_entity(.flags=0) will
+	 * do the right thing.
+	 *
+	 * If it was on_rq, then the dequeue_entity(.flags=0) will already
+	 * have normalized the vruntime, if it was !on_rq, then only when
+	 * the task is sleeping will it still have non-normalized vruntime.
+	 */
+	if (!se->on_rq && p->state != TASK_RUNNING) {
+		/*
+		 * Fix up our vruntime so that the current sleep doesn't
+		 * cause 'unlimited' sleep bonus.
+		 */
+		place_entity(cfs_rq, se, 0);
+		se->vruntime -= cfs_rq->min_vruntime;
+	}
+}
+
 /*
  * We switched to the sched_fair class.
  */
-static void switched_to_fair(struct rq *rq, struct task_struct *p,
-			     int running)
+static void switched_to_fair(struct rq *rq, struct task_struct *p)
 {
+	if (!p->se.on_rq)
+		return;
+
 	/*
 	 * We were most likely switched from sched_rt, so
 	 * kick off the schedule if running, otherwise just see
 	 * if we can still preempt the current task.
 	 */
-	if (running)
+	if (rq->curr == p)
 		resched_task(rq->curr);
 	else
 		check_preempt_curr(rq, p, 0);
@@ -4194,6 +4219,7 @@ static const struct sched_class fair_sched_class = {
 	.task_fork		= task_fork_fair,
 
 	.prio_changed		= prio_changed_fair,
+	.switched_from		= switched_from_fair,
 	.switched_to		= switched_to_fair,
 
 	.get_rr_interval	= get_rr_interval_fair,

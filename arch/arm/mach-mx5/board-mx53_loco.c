@@ -39,32 +39,9 @@
 #define LOCO_FEC_PHY_RST		IMX_GPIO_NR(7, 6)
 
 static iomux_v3_cfg_t mx53_loco_pads[] = {
-	MX53_PAD_CSI0_D10__UART1_TXD,
-	MX53_PAD_CSI0_D11__UART1_RXD,
-	MX53_PAD_ATA_DIOW__UART1_TXD,
-	MX53_PAD_ATA_DMACK__UART1_RXD,
-
-	MX53_PAD_ATA_BUFFER_EN__UART2_RXD,
-	MX53_PAD_ATA_DMARQ__UART2_TXD,
-	MX53_PAD_ATA_DIOR__UART2_RTS,
-	MX53_PAD_ATA_INTRQ__UART2_CTS,
-
-	MX53_PAD_ATA_CS_0__UART3_TXD,
-	MX53_PAD_ATA_CS_1__UART3_RXD,
-	MX53_PAD_ATA_DA_1__UART3_CTS,
-	MX53_PAD_ATA_DA_2__UART3_RTS,
+	MX53_PAD_CSI0_DAT10__UART1_TXD_MUX,
+	MX53_PAD_CSI0_DAT11__UART1_RXD_MUX,
 };
-
-static const struct imxuart_platform_data mx53_loco_uart_data __initconst = {
-	.flags = IMXUART_HAVE_RTSCTS,
-};
-
-static inline void mx53_loco_init_uart(void)
-{
-	imx53_add_imx_uart(0, &mx53_loco_uart_data);
-	imx53_add_imx_uart(1, &mx53_loco_uart_data);
-	imx53_add_imx_uart(2, &mx53_loco_uart_data);
-}
 
 static inline void mx53_loco_fec_reset(void)
 {
@@ -89,7 +66,7 @@ static void __init mx53_loco_board_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx53_loco_pads,
 					ARRAY_SIZE(mx53_loco_pads));
-	mx53_loco_init_uart();
+	imx53_add_imx_uart(0, NULL);
 	mx53_loco_fec_reset();
 	imx53_add_fec(&mx53_loco_fec_data);
 }

@@ -77,9 +77,9 @@ static struct hists *perf_session__hists_findnew(struct perf_session *self,
 	return new;
 }
 
-static int perf_session__add_hist_entry(struct perf_session *self,
+static int perf_session__add_hist_entry(struct perf_session *session,
 					struct addr_location *al,
-					struct sample_data *data)
+					struct perf_sample *sample)
 {
 	struct symbol *parent = NULL;
 	int err = 0;
@@ -87,28 +87,28 @@ static int perf_session__add_hist_entry(struct perf_session *self,
 	struct hists *hists;
 	struct perf_event_attr *attr;
 
-	if ((sort__has_parent || symbol_conf.use_callchain) && data->callchain) {
-		err = perf_session__resolve_callchain(self, al->thread,
-						      data->callchain, &parent);
+	if ((sort__has_parent || symbol_conf.use_callchain) && sample->callchain) {
+		err = perf_session__resolve_callchain(session, al->thread,
+						      sample->callchain, &parent);
 		if (err)
 			return err;
 	}
 
-	attr = perf_header__find_attr(data->id, &self->header);
+	attr = perf_header__find_attr(sample->id, &session->header);
 	if (attr)
-		hists = perf_session__hists_findnew(self, data->id, attr->type, attr->config);
+		hists = perf_session__hists_findnew(session, sample->id, attr->type, attr->config);
 	else
-		hists = perf_session__hists_findnew(self, data->id, 0, 0);
+		hists = perf_session__hists_findnew(session, sample->id, 0, 0);
 	if (hists == NULL)
 		return -ENOMEM;
 
-	he = __hists__add_entry(hists, al, parent, data->period);
+	he = __hists__add_entry(hists, al, parent, sample->period);
 	if (he == NULL)
 		return -ENOMEM;
 
 	if (symbol_conf.use_callchain) {
-		err = callchain_append(he->callchain, &self->callchain_cursor,
-				       data->period);
+		err = callchain_append(he->callchain, &session->callchain_cursor,
+				       sample->period);
 		if (err)
 			return err;
 	}
@@ -124,38 +124,39 @@ static int perf_session__add_hist_entry(struct perf_session *self,
 }
 
 static int add_event_total(struct perf_session *session,
-			   struct sample_data *data,
+			   struct perf_sample *sample,
 			   struct perf_event_attr *attr)
 {
 	struct hists *hists;
 
 	if (attr)
-		hists = perf_session__hists_findnew(session, data->id,
+		hists = perf_session__hists_findnew(session, sample->id,
 						    attr->type, attr->config);
 	else
-		hists = perf_session__hists_findnew(session, data->id, 0, 0);
+		hists = perf_session__hists_findnew(session, sample->id, 0, 0);
 
 	if (!hists)
 		return -ENOMEM;
 
-	hists->stats.total_period += data->period;
+	hists->stats.total_period += sample->period;
 	/*
 	 * FIXME: add_event_total should be moved from here to
 	 * perf_session__process_event so that the proper hist is passed to
 	 * the event_op methods.
 	 */
 	hists__inc_nr_events(hists, PERF_RECORD_SAMPLE);
-	session->hists.stats.total_period += data->period;
+	session->hists.stats.total_period += sample->period;
 	return 0;
 }
 
-static int process_sample_event(event_t *event, struct sample_data *sample,
+static int process_sample_event(union perf_event *event,
+				struct perf_sample *sample,
 				struct perf_session *session)
 {
 	struct addr_location al;
 	struct perf_event_attr *attr;
 
-	if (event__preprocess_sample(event, session, &al, sample, NULL) < 0) {
+	if (perf_event__preprocess_sample(event, session, &al, sample, NULL) < 0) {
 		fprintf(stderr, "problem processing %d event, skipping it.\n",
 			event->header.type);
 		return -1;
@@ -179,7 +180,8 @@ static int process_sample_event(event_t *event, struct sample_data *sample,
 	return 0;
 }
 
-static int process_read_event(event_t *event, struct sample_data *sample __used,
+static int process_read_event(union perf_event *event,
+			      struct perf_sample *sample __used,
 			      struct perf_session *session __used)
 {
 	struct perf_event_attr *attr;
@@ -232,17 +234,17 @@ static int perf_session__setup_sample_type(struct perf_session *self)
 }
 
 static struct perf_event_ops event_ops = {
-	.sample	= process_sample_event,
-	.mmap	= event__process_mmap,
-	.comm	= event__process_comm,
-	.exit	= event__process_task,
-	.fork	= event__process_task,
-	.lost	= event__process_lost,
-	.read	= process_read_event,
-	.attr	= event__process_attr,
-	.event_type = event__process_event_type,
-	.tracing_data = event__process_tracing_data,
-	.build_id = event__process_build_id,
+	.sample		 = process_sample_event,
+	.mmap		 = perf_event__process_mmap,
+	.comm		 = perf_event__process_comm,
+	.exit		 = perf_event__process_task,
+	.fork		 = perf_event__process_task,
+	.lost		 = perf_event__process_lost,
+	.read		 = process_read_event,
+	.attr		 = perf_event__process_attr,
+	.event_type	 = perf_event__process_event_type,
+	.tracing_data	 = perf_event__process_tracing_data,
+	.build_id	 = perf_event__process_build_id,
 	.ordered_samples = true,
 	.ordering_requires_timestamps = true,
 };
@@ -497,7 +499,7 @@ int cmd_report(int argc, const char **argv, const char *prefix __used)
 		use_browser = 1;
 
 	if (strcmp(input_name, "-") != 0)
-		setup_browser();
+		setup_browser(true);
 	else
 		use_browser = 0;
 	/*

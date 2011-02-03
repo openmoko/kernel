@@ -454,7 +454,7 @@ out_thread_map_delete:
 static int test__basic_mmap(void)
 {
 	int err = -1;
-	event_t *event;
+	union perf_event *event;
 	struct thread_map *threads;
 	struct cpu_map *cpus;
 	struct perf_evlist *evlist;
@@ -495,8 +495,8 @@ static int test__basic_mmap(void)
 	}
 
 	cpus = cpu_map__new(NULL);
-	if (threads == NULL) {
-		pr_debug("thread_map__new\n");
+	if (cpus == NULL) {
+		pr_debug("cpu_map__new\n");
 		goto out_free_threads;
 	}
 
@@ -509,8 +509,8 @@ static int test__basic_mmap(void)
 		goto out_free_cpus;
 	}
 
-	evlist = perf_evlist__new();
-	if (threads == NULL) {
+	evlist = perf_evlist__new(cpus, threads);
+	if (evlist == NULL) {
 		pr_debug("perf_evlist__new\n");
 		goto out_free_cpus;
 	}
@@ -537,7 +537,7 @@ static int test__basic_mmap(void)
 		}
 	}
 
-	if (perf_evlist__mmap(evlist, cpus, threads, 128, true) < 0) {
+	if (perf_evlist__mmap(evlist, 128, true) < 0) {
 		pr_debug("failed to mmap events: %d (%s)\n", errno,
 			 strerror(errno));
 		goto out_close_fd;
@@ -550,15 +550,15 @@ static int test__basic_mmap(void)
 		}
 
 	while ((event = perf_evlist__read_on_cpu(evlist, 0)) != NULL) {
-		struct sample_data sample;
+		struct perf_sample sample;
 
 		if (event->header.type != PERF_RECORD_SAMPLE) {
 			pr_debug("unexpected %s event\n",
-				 event__get_event_name(event->header.type));
+				 perf_event__name(event->header.type));
 			goto out_munmap;
 		}
 
-		event__parse_sample(event, attr.sample_type, false, &sample);
+		perf_event__parse_sample(event, attr.sample_type, false, &sample);
 		evsel = perf_evlist__id2evsel(evlist, sample.id);
 		if (evsel == NULL) {
 			pr_debug("event with id %" PRIu64
@@ -579,7 +579,7 @@ static int test__basic_mmap(void)
 
 	err = 0;
 out_munmap:
-	perf_evlist__munmap(evlist, 1);
+	perf_evlist__munmap(evlist);
 out_close_fd:
 	for (i = 0; i < nsyscalls; ++i)
 		perf_evsel__close_fd(evsels[i], 1, threads->nr);

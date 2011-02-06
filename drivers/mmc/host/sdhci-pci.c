@@ -1087,6 +1087,9 @@ static int __devinit sdhci_pci_probe(struct pci_dev *pdev,
 	}
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_allow(&pdev->dev);
+	pm_runtime_set_autosuspend_delay(&pdev->dev, 50);
+	pm_runtime_use_autosuspend(&pdev->dev);
+	pm_suspend_ignore_children(&pdev->dev, 1);
 
 	return 0;
 

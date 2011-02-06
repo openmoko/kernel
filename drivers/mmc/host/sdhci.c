@@ -1715,6 +1715,37 @@ EXPORT_SYMBOL_GPL(sdhci_enable_irq_wakeups);
 
 #endif /* CONFIG_PM */
 
+#ifdef CONFIG_PM_RUNTIME
+
+int sdhci_runtime_suspend(struct sdhci_host *host)
+{
+	/* Nothing to do yet. Still leave the placeholder */
+	return 0;
+}
+
+EXPORT_SYMBOL_GPL(sdhci_runtime_suspend);
+
+int sdhci_runtime_resume(struct sdhci_host *host)
+{
+	int ret = 0;
+
+	if (host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA)) {
+		if (host->ops->enable_dma)
+			host->ops->enable_dma(host);
+	}
+
+	sdhci_init(host, (host->mmc->pm_flags & MMC_PM_KEEP_POWER));
+	host->pwr = 0; /* force power reprogram */
+	host->clock = 0; /* force clock reprogram */
+	sdhci_set_ios(host->mmc, &host->mmc->ios);
+	mmiowb();
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(sdhci_runtime_resume);
+
+#endif /* CONFIG_PM_RUNTIME */
+
 /*****************************************************************************\
  *                                                                           *
  * Device allocation/registration                                            *

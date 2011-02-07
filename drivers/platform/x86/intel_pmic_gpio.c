@@ -211,9 +211,9 @@ static struct irq_chip pmic_irqchip = {
 	.irq_set_type	= pmic_irq_type,
 };
 
-static void pmic_irq_handler(unsigned irq, struct irq_desc *desc)
+static irqreturn_t pmic_irq_handler(unsigned int irq, void *data)
 {
-	struct pmic_gpio *pg = (struct pmic_gpio *)get_irq_data(irq);
+	struct pmic_gpio *pg = data;
 	u8 intsts = *((u8 *)pg->gpiointr + 4);
 	int gpio;
 
@@ -223,7 +223,6 @@ static void pmic_irq_handler(unsigned irq, struct irq_desc *desc)
 			generic_handle_irq(pg->irq_base + gpio);
 		}
 	}
-	desc->chip->irq_eoi(get_irq_desc_chip_data(desc));
 }
 
 static int __devinit platform_pmic_gpio_probe(struct platform_device *pdev)
@@ -280,8 +279,13 @@ static int __devinit platform_pmic_gpio_probe(struct platform_device *pdev)
 		printk(KERN_ERR "%s: Can not add pmic gpio chip.\n", __func__);
 		goto err;
 	}
-	set_irq_data(pg->irq, pg);
-	set_irq_chained_handler(pg->irq, pmic_irq_handler);
+
+	retval = request_irq(pg->irq, pmic_irq_handler, 0, "pmic", pg);
+	if (retval) {
+		printk(KERN_WARN "pmic: Interrupt request failed\n");
+		goto err;
+	}
+
 	for (i = 0; i < 8; i++) {
 		set_irq_chip_and_handler_name(i + pg->irq_base, &pmic_irqchip,
 					handle_simple_irq, "demux");

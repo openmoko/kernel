@@ -661,4 +661,12 @@ config XO1_RFKILL
 	  Support for enabling/disabling the WLAN interface on the OLPC XO-1
 	  laptop.
 
+config INTEL_MID_POWER_BUTTON
+	tristate "power button driver for Intel MID platforms"
+	depends on INTEL_SCU_IPC
+	help
+	  This driver handles the power button on the Intel MID platforms.
+
+	  If unsure, say N.
+
 endif # X86_PLATFORM_DEVICES

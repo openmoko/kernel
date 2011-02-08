@@ -1255,16 +1255,12 @@ void fuse_release_nowrite(struct inode *inode)
 
 /*
  * Set attributes, and at the same time refresh them.
- *
- * Truncation is slightly complicated, because the 'truncate' request
- * may fail, in which case we don't want to touch the mapping.
- * vmtruncate() doesn't allow for this case, so do the rlimit checking
- * and the actual truncation by hand.
  */
 static int fuse_do_setattr(struct dentry *entry, struct iattr *attr,
 			   struct file *file)
 {
 	struct inode *inode = entry->d_inode;
+	struct fuse_inode *fi = get_fuse_inode(inode);
 	struct fuse_conn *fc = get_fuse_conn(inode);
 	struct fuse_req *req;
 	struct fuse_setattr_in inarg;
@@ -1352,8 +1348,10 @@ static int fuse_do_setattr(struct dentry *entry, struct iattr *attr,
 	 * FUSE_NOWRITE, otherwise fuse_launder_page() would deadlock.
 	 */
 	if (S_ISREG(inode->i_mode) && oldsize != outarg.attr.size) {
+		mutex_lock(&fi->unmap_mutex);
 		truncate_pagecache(inode, oldsize, outarg.attr.size);
 		invalidate_inode_pages2(inode->i_mapping);
+		mutex_unlock(&fi->unmap_mutex);
 	}
 
 	return 0;

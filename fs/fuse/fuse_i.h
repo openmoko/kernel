@@ -100,6 +100,9 @@ struct fuse_inode {
 
 	/** List of writepage requestst (pending or sent) */
 	struct list_head writepages;
+
+	/** to protect unmapping */
+	struct mutex unmap_mutex;
 };
 
 struct fuse_conn;

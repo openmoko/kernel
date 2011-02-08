@@ -170,11 +170,15 @@ void fuse_finish_open(struct inode *inode, struct file *file)
 {
 	struct fuse_file *ff = file->private_data;
 	struct fuse_conn *fc = get_fuse_conn(inode);
+	struct fuse_inode *fi = get_fuse_inode(inode);
 
 	if (ff->open_flags & FOPEN_DIRECT_IO)
 		file->f_op = &fuse_direct_io_file_operations;
-	if (!(ff->open_flags & FOPEN_KEEP_CACHE))
+	if (!(ff->open_flags & FOPEN_KEEP_CACHE)) {
+		mutex_lock(&fi->unmap_mutex);
 		invalidate_inode_pages2(inode->i_mapping);
+		mutex_unlock(&fi->unmap_mutex);
+	}
 	if (ff->open_flags & FOPEN_NONSEEKABLE)
 		nonseekable_open(inode, file);
 	if (fc->atomic_o_trunc && (file->f_flags & O_TRUNC)) {
@@ -1403,11 +1407,15 @@ static int fuse_file_mmap(struct file *file, struct vm_area_struct *vma)
 
 static int fuse_direct_mmap(struct file *file, struct vm_area_struct *vma)
 {
+	struct fuse_inode *fi = get_fuse_inode(file->f_mapping->host);
+
 	/* Can't provide the coherency needed for MAP_SHARED */
 	if (vma->vm_flags & VM_MAYSHARE)
 		return -ENODEV;
 
+	mutex_lock(&fi->unmap_mutex);
 	invalidate_inode_pages2(file->f_mapping);
+	mutex_unlock(&fi->unmap_mutex);
 
 	return generic_file_mmap(file, vma);
 }

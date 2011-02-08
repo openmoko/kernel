@@ -498,7 +498,8 @@ EXPORT_SYMBOL(param_ops_string);
 #define to_module_attr(n) container_of(n, struct module_attribute, attr)
 #define to_module_kobject(n) container_of(n, struct module_kobject, kobj)
 
-extern struct kernel_param __start___param[], __stop___param[];
+extern const struct kernel_param *__start___param[];
+extern const struct kernel_param *__stop___param[];
 
 struct param_attribute
 {
@@ -754,7 +755,7 @@ static struct module_kobject * __init locate_module_kobject(const char *name)
 }
 
 static void __init kernel_add_sysfs_param(const char *name,
-					  struct kernel_param *kparam,
+					  const struct kernel_param *kparam,
 					  unsigned int name_skip)
 {
 	struct module_kobject *mk;
@@ -789,11 +790,12 @@ static void __init kernel_add_sysfs_param(const char *name,
  */
 static void __init param_sysfs_builtin(void)
 {
-	struct kernel_param *kp;
+	const struct kernel_param **p;
 	unsigned int name_len;
 	char modname[MODULE_NAME_LEN];
 
-	for (kp = __start___param; kp < __stop___param; kp++) {
+	for (p = __start___param; p < __stop___param; p++) {
+		const struct kernel_param *kp = *p;
 		char *dot;
 
 		if (kp->perm == 0)

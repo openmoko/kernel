@@ -147,15 +147,17 @@ struct kparam_array
 	BUILD_BUG_ON_ZERO((perm) < 0 || (perm) > 0777 || ((perm) & 2))	\
 	+ BUILD_BUG_ON_ZERO(sizeof(""prefix) > MAX_PARAM_PREFIX_LEN);	\
 	static const char __param_str_##name[] = prefix #name;		\
-	static struct kernel_param __moduleparam_const __param_##name	\
-	__used								\
-    __attribute__ ((unused,__section__ ("__param"),aligned(sizeof(void *)))) \
-	= { __param_str_##name, ops, perm, isbool ? KPARAM_ISBOOL : 0,	\
-	    { arg } }
+	static const struct kernel_param ___param_##name = {		\
+	    __param_str_##name, ops, perm, isbool ? KPARAM_ISBOOL : 0,	\
+	    { arg }							\
+	};								\
+	static const struct kernel_param				\
+	__used __attribute__ ((__section__ ("__param")))		\
+	* __moduleparam_const __param_##name = &___param_##name
 
 /* Obsolete - use module_param_cb() */
 #define module_param_call(name, set, get, arg, perm)			\
-	static struct kernel_param_ops __param_ops_##name =		\
+	static const struct kernel_param_ops __param_ops_##name =	\
 		 { (void *)set, (void *)get };				\
 	__module_param_call(MODULE_PARAM_PREFIX,			\
 			    name, &__param_ops_##name, arg,		\

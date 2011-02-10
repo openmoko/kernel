@@ -179,7 +179,7 @@ __check_old_set_param(int (*oldset)(const char *, struct kernel_param *))
  */
 #define kparam_block_sysfs_write(name)			\
 	do {						\
-		BUG_ON(!(__param_##name.perm & 0222));	\
+		BUG_ON(!(___param_##name.perm & 0222));	\
 		__kernel_param_lock();			\
 	} while (0)
 
@@ -189,7 +189,7 @@ __check_old_set_param(int (*oldset)(const char *, struct kernel_param *))
  */
 #define kparam_unblock_sysfs_write(name)		\
 	do {						\
-		BUG_ON(!(__param_##name.perm & 0222));	\
+		BUG_ON(!(___param_##name.perm & 0222));	\
 		__kernel_param_unlock();		\
 	} while (0)
 
@@ -201,7 +201,7 @@ __check_old_set_param(int (*oldset)(const char *, struct kernel_param *))
  */
 #define kparam_block_sysfs_read(name)			\
 	do {						\
-		BUG_ON(!(__param_##name.perm & 0444));	\
+		BUG_ON(!(___param_##name.perm & 0444));	\
 		__kernel_param_lock();			\
 	} while (0)
 
@@ -211,7 +211,7 @@ __check_old_set_param(int (*oldset)(const char *, struct kernel_param *))
  */
 #define kparam_unblock_sysfs_read(name)			\
 	do {						\
-		BUG_ON(!(__param_##name.perm & 0444));	\
+		BUG_ON(!(___param_##name.perm & 0444));	\
 		__kernel_param_unlock();		\
 	} while (0)
 

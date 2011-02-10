@@ -274,8 +274,8 @@ static const struct spi_imx_master spi1_pdata __initconst = {
 	.num_chipselect = ARRAY_SIZE(spi_internal_chipselect),
 };
 
-static struct mc13783_platform_data mc13783_pdata __initdata = {
-	.flags = MC13783_USE_RTC | MC13783_USE_TOUCHSCREEN,
+static struct mc13xxx_platform_data mc13783_pdata __initdata = {
+	.flags = MC13XXX_USE_RTC | MC13XXX_USE_TOUCHSCREEN,
 };
 
 static struct spi_board_info mc13783_dev __initdata = {
@@ -347,10 +347,10 @@ static struct sys_timer mx31lilly_timer = {
 };
 
 MACHINE_START(LILLY1131, "INCO startec LILLY-1131")
-	.boot_params	= MX3x_PHYS_OFFSET + 0x100,
-	.map_io		= mx31_map_io,
-	.init_irq	= mx31_init_irq,
-	.init_machine	= mx31lilly_board_init,
-	.timer		= &mx31lilly_timer,
+	.boot_params = MX3x_PHYS_OFFSET + 0x100,
+	.map_io = mx31_map_io,
+	.init_early = imx31_init_early,
+	.init_irq = mx31_init_irq,
+	.timer = &mx31lilly_timer,
+	.init_machine = mx31lilly_board_init,
 MACHINE_END
-

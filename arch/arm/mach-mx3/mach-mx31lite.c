@@ -111,9 +111,9 @@ static const struct spi_imx_master spi1_pdata __initconst = {
 	.num_chipselect	= ARRAY_SIZE(spi_internal_chipselect),
 };
 
-static struct mc13783_platform_data mc13783_pdata __initdata = {
-	.flags  = MC13783_USE_RTC |
-		  MC13783_USE_REGULATOR,
+static struct mc13xxx_platform_data mc13783_pdata __initdata = {
+	.flags  = MC13XXX_USE_RTC |
+		  MC13XXX_USE_REGULATOR,
 };
 
 static struct spi_board_info mc13783_spi_dev __initdata = {
@@ -281,9 +281,10 @@ struct sys_timer mx31lite_timer = {
 
 MACHINE_START(MX31LITE, "LogicPD i.MX31 SOM")
 	/* Maintainer: Freescale Semiconductor, Inc. */
-	.boot_params    = MX3x_PHYS_OFFSET + 0x100,
-	.map_io         = mx31lite_map_io,
-	.init_irq       = mx31_init_irq,
-	.init_machine   = mxc_board_init,
-	.timer          = &mx31lite_timer,
+	.boot_params = MX3x_PHYS_OFFSET + 0x100,
+	.map_io = mx31lite_map_io,
+	.init_early = imx31_init_early,
+	.init_irq = mx31_init_irq,
+	.timer = &mx31lite_timer,
+	.init_machine = mxc_board_init,
 MACHINE_END

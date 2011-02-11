@@ -120,7 +120,7 @@ static int btpal_send_frame(struct sk_buff *skb)
 	struct hci_dev *hdev = (struct hci_dev *)skb->dev;
 	HCI_TRANSPORT_PACKET_TYPE type;
 	ar6k_hci_pal_info_t *pHciPalInfo;
-	A_STATUS status = A_OK;
+	int status = 0;
 	struct sk_buff *txSkb = NULL;
 	AR_SOFTC_T *ar;
 
@@ -157,7 +157,7 @@ static int btpal_send_frame(struct sk_buff *skb)
 			kfree_skb(skb);
 			return 0;
 		default:
-			A_ASSERT(FALSE);
+			A_ASSERT(false);
 			kfree_skb(skb);
 			return 0;
 	} 
@@ -178,13 +178,13 @@ static int btpal_send_frame(struct sk_buff *skb)
 		{
 			PRIN_LOG("HCI command");
 
-			if (ar->arWmiReady == FALSE)
+			if (ar->arWmiReady == false)
 			{
 				PRIN_LOG("WMI not ready ");
 				break;
 			}
 
-			if (wmi_send_hci_cmd(ar->arWmi, skb->data, skb->len) != A_OK)
+			if (wmi_send_hci_cmd(ar->arWmi, skb->data, skb->len) != 0)
 			{
 				PRIN_LOG("send hci cmd error");
 				break;
@@ -195,7 +195,7 @@ static int btpal_send_frame(struct sk_buff *skb)
 			void *osbuf;
 
 			PRIN_LOG("ACL data");
-			if (ar->arWmiReady == FALSE)
+			if (ar->arWmiReady == false)
 			{
 				PRIN_LOG("WMI not ready");
 				break;
@@ -220,7 +220,7 @@ static int btpal_send_frame(struct sk_buff *skb)
 			/* Add WMI packet type */
 			osbuf = (void *)txSkb;
 
-			if (wmi_data_hdr_add(ar->arWmi, osbuf, DATA_MSGTYPE, 0, WMI_DATA_HDR_DATA_TYPE_ACL,0,NULL) != A_OK) {
+			if (wmi_data_hdr_add(ar->arWmi, osbuf, DATA_MSGTYPE, 0, WMI_DATA_HDR_DATA_TYPE_ACL,0,NULL) != 0) {
 				PRIN_LOG("XIOCTL_ACL_DATA - wmi_data_hdr_add failed\n");
 			} else {
 				/* Send data buffer over HTC */
@@ -229,7 +229,7 @@ static int btpal_send_frame(struct sk_buff *skb)
 			}
 			txSkb = NULL;
 		}
-	} while (FALSE);
+	} while (false);
 
 	if (txSkb != NULL) {
 		PRIN_LOG("Free skb");
@@ -269,13 +269,13 @@ static void bt_cleanup_hci_pal(ar6k_hci_pal_info_t *pHciPalInfo)
 /*********************************************************
  * Allocate HCI device and store in PAL private info structure.
  *********************************************************/
-static A_STATUS bt_setup_hci_pal(ar6k_hci_pal_info_t *pHciPalInfo)
+static int bt_setup_hci_pal(ar6k_hci_pal_info_t *pHciPalInfo)
 {
-	A_STATUS status = A_OK;
+	int status = 0;
 	struct hci_dev *pHciDev = NULL;
 
 	if (!setupbtdev) {
-		return A_OK;    
+		return 0;
 	} 
 
 	do {
@@ -302,9 +302,9 @@ static A_STATUS bt_setup_hci_pal(ar6k_hci_pal_info_t *pHciPalInfo)
 		PRIN_LOG("Normal mode enabled");
 		bt_set_bit(pHciPalInfo->ulFlags, HCI_NORMAL_MODE);
 
-	} while (FALSE);
+	} while (false);
 
-	if (A_FAILED(status)) {
+	if (status) {
 		bt_cleanup_hci_pal(pHciPalInfo);    
 	}
 	return status;
@@ -328,22 +328,22 @@ void ar6k_cleanup_hci_pal(void *ar_p)
 /****************************
  *  Register HCI device
  ****************************/
-static A_BOOL ar6k_pal_transport_ready(void *pHciPal)
+static bool ar6k_pal_transport_ready(void *pHciPal)
 {
 	ar6k_hci_pal_info_t *pHciPalInfo = (ar6k_hci_pal_info_t *)pHciPal;
 
 	PRIN_LOG("HCI device transport ready");
 	if(pHciPalInfo == NULL)
-		return FALSE;
+		return false;
 
 	if (hci_register_dev(pHciPalInfo->hdev) < 0) {
 		PRIN_LOG("Can't register HCI device");
 		hci_free_dev(pHciPalInfo->hdev);
-		return FALSE;
+		return false;
 	}
 	PRIN_LOG("HCI device registered");
 	pHciPalInfo->ulFlags |= HCI_REGISTERED;
-	return TRUE;
+	return true;
 }
 
 /**************************************************
@@ -351,12 +351,12 @@ static A_BOOL ar6k_pal_transport_ready(void *pHciPal)
  * packet is received. Pass the packet to bluetooth
  * stack via hci_recv_frame.
  **************************************************/
-A_BOOL ar6k_pal_recv_pkt(void *pHciPal, void *osbuf)
+bool ar6k_pal_recv_pkt(void *pHciPal, void *osbuf)
 {
 	struct sk_buff *skb = (struct sk_buff *)osbuf;
 	ar6k_hci_pal_info_t *pHciPalInfo;
-	A_BOOL success = FALSE;
-	A_UINT8 btType = 0;
+	bool success = false;
+	u8 btType = 0;
 	pHciPalInfo = (ar6k_hci_pal_info_t *)pHciPal;
 
 	do {
@@ -391,8 +391,8 @@ A_BOOL ar6k_pal_recv_pkt(void *pHciPal, void *osbuf)
 			PRIN_LOG("HCI PAL: Indicated RCV of type:%d, Length:%d \n",HCI_EVENT_PKT, skb->len);
 		}
 		PRIN_LOG("hci recv success");
-		success = TRUE;
-	}while(FALSE);
+		success = true;
+	}while(false);
 	return success;
 }
 
@@ -402,9 +402,9 @@ A_BOOL ar6k_pal_recv_pkt(void *pHciPal, void *osbuf)
  * Registers a HCI device.
  * Registers packet receive callback function with ar6k 
  **********************************************************/
-A_STATUS ar6k_setup_hci_pal(void *ar_p)
+int ar6k_setup_hci_pal(void *ar_p)
 {
-	A_STATUS status = A_OK;
+	int status = 0;
 	ar6k_hci_pal_info_t *pHciPalInfo;
 	ar6k_pal_config_t ar6k_pal_config;
 	AR_SOFTC_T *ar = (AR_SOFTC_T *)ar_p;
@@ -423,7 +423,7 @@ A_STATUS ar6k_setup_hci_pal(void *ar_p)
 		pHciPalInfo->ar = ar;
 
 		status = bt_setup_hci_pal(pHciPalInfo);
-		if (A_FAILED(status)) {
+		if (status) {
 			break;    
 		}
 
@@ -435,17 +435,17 @@ A_STATUS ar6k_setup_hci_pal(void *ar_p)
 		ar6k_pal_config.fpar6k_pal_recv_pkt = ar6k_pal_recv_pkt;
 		register_pal_cb(&ar6k_pal_config);
 		ar6k_pal_transport_ready(ar->hcipal_info);
-	} while (FALSE);
+	} while (false);
 
-	if (A_FAILED(status)) {
+	if (status) {
 		ar6k_cleanup_hci_pal(ar);    
 	}
 	return status;
 }
 #else  /* AR6K_ENABLE_HCI_PAL */
-A_STATUS ar6k_setup_hci_pal(void *ar_p)
+int ar6k_setup_hci_pal(void *ar_p)
 {
-	return A_OK;
+	return 0;
 }
 void ar6k_cleanup_hci_pal(void *ar_p)
 {
@@ -457,7 +457,7 @@ void ar6k_cleanup_hci_pal(void *ar_p)
  * Register init and callback function with ar6k
  * when PAL driver is a separate kernel module.
  ****************************************************/
-A_STATUS ar6k_register_hci_pal(HCI_TRANSPORT_CALLBACKS *hciTransCallbacks);
+int ar6k_register_hci_pal(HCI_TRANSPORT_CALLBACKS *hciTransCallbacks);
 static int __init pal_init_module(void)
 {
 	HCI_TRANSPORT_CALLBACKS hciTransCallbacks;
@@ -465,7 +465,7 @@ static int __init pal_init_module(void)
 	hciTransCallbacks.setupTransport = ar6k_setup_hci_pal;
 	hciTransCallbacks.cleanupTransport = ar6k_cleanup_hci_pal;
 
-	if(ar6k_register_hci_pal(&hciTransCallbacks) != A_OK)
+	if(ar6k_register_hci_pal(&hciTransCallbacks) != 0)
 		return -ENODEV;
 
 	return 0;

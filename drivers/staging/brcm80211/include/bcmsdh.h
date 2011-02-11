@@ -17,6 +17,7 @@
 #ifndef	_bcmsdh_h_
 #define	_bcmsdh_h_
 
+#include <linux/skbuff.h>
 #define BCMSDH_ERROR_VAL	0x0001	/* Error */
 #define BCMSDH_INFO_VAL		0x0002	/* Info */
 extern const uint bcmsdh_msglevel;
@@ -57,7 +58,7 @@ extern int bcmsdh_intr_disable(void *sdh);
 extern int bcmsdh_intr_reg(void *sdh, bcmsdh_cb_fn_t fn, void *argh);
 extern int bcmsdh_intr_dereg(void *sdh);
 
-#if defined(BCMDBG)
+#if defined(DHD_DEBUG)
 /* Query pending interrupt status from the host controller */
 extern bool bcmsdh_intr_pending(void *sdh);
 #endif

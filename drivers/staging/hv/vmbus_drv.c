@@ -113,7 +113,7 @@ static struct device_attribute vmbus_device_attrs[] = {
 };
 
 /* The one and only one */
-static struct vmbus_driver_context g_vmbus_drv = {
+static struct vmbus_driver_context vmbus_drv = {
 	.bus.name =		"vmbus",
 	.bus.match =		vmbus_match,
 	.bus.shutdown =		vmbus_shutdown,
@@ -123,14 +123,14 @@ static struct vmbus_driver_context g_vmbus_drv = {
 	.bus.dev_attrs =	vmbus_device_attrs,
 };
 
-static const char *gDriverName = "hyperv";
+static const char *driver_name = "hyperv";
 
 /*
  * Windows vmbus does not defined this.
  * We defined this to be consistent with other devices
  */
 /* {c5295816-f63a-4d5f-8d1a-4daf999ca185} */
-static const struct hv_guid gVmbusDeviceType = {
+static const struct hv_guid device_type = {
 	.data = {
 		0x16, 0x58, 0x29, 0xc5, 0x3a, 0xf6, 0x5f, 0x4d,
 		0x8d, 0x1a, 0x4d, 0xaf, 0x99, 0x9c, 0xa1, 0x85
@@ -138,35 +138,35 @@ static const struct hv_guid gVmbusDeviceType = {
 };
 
 /* {ac3760fc-9adf-40aa-9427-a70ed6de95c5} */
-static const struct hv_guid gVmbusDeviceId = {
+static const struct hv_guid device_id = {
 	.data = {
 		0xfc, 0x60, 0x37, 0xac, 0xdf, 0x9a, 0xaa, 0x40,
 		0x94, 0x27, 0xa7, 0x0e, 0xd6, 0xde, 0x95, 0xc5
 	}
 };
 
-static struct hv_device *gDevice; /* vmbus root device */
+static struct hv_device *vmbus_device; /* vmbus root device */
 
 /*
- * VmbusChildDeviceAdd - Registers the child device with the vmbus
+ * vmbus_child_dev_add - Registers the child device with the vmbus
  */
-int VmbusChildDeviceAdd(struct hv_device *ChildDevice)
+int vmbus_child_dev_add(struct hv_device *child_dev)
 {
-	return vmbus_child_device_register(gDevice, ChildDevice);
+	return vmbus_child_device_register(vmbus_device, child_dev);
 }
 
 /*
- * VmbusOnDeviceAdd - Callback when the root bus device is added
+ * vmbus_dev_add - Callback when the root bus device is added
  */
-static int VmbusOnDeviceAdd(struct hv_device *dev, void *AdditionalInfo)
+static int vmbus_dev_add(struct hv_device *dev, void *info)
 {
-	u32 *irqvector = AdditionalInfo;
+	u32 *irqvector = info;
 	int ret;
 
-	gDevice = dev;
+	vmbus_device = dev;
 
-	memcpy(&gDevice->deviceType, &gVmbusDeviceType, sizeof(struct hv_guid));
-	memcpy(&gDevice->deviceInstance, &gVmbusDeviceId,
+	memcpy(&vmbus_device->dev_type, &device_type, sizeof(struct hv_guid));
+	memcpy(&vmbus_device->dev_instance, &device_id,
 	       sizeof(struct hv_guid));
 
 	/* strcpy(dev->name, "vmbus"); */
@@ -174,29 +174,29 @@ static int VmbusOnDeviceAdd(struct hv_device *dev, void *AdditionalInfo)
 	on_each_cpu(hv_synic_init, (void *)irqvector, 1);
 
 	/* Connect to VMBus in the root partition */
-	ret = VmbusConnect();
+	ret = vmbus_connect();
 
 	/* VmbusSendEvent(device->localPortId+1); */
 	return ret;
 }
 
 /*
- * VmbusOnDeviceRemove - Callback when the root bus device is removed
+ * vmbus_dev_rm - Callback when the root bus device is removed
  */
-static int VmbusOnDeviceRemove(struct hv_device *dev)
+static int vmbus_dev_rm(struct hv_device *dev)
 {
 	int ret = 0;
 
 	vmbus_release_unattached_channels();
-	VmbusDisconnect();
+	vmbus_disconnect();
 	on_each_cpu(hv_synic_cleanup, NULL, 1);
 	return ret;
 }
 
 /*
- * VmbusOnCleanup - Perform any cleanup when the driver is removed
+ * vmbus_cleanup - Perform any cleanup when the driver is removed
  */
-static void VmbusOnCleanup(struct hv_driver *drv)
+static void vmbus_cleanup(struct hv_driver *drv)
 {
 	/* struct vmbus_driver *driver = (struct vmbus_driver *)drv; */
 
@@ -239,7 +239,7 @@ static void vmbus_on_msg_dpc(struct hv_driver *drv)
 				continue;
 			INIT_WORK(&ctx->work, vmbus_onmessage_work);
 			memcpy(&ctx->msg, msg, sizeof(*msg));
-			queue_work(gVmbusConnection.WorkQueue, &ctx->work);
+			queue_work(vmbus_connection.work_queue, &ctx->work);
 		}
 
 		msg->header.message_type = HVMSG_NONE;
@@ -309,37 +309,38 @@ static void get_channel_info(struct hv_device *device,
 
 	vmbus_get_debug_info(device->channel, &debug_info);
 
-	info->ChannelId = debug_info.relid;
-	info->ChannelState = debug_info.state;
-	memcpy(&info->ChannelType, &debug_info.interfacetype,
+	info->chn_id = debug_info.relid;
+	info->chn_state = debug_info.state;
+	memcpy(&info->chn_type, &debug_info.interfacetype,
 	       sizeof(struct hv_guid));
-	memcpy(&info->ChannelInstance, &debug_info.interface_instance,
+	memcpy(&info->chn_instance, &debug_info.interface_instance,
 	       sizeof(struct hv_guid));
 
-	info->MonitorId = debug_info.monitorid;
+	info->monitor_id = debug_info.monitorid;
 
-	info->ServerMonitorPending = debug_info.servermonitor_pending;
-	info->ServerMonitorLatency = debug_info.servermonitor_latency;
-	info->ServerMonitorConnectionId = debug_info.servermonitor_connectionid;
+	info->server_monitor_pending = debug_info.servermonitor_pending;
+	info->server_monitor_latency = debug_info.servermonitor_latency;
+	info->server_monitor_conn_id = debug_info.servermonitor_connectionid;
 
-	info->ClientMonitorPending = debug_info.clientmonitor_pending;
-	info->ClientMonitorLatency = debug_info.clientmonitor_latency;
-	info->ClientMonitorConnectionId = debug_info.clientmonitor_connectionid;
+	info->client_monitor_pending = debug_info.clientmonitor_pending;
+	info->client_monitor_latency = debug_info.clientmonitor_latency;
+	info->client_monitor_conn_id = debug_info.clientmonitor_connectionid;
 
-	info->Inbound.InterruptMask = debug_info.inbound.current_interrupt_mask;
-	info->Inbound.ReadIndex = debug_info.inbound.current_read_index;
-	info->Inbound.WriteIndex = debug_info.inbound.current_write_index;
-	info->Inbound.BytesAvailToRead = debug_info.inbound.bytes_avail_toread;
-	info->Inbound.BytesAvailToWrite =
+	info->inbound.int_mask = debug_info.inbound.current_interrupt_mask;
+	info->inbound.read_idx = debug_info.inbound.current_read_index;
+	info->inbound.write_idx = debug_info.inbound.current_write_index;
+	info->inbound.bytes_avail_toread =
+		debug_info.inbound.bytes_avail_toread;
+	info->inbound.bytes_avail_towrite =
 		debug_info.inbound.bytes_avail_towrite;
 
-	info->Outbound.InterruptMask =
+	info->outbound.int_mask =
 		debug_info.outbound.current_interrupt_mask;
-	info->Outbound.ReadIndex = debug_info.outbound.current_read_index;
-	info->Outbound.WriteIndex = debug_info.outbound.current_write_index;
-	info->Outbound.BytesAvailToRead =
+	info->outbound.read_idx = debug_info.outbound.current_read_index;
+	info->outbound.write_idx = debug_info.outbound.current_write_index;
+	info->outbound.bytes_avail_toread =
 		debug_info.outbound.bytes_avail_toread;
-	info->Outbound.BytesAvailToWrite =
+	info->outbound.bytes_avail_towrite =
 		debug_info.outbound.bytes_avail_towrite;
 }
 
@@ -363,85 +364,85 @@ static ssize_t vmbus_show_device_attr(struct device *dev,
 	if (!strcmp(dev_attr->attr.name, "class_id")) {
 		return sprintf(buf, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-"
 			       "%02x%02x%02x%02x%02x%02x%02x%02x}\n",
-			       device_info.ChannelType.data[3],
-			       device_info.ChannelType.data[2],
-			       device_info.ChannelType.data[1],
-			       device_info.ChannelType.data[0],
-			       device_info.ChannelType.data[5],
-			       device_info.ChannelType.data[4],
-			       device_info.ChannelType.data[7],
-			       device_info.ChannelType.data[6],
-			       device_info.ChannelType.data[8],
-			       device_info.ChannelType.data[9],
-			       device_info.ChannelType.data[10],
-			       device_info.ChannelType.data[11],
-			       device_info.ChannelType.data[12],
-			       device_info.ChannelType.data[13],
-			       device_info.ChannelType.data[14],
-			       device_info.ChannelType.data[15]);
+			       device_info.chn_type.data[3],
+			       device_info.chn_type.data[2],
+			       device_info.chn_type.data[1],
+			       device_info.chn_type.data[0],
+			       device_info.chn_type.data[5],
+			       device_info.chn_type.data[4],
+			       device_info.chn_type.data[7],
+			       device_info.chn_type.data[6],
+			       device_info.chn_type.data[8],
+			       device_info.chn_type.data[9],
+			       device_info.chn_type.data[10],
+			       device_info.chn_type.data[11],
+			       device_info.chn_type.data[12],
+			       device_info.chn_type.data[13],
+			       device_info.chn_type.data[14],
+			       device_info.chn_type.data[15]);
 	} else if (!strcmp(dev_attr->attr.name, "device_id")) {
 		return sprintf(buf, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-"
 			       "%02x%02x%02x%02x%02x%02x%02x%02x}\n",
-			       device_info.ChannelInstance.data[3],
-			       device_info.ChannelInstance.data[2],
-			       device_info.ChannelInstance.data[1],
-			       device_info.ChannelInstance.data[0],
-			       device_info.ChannelInstance.data[5],
-			       device_info.ChannelInstance.data[4],
-			       device_info.ChannelInstance.data[7],
-			       device_info.ChannelInstance.data[6],
-			       device_info.ChannelInstance.data[8],
-			       device_info.ChannelInstance.data[9],
-			       device_info.ChannelInstance.data[10],
-			       device_info.ChannelInstance.data[11],
-			       device_info.ChannelInstance.data[12],
-			       device_info.ChannelInstance.data[13],
-			       device_info.ChannelInstance.data[14],
-			       device_info.ChannelInstance.data[15]);
+			       device_info.chn_instance.data[3],
+			       device_info.chn_instance.data[2],
+			       device_info.chn_instance.data[1],
+			       device_info.chn_instance.data[0],
+			       device_info.chn_instance.data[5],
+			       device_info.chn_instance.data[4],
+			       device_info.chn_instance.data[7],
+			       device_info.chn_instance.data[6],
+			       device_info.chn_instance.data[8],
+			       device_info.chn_instance.data[9],
+			       device_info.chn_instance.data[10],
+			       device_info.chn_instance.data[11],
+			       device_info.chn_instance.data[12],
+			       device_info.chn_instance.data[13],
+			       device_info.chn_instance.data[14],
+			       device_info.chn_instance.data[15]);
 	} else if (!strcmp(dev_attr->attr.name, "state")) {
-		return sprintf(buf, "%d\n", device_info.ChannelState);
+		return sprintf(buf, "%d\n", device_info.chn_state);
 	} else if (!strcmp(dev_attr->attr.name, "id")) {
-		return sprintf(buf, "%d\n", device_info.ChannelId);
+		return sprintf(buf, "%d\n", device_info.chn_id);
 	} else if (!strcmp(dev_attr->attr.name, "out_intr_mask")) {
-		return sprintf(buf, "%d\n", device_info.Outbound.InterruptMask);
+		return sprintf(buf, "%d\n", device_info.outbound.int_mask);
 	} else if (!strcmp(dev_attr->attr.name, "out_read_index")) {
-		return sprintf(buf, "%d\n", device_info.Outbound.ReadIndex);
+		return sprintf(buf, "%d\n", device_info.outbound.read_idx);
 	} else if (!strcmp(dev_attr->attr.name, "out_write_index")) {
-		return sprintf(buf, "%d\n", device_info.Outbound.WriteIndex);
+		return sprintf(buf, "%d\n", device_info.outbound.write_idx);
 	} else if (!strcmp(dev_attr->attr.name, "out_read_bytes_avail")) {
 		return sprintf(buf, "%d\n",
-			       device_info.Outbound.BytesAvailToRead);
+			       device_info.outbound.bytes_avail_toread);
 	} else if (!strcmp(dev_attr->attr.name, "out_write_bytes_avail")) {
 		return sprintf(buf, "%d\n",
-			       device_info.Outbound.BytesAvailToWrite);
+			       device_info.outbound.bytes_avail_towrite);
 	} else if (!strcmp(dev_attr->attr.name, "in_intr_mask")) {
-		return sprintf(buf, "%d\n", device_info.Inbound.InterruptMask);
+		return sprintf(buf, "%d\n", device_info.inbound.int_mask);
 	} else if (!strcmp(dev_attr->attr.name, "in_read_index")) {
-		return sprintf(buf, "%d\n", device_info.Inbound.ReadIndex);
+		return sprintf(buf, "%d\n", device_info.inbound.read_idx);
 	} else if (!strcmp(dev_attr->attr.name, "in_write_index")) {
-		return sprintf(buf, "%d\n", device_info.Inbound.WriteIndex);
+		return sprintf(buf, "%d\n", device_info.inbound.write_idx);
 	} else if (!strcmp(dev_attr->attr.name, "in_read_bytes_avail")) {
 		return sprintf(buf, "%d\n",
-			       device_info.Inbound.BytesAvailToRead);
+			       device_info.inbound.bytes_avail_toread);
 	} else if (!strcmp(dev_attr->attr.name, "in_write_bytes_avail")) {
 		return sprintf(buf, "%d\n",
-			       device_info.Inbound.BytesAvailToWrite);
+			       device_info.inbound.bytes_avail_towrite);
 	} else if (!strcmp(dev_attr->attr.name, "monitor_id")) {
-		return sprintf(buf, "%d\n", device_info.MonitorId);
+		return sprintf(buf, "%d\n", device_info.monitor_id);
 	} else if (!strcmp(dev_attr->attr.name, "server_monitor_pending")) {
-		return sprintf(buf, "%d\n", device_info.ServerMonitorPending);
+		return sprintf(buf, "%d\n", device_info.server_monitor_pending);
 	} else if (!strcmp(dev_attr->attr.name, "server_monitor_latency")) {
-		return sprintf(buf, "%d\n", device_info.ServerMonitorLatency);
+		return sprintf(buf, "%d\n", device_info.server_monitor_latency);
 	} else if (!strcmp(dev_attr->attr.name, "server_monitor_conn_id")) {
 		return sprintf(buf, "%d\n",
-			       device_info.ServerMonitorConnectionId);
+			       device_info.server_monitor_conn_id);
 	} else if (!strcmp(dev_attr->attr.name, "client_monitor_pending")) {
-		return sprintf(buf, "%d\n", device_info.ClientMonitorPending);
+		return sprintf(buf, "%d\n", device_info.client_monitor_pending);
 	} else if (!strcmp(dev_attr->attr.name, "client_monitor_latency")) {
-		return sprintf(buf, "%d\n", device_info.ClientMonitorLatency);
+		return sprintf(buf, "%d\n", device_info.client_monitor_latency);
 	} else if (!strcmp(dev_attr->attr.name, "client_monitor_conn_id")) {
 		return sprintf(buf, "%d\n",
-			       device_info.ClientMonitorConnectionId);
+			       device_info.client_monitor_conn_id);
 	} else {
 		return 0;
 	}
@@ -461,9 +462,9 @@ static ssize_t vmbus_show_device_attr(struct device *dev,
  */
 static int vmbus_bus_init(void)
 {
-	struct vmbus_driver_context *vmbus_drv_ctx = &g_vmbus_drv;
-	struct hv_driver *driver = &g_vmbus_drv.drv_obj;
-	struct vm_device *dev_ctx = &g_vmbus_drv.device_ctx;
+	struct vmbus_driver_context *vmbus_drv_ctx = &vmbus_drv;
+	struct hv_driver *driver = &vmbus_drv.drv_obj;
+	struct vm_device *dev_ctx = &vmbus_drv.device_ctx;
 	int ret;
 	unsigned int vector;
 
@@ -478,13 +479,13 @@ static int vmbus_bus_init(void)
 			sizeof(struct vmbus_channel_packet_page_buffer),
 			sizeof(struct vmbus_channel_packet_multipage_buffer));
 
-	driver->name = gDriverName;
-	memcpy(&driver->deviceType, &gVmbusDeviceType, sizeof(struct hv_guid));
+	driver->name = driver_name;
+	memcpy(&driver->dev_type, &device_type, sizeof(struct hv_guid));
 
 	/* Setup dispatch table */
-	driver->OnDeviceAdd	= VmbusOnDeviceAdd;
-	driver->OnDeviceRemove	= VmbusOnDeviceRemove;
-	driver->OnCleanup	= VmbusOnCleanup;
+	driver->dev_add	= vmbus_dev_add;
+	driver->dev_rm	= vmbus_dev_rm;
+	driver->cleanup	= vmbus_cleanup;
 
 	/* Hypervisor initialization...setup hypercall page..etc */
 	ret = hv_init();
@@ -495,7 +496,7 @@ static int vmbus_bus_init(void)
 	}
 
 	/* Sanity checks */
-	if (!driver->OnDeviceAdd) {
+	if (!driver->dev_add) {
 		DPRINT_ERR(VMBUS_DRV, "OnDeviceAdd() routine not set");
 		ret = -1;
 		goto cleanup;
@@ -536,7 +537,7 @@ static int vmbus_bus_init(void)
 	/* Call to bus driver to add the root device */
 	memset(dev_ctx, 0, sizeof(struct vm_device));
 
-	ret = driver->OnDeviceAdd(&dev_ctx->device_obj, &vector);
+	ret = driver->dev_add(&dev_ctx->device_obj, &vector);
 	if (ret != 0) {
 		DPRINT_ERR(VMBUS_DRV,
 			   "ERROR - Unable to add vmbus root device");
@@ -550,9 +551,9 @@ static int vmbus_bus_init(void)
 	}
 	/* strcpy(dev_ctx->device.bus_id, dev_ctx->device_obj.name); */
 	dev_set_name(&dev_ctx->device, "vmbus_0_0");
-	memcpy(&dev_ctx->class_id, &dev_ctx->device_obj.deviceType,
+	memcpy(&dev_ctx->class_id, &dev_ctx->device_obj.dev_type,
 		sizeof(struct hv_guid));
-	memcpy(&dev_ctx->device_id, &dev_ctx->device_obj.deviceInstance,
+	memcpy(&dev_ctx->device_id, &dev_ctx->device_obj.dev_instance,
 		sizeof(struct hv_guid));
 
 	/* No need to bind a driver to the root device. */
@@ -590,17 +591,17 @@ cleanup:
  */
 static void vmbus_bus_exit(void)
 {
-	struct hv_driver *driver = &g_vmbus_drv.drv_obj;
-	struct vmbus_driver_context *vmbus_drv_ctx = &g_vmbus_drv;
+	struct hv_driver *driver = &vmbus_drv.drv_obj;
+	struct vmbus_driver_context *vmbus_drv_ctx = &vmbus_drv;
 
-	struct vm_device *dev_ctx = &g_vmbus_drv.device_ctx;
+	struct vm_device *dev_ctx = &vmbus_drv.device_ctx;
 
 	/* Remove the root device */
-	if (driver->OnDeviceRemove)
-		driver->OnDeviceRemove(&dev_ctx->device_obj);
+	if (driver->dev_rm)
+		driver->dev_rm(&dev_ctx->device_obj);
 
-	if (driver->OnCleanup)
-		driver->OnCleanup(driver);
+	if (driver->cleanup)
+		driver->cleanup(driver);
 
 	/* Unregister the root bus device */
 	device_unregister(&dev_ctx->device);
@@ -634,7 +635,7 @@ int vmbus_child_driver_register(struct driver_context *driver_ctx)
 		    driver_ctx, driver_ctx->driver.name);
 
 	/* The child driver on this vmbus */
-	driver_ctx->driver.bus = &g_vmbus_drv.bus;
+	driver_ctx->driver.bus = &vmbus_drv.bus;
 
 	ret = driver_register(&driver_ctx->driver);
 
@@ -706,8 +707,8 @@ struct hv_device *vmbus_child_device_create(struct hv_guid *type,
 
 	child_device_obj = &child_device_ctx->device_obj;
 	child_device_obj->channel = channel;
-	memcpy(&child_device_obj->deviceType, type, sizeof(struct hv_guid));
-	memcpy(&child_device_obj->deviceInstance, instance,
+	memcpy(&child_device_obj->dev_type, type, sizeof(struct hv_guid));
+	memcpy(&child_device_obj->dev_instance, instance,
 	       sizeof(struct hv_guid));
 
 	memcpy(&child_device_ctx->class_id, type, sizeof(struct hv_guid));
@@ -737,7 +738,7 @@ int vmbus_child_device_register(struct hv_device *root_device_obj,
 		     atomic_inc_return(&device_num));
 
 	/* The new device belongs to this bus */
-	child_device_ctx->device.bus = &g_vmbus_drv.bus; /* device->dev.bus; */
+	child_device_ctx->device.bus = &vmbus_drv.bus; /* device->dev.bus; */
 	child_device_ctx->device.parent = &root_device_ctx->device;
 	child_device_ctx->device.release = vmbus_device_release;
 
@@ -875,11 +876,11 @@ static int vmbus_match(struct device *device, struct device_driver *driver)
 		struct vmbus_driver_context *vmbus_drv_ctx =
 			(struct vmbus_driver_context *)driver_ctx;
 
-		device_ctx->device_obj.Driver = &vmbus_drv_ctx->drv_obj;
+		device_ctx->device_obj.drv = &vmbus_drv_ctx->drv_obj;
 		DPRINT_INFO(VMBUS_DRV,
 			    "device object (%p) set to driver object (%p)",
 			    &device_ctx->device_obj,
-			    device_ctx->device_obj.Driver);
+			    device_ctx->device_obj.drv);
 
 		match = 1;
 	}
@@ -1045,12 +1046,12 @@ static void vmbus_msg_dpc(unsigned long data)
 static void vmbus_event_dpc(unsigned long data)
 {
 	/* Call to bus driver to handle interrupt */
-	VmbusOnEvents();
+	vmbus_on_event();
 }
 
 static irqreturn_t vmbus_isr(int irq, void *dev_id)
 {
-	struct hv_driver *driver = &g_vmbus_drv.drv_obj;
+	struct hv_driver *driver = &vmbus_drv.drv_obj;
 	int ret;
 
 	/* Call to bus driver to handle interrupt */
@@ -1059,10 +1060,10 @@ static irqreturn_t vmbus_isr(int irq, void *dev_id)
 	/* Schedules a dpc if necessary */
 	if (ret > 0) {
 		if (test_bit(0, (unsigned long *)&ret))
-			tasklet_schedule(&g_vmbus_drv.msg_dpc);
+			tasklet_schedule(&vmbus_drv.msg_dpc);
 
 		if (test_bit(1, (unsigned long *)&ret))
-			tasklet_schedule(&g_vmbus_drv.event_dpc);
+			tasklet_schedule(&vmbus_drv.event_dpc);
 
 		return IRQ_HANDLED;
 	} else {

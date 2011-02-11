@@ -61,25 +61,25 @@ typedef enum {
 
 typedef struct {
     void        *osbuf;
-    A_BOOL      is_amsdu;
-    A_UINT16    seq_no;
+    bool      is_amsdu;
+    u16 seq_no;
 }OSBUF_HOLD_Q;
 
 
 #if 0
 typedef struct {
-    A_UINT16    seqno_st;
-    A_UINT16    seqno_end;
+    u16 seqno_st;
+    u16 seqno_end;
 }WINDOW_SNAPSHOT;
 #endif
 
 typedef struct {
-    A_BOOL              aggr;       /* is it ON or OFF */
-    A_BOOL              progress;   /* TRUE when frames have arrived after a timer start */
-    A_BOOL              timerMon;   /* TRUE if the timer started for the sake of this TID */
-    A_UINT16            win_sz;     /* negotiated window size */
-    A_UINT16            seq_next;   /* Next seq no, in current window */
-    A_UINT32            hold_q_sz;  /* Num of frames that can be held in hold q */
+    bool              aggr;       /* is it ON or OFF */
+    bool              progress;   /* true when frames have arrived after a timer start */
+    bool              timerMon;   /* true if the timer started for the sake of this TID */
+    u16 win_sz;     /* negotiated window size */
+    u16 seq_next;   /* Next seq no, in current window */
+    u32 hold_q_sz;  /* Num of frames that can be held in hold q */
     OSBUF_HOLD_Q        *hold_q;    /* Hold q for re-order */
 #if 0    
     WINDOW_SNAPSHOT     old_win;    /* Sliding window snapshot - for timeout */
@@ -89,20 +89,20 @@ typedef struct {
 }RXTID;
 
 typedef struct {
-    A_UINT32    num_into_aggr;      /* hitting at the input of this module */
-    A_UINT32    num_dups;           /* duplicate */
-    A_UINT32    num_oow;            /* out of window */
-    A_UINT32    num_mpdu;           /* single payload 802.3/802.11 frame */
-    A_UINT32    num_amsdu;          /* AMSDU */
-    A_UINT32    num_delivered;      /* frames delivered to IP stack */
-    A_UINT32    num_timeouts;       /* num of timeouts, during which frames delivered */
-    A_UINT32    num_hole;           /* frame not present, when window moved over */
-    A_UINT32    num_bar;            /* num of resets of seq_num, via BAR */
+    u32 num_into_aggr;      /* hitting at the input of this module */
+    u32 num_dups;           /* duplicate */
+    u32 num_oow;            /* out of window */
+    u32 num_mpdu;           /* single payload 802.3/802.11 frame */
+    u32 num_amsdu;          /* AMSDU */
+    u32 num_delivered;      /* frames delivered to IP stack */
+    u32 num_timeouts;       /* num of timeouts, during which frames delivered */
+    u32 num_hole;           /* frame not present, when window moved over */
+    u32 num_bar;            /* num of resets of seq_num, via BAR */
 }RXTID_STATS;
 
 typedef struct {
-    A_UINT8             aggr_sz;            /* config value of aggregation size */    
-    A_UINT8             timerScheduled;
+    u8 aggr_sz;            /* config value of aggregation size */
+    u8 timerScheduled;
     A_TIMER             timer;              /* timer for returning held up pkts in re-order que */    
     void                *dev;               /* dev handle */
     RX_CALLBACK         rx_fn;              /* callback function to return frames; to upper layer */

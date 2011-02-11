@@ -23,7 +23,6 @@
 
 #include <bcmutils.h>
 #include <bcmendian.h>
-#include <proto/ethernet.h>
 
 #include <linux/if_arp.h>
 #include <asm/uaccess.h>
@@ -31,11 +30,10 @@
 #include <dngl_stats.h>
 #include <dhd.h>
 #include <dhdioctl.h>
-
+#include <linux/ieee80211.h>
 typedef const struct si_pub si_t;
 #include <wlioctl.h>
 
-#include <proto/ethernet.h>
 #include <dngl_stats.h>
 #include <dhd.h>
 
@@ -137,6 +135,9 @@ typedef struct iscan_info {
 	int iscan_ex_param_size;
 } iscan_info_t;
 iscan_info_t *g_iscan;
+
+static const u8 ether_bcast[ETH_ALEN] = {255, 255, 255, 255, 255, 255};
+
 static void wl_iw_timerfunc(unsigned long data);
 static void wl_iw_set_event_mask(struct net_device *dev);
 static int wl_iw_iscan(iscan_info_t *iscan, wlc_ssid_t *ssid, u16 action);
@@ -488,7 +489,7 @@ wl_iw_get_range(struct net_device *dev,
 	wl_rateset_t rateset;
 	s8 *channels;
 	int error, i, k;
-	uint sf, ch;
+	uint ch;
 
 	int phytype;
 	int bw_cap = 0, sgi_tx = 0, nmode = 0;
@@ -528,12 +529,12 @@ wl_iw_get_range(struct net_device *dev,
 		range->freq[i].i = dtoh32(list->element[i]);
 
 		ch = dtoh32(list->element[i]);
-		if (ch <= CH_MAX_2G_CHANNEL)
-			sf = WF_CHAN_FACTOR_2_4_G;
-		else
-			sf = WF_CHAN_FACTOR_5_G;
-
-		range->freq[i].m = wf_channel2mhz(ch, sf);
+		if (ch <= CH_MAX_2G_CHANNEL) {
+			range->freq[i].m = ieee80211_dsss_chan_to_freq(ch);
+		} else {
+			range->freq[i].m = ieee80211_ofdm_chan_to_freq(
+						WF_CHAN_FACTOR_5_G/2, ch);
+		}
 		range->freq[i].e = 6;
 	}
 	range->num_frequency = range->num_channels = i;
@@ -606,14 +607,14 @@ wl_iw_get_range(struct net_device *dev,
 
 	range->max_encoding_tokens = DOT11_MAX_DEFAULT_KEYS;
 	range->num_encoding_sizes = 4;
-	range->encoding_size[0] = WEP1_KEY_SIZE;
-	range->encoding_size[1] = WEP128_KEY_SIZE;
+	range->encoding_size[0] = WLAN_KEY_LEN_WEP40;
+	range->encoding_size[1] = WLAN_KEY_LEN_WEP104;
 #if WIRELESS_EXT > 17
-	range->encoding_size[2] = TKIP_KEY_SIZE;
+	range->encoding_size[2] = WLAN_KEY_LEN_TKIP;
 #else
 	range->encoding_size[2] = 0;
 #endif
-	range->encoding_size[3] = AES_KEY_SIZE;
+	range->encoding_size[3] = WLAN_KEY_LEN_AES_CMAC;
 
 	range->min_pmp = 0;
 	range->max_pmp = 0;
@@ -690,7 +691,7 @@ wl_iw_set_spy(struct net_device *dev,
 
 	iw->spy_num = min_t(int, ARRAY_SIZE(iw->spy_addr), dwrq->length);
 	for (i = 0; i < iw->spy_num; i++)
-		memcpy(&iw->spy_addr[i], addr[i].sa_data, ETH_ALEN);
+		memcpy(iw->spy_addr[i], addr[i].sa_data, ETH_ALEN);
 	memset(iw->spy_qual, 0, sizeof(iw->spy_qual));
 
 	return 0;
@@ -712,7 +713,7 @@ wl_iw_get_spy(struct net_device *dev,
 
 	dwrq->length = iw->spy_num;
 	for (i = 0; i < iw->spy_num; i++) {
-		memcpy(addr[i].sa_data, &iw->spy_addr[i], ETH_ALEN);
+		memcpy(addr[i].sa_data, iw->spy_addr[i], ETH_ALEN);
 		addr[i].sa_family = AF_UNIX;
 		memcpy(&qual[i], &iw->spy_qual[i], sizeof(struct iw_quality));
 		iw->spy_qual[i].updated = 0;
@@ -908,7 +909,7 @@ wl_iw_get_aplist(struct net_device *dev,
 		ASSERT(((unsigned long)bi + dtoh32(bi->length)) <=
 		       ((unsigned long)list + buflen));
 
-		if (!(dtoh16(bi->capability) & DOT11_CAP_ESS))
+		if (!(dtoh16(bi->capability) & WLAN_CAPABILITY_ESS))
 			continue;
 
 		memcpy(addr[dwrq->length].sa_data, &bi->BSSID, ETH_ALEN);
@@ -980,7 +981,7 @@ wl_iw_iscan_get_aplist(struct net_device *dev,
 			ASSERT(((unsigned long)bi + dtoh32(bi->length)) <=
 			       ((unsigned long)list + WLC_IW_ISCAN_MAXLEN));
 
-			if (!(dtoh16(bi->capability) & DOT11_CAP_ESS))
+			if (!(dtoh16(bi->capability) & WLAN_CAPABILITY_ESS))
 				continue;
 
 			memcpy(addr[dwrq->length].sa_data, &bi->BSSID,
@@ -1015,7 +1016,7 @@ static int wl_iw_iscan_prep(wl_scan_params_t *params, wlc_ssid_t *ssid)
 {
 	int err = 0;
 
-	memcpy(&params->bssid, &ether_bcast, ETH_ALEN);
+	memcpy(params->bssid, ether_bcast, ETH_ALEN);
 	params->bss_type = DOT11_BSSTYPE_ANY;
 	params->scan_type = 0;
 	params->nprobes = -1;
@@ -1367,7 +1368,7 @@ wl_iw_iscan_set_scan(struct net_device *dev,
 	if (g_scan_specified_ssid) {
 		WL_TRACE("%s Specific SCAN already running ignoring BC scan\n",
 			 __func__);
-		return EBUSY;
+		return -EBUSY;
 	}
 
 	memset(&ssid, 0, sizeof(ssid));
@@ -1521,9 +1522,10 @@ wl_iw_get_scan_prep(wl_scan_results_t *list,
 		iwe.u.data.flags = 1;
 		event = IWE_STREAM_ADD_POINT(info, event, end, &iwe, bi->SSID);
 
-		if (dtoh16(bi->capability) & (DOT11_CAP_ESS | DOT11_CAP_IBSS)) {
+		if (dtoh16(bi->capability) & (WLAN_CAPABILITY_ESS |
+		    WLAN_CAPABILITY_IBSS)) {
 			iwe.cmd = SIOCGIWMODE;
-			if (dtoh16(bi->capability) & DOT11_CAP_ESS)
+			if (dtoh16(bi->capability) & WLAN_CAPABILITY_ESS)
 				iwe.u.mode = IW_MODE_INFRA;
 			else
 				iwe.u.mode = IW_MODE_ADHOC;
@@ -1533,11 +1535,15 @@ wl_iw_get_scan_prep(wl_scan_results_t *list,
 		}
 
 		iwe.cmd = SIOCGIWFREQ;
-		iwe.u.freq.m = wf_channel2mhz(CHSPEC_CHANNEL(bi->chanspec),
-					      CHSPEC_CHANNEL(bi->chanspec) <=
-					      CH_MAX_2G_CHANNEL ?
-					      WF_CHAN_FACTOR_2_4_G :
-					      WF_CHAN_FACTOR_5_G);
+
+		if (CHSPEC_CHANNEL(bi->chanspec) <= CH_MAX_2G_CHANNEL)
+			iwe.u.freq.m = ieee80211_dsss_chan_to_freq(
+						CHSPEC_CHANNEL(bi->chanspec));
+		else
+			iwe.u.freq.m = ieee80211_ofdm_chan_to_freq(
+						WF_CHAN_FACTOR_5_G/2,
+						CHSPEC_CHANNEL(bi->chanspec));
+
 		iwe.u.freq.e = 6;
 		event =
 		    IWE_STREAM_ADD_EVENT(info, event, end, &iwe,
@@ -1554,7 +1560,7 @@ wl_iw_get_scan_prep(wl_scan_results_t *list,
 		wl_iw_handle_scanresults_ies(&event, end, info, bi);
 
 		iwe.cmd = SIOCGIWENCODE;
-		if (dtoh16(bi->capability) & DOT11_CAP_PRIVACY)
+		if (dtoh16(bi->capability) & WLAN_CAPABILITY_PRIVACY)
 			iwe.u.data.flags = IW_ENCODE_ENABLED | IW_ENCODE_NOKEY;
 		else
 			iwe.u.data.flags = IW_ENCODE_DISABLED;
@@ -1795,9 +1801,10 @@ wl_iw_iscan_get_scan(struct net_device *dev,
 						 bi->SSID);
 
 			if (dtoh16(bi->capability) &
-			    (DOT11_CAP_ESS | DOT11_CAP_IBSS)) {
+			    (WLAN_CAPABILITY_ESS | WLAN_CAPABILITY_IBSS)) {
 				iwe.cmd = SIOCGIWMODE;
-				if (dtoh16(bi->capability) & DOT11_CAP_ESS)
+				if (dtoh16(bi->capability) &
+				    WLAN_CAPABILITY_ESS)
 					iwe.u.mode = IW_MODE_INFRA;
 				else
 					iwe.u.mode = IW_MODE_ADHOC;
@@ -1810,12 +1817,15 @@ wl_iw_iscan_get_scan(struct net_device *dev,
 			channel =
 			    (bi->ctl_ch ==
 			     0) ? CHSPEC_CHANNEL(bi->chanspec) : bi->ctl_ch;
-			iwe.u.freq.m =
-			    wf_channel2mhz(channel,
-					   channel <=
-					   CH_MAX_2G_CHANNEL ?
-					   WF_CHAN_FACTOR_2_4_G :
-					   WF_CHAN_FACTOR_5_G);
+
+			if (channel <= CH_MAX_2G_CHANNEL)
+				iwe.u.freq.m =
+					ieee80211_dsss_chan_to_freq(channel);
+			else
+				iwe.u.freq.m = ieee80211_ofdm_chan_to_freq(
+							WF_CHAN_FACTOR_5_G/2,
+							channel);
+
 			iwe.u.freq.e = 6;
 			event =
 			    IWE_STREAM_ADD_EVENT(info, event, end, &iwe,
@@ -1832,7 +1842,7 @@ wl_iw_iscan_get_scan(struct net_device *dev,
 			wl_iw_handle_scanresults_ies(&event, end, info, bi);
 
 			iwe.cmd = SIOCGIWENCODE;
-			if (dtoh16(bi->capability) & DOT11_CAP_PRIVACY)
+			if (dtoh16(bi->capability) & WLAN_CAPABILITY_PRIVACY)
 				iwe.u.data.flags =
 				    IW_ENCODE_ENABLED | IW_ENCODE_NOKEY;
 			else
@@ -1919,7 +1929,7 @@ wl_iw_set_essid(struct net_device *dev,
 
 	memcpy(&join_params.ssid.SSID, g_ssid.SSID, g_ssid.SSID_len);
 	join_params.ssid.SSID_len = htod32(g_ssid.SSID_len);
-	memcpy(&join_params.params.bssid, &ether_bcast, ETH_ALEN);
+	memcpy(join_params.params.bssid, ether_bcast, ETH_ALEN);
 
 	wl_iw_ch_to_chanspec(g_wl_iw_params.target_channel, &join_params,
 			     &join_params_size);
@@ -2353,16 +2363,16 @@ wl_iw_set_encode(struct net_device *dev,
 
 		key.flags = WL_PRIMARY_KEY;
 		switch (key.len) {
-		case WEP1_KEY_SIZE:
+		case WLAN_KEY_LEN_WEP40:
 			key.algo = CRYPTO_ALGO_WEP1;
 			break;
-		case WEP128_KEY_SIZE:
+		case WLAN_KEY_LEN_WEP104:
 			key.algo = CRYPTO_ALGO_WEP128;
 			break;
-		case TKIP_KEY_SIZE:
+		case WLAN_KEY_LEN_TKIP:
 			key.algo = CRYPTO_ALGO_TKIP;
 			break;
-		case AES_KEY_SIZE:
+		case WLAN_KEY_LEN_AES_CMAC:
 			key.algo = CRYPTO_ALGO_AES_CCM;
 			break;
 		default:
@@ -2594,7 +2604,7 @@ wl_iw_set_encodeext(struct net_device *dev,
 			key.algo = CRYPTO_ALGO_OFF;
 			break;
 		case IW_ENCODE_ALG_WEP:
-			if (iwe->key_len == WEP1_KEY_SIZE)
+			if (iwe->key_len == WLAN_KEY_LEN_WEP40)
 				key.algo = CRYPTO_ALGO_WEP1;
 			else
 				key.algo = CRYPTO_ALGO_WEP128;
@@ -2654,11 +2664,11 @@ wl_iw_set_pmksa(struct net_device *dev,
 			bcopy(&iwpmksa->bssid.sa_data[0],
 			      &pmkidptr->pmkid[0].BSSID, ETH_ALEN);
 			bcopy(&iwpmksa->pmkid[0], &pmkidptr->pmkid[0].PMKID,
-			      WPA2_PMKID_LEN);
+			      WLAN_PMKID_LEN);
 
-			WL_WSEC("wl_iw_set_pmksa:IW_PMKSA_REMOVE:PMKID: %pM = ",
-				&pmkidptr->pmkid[0].BSSID);
-			for (j = 0; j < WPA2_PMKID_LEN; j++)
+			WL_WSEC("wl_iw_set_pmksa:IW_PMKSA_REMOVE:PMKID: "
+				"%pM = ", &pmkidptr->pmkid[0].BSSID);
+			for (j = 0; j < WLAN_PMKID_LEN; j++)
 				WL_WSEC("%02x ", pmkidptr->pmkid[0].PMKID[j]);
 			WL_WSEC("\n");
 		}
@@ -2678,7 +2688,7 @@ wl_iw_set_pmksa(struct net_device *dev,
 				      ETH_ALEN);
 				bcopy(&pmkid_list.pmkids.pmkid[i + 1].PMKID,
 				      &pmkid_list.pmkids.pmkid[i].PMKID,
-				      WPA2_PMKID_LEN);
+				      WLAN_PMKID_LEN);
 			}
 			pmkid_list.pmkids.npmkid--;
 		} else
@@ -2697,7 +2707,7 @@ wl_iw_set_pmksa(struct net_device *dev,
 			      ETH_ALEN);
 			bcopy(&iwpmksa->pmkid[0],
 			      &pmkid_list.pmkids.pmkid[i].PMKID,
-			      WPA2_PMKID_LEN);
+			      WLAN_PMKID_LEN);
 			if (i == pmkid_list.pmkids.npmkid)
 				pmkid_list.pmkids.npmkid++;
 		} else
@@ -2708,7 +2718,7 @@ wl_iw_set_pmksa(struct net_device *dev,
 			k = pmkid_list.pmkids.npmkid;
 			WL_WSEC("wl_iw_set_pmksa,IW_PMKSA_ADD - PMKID: %pM = ",
 				&pmkid_list.pmkids.pmkid[k].BSSID);
-			for (j = 0; j < WPA2_PMKID_LEN; j++)
+			for (j = 0; j < WLAN_PMKID_LEN; j++)
 				WL_WSEC("%02x ",
 					pmkid_list.pmkids.pmkid[k].PMKID[j]);
 			WL_WSEC("\n");
@@ -2720,7 +2730,7 @@ wl_iw_set_pmksa(struct net_device *dev,
 		uint j;
 		WL_WSEC("PMKID[%d]: %pM = ",
 			i, &pmkid_list.pmkids.pmkid[i].BSSID);
-		for (j = 0; j < WPA2_PMKID_LEN; j++)
+		for (j = 0; j < WLAN_PMKID_LEN; j++)
 			WL_WSEC("%02x ", pmkid_list.pmkids.pmkid[i].PMKID[j]);
 		WL_WSEC("\n");
 	}
@@ -3409,8 +3419,6 @@ void wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void *data)
 		if (!(flags & WLC_EVENT_MSG_LINK)) {
 			memset(wrqu.addr.sa_data, 0, ETH_ALEN);
 			memset(&extra, 0, ETH_ALEN);
-			WAKE_LOCK_TIMEOUT(iw->pub, WAKE_LOCK_LINK_DOWN_TMOUT,
-					  20 * HZ);
 		} else {
 			memcpy(wrqu.addr.sa_data, &e->addr, ETH_ALEN);
 			WL_TRACE("Link UP\n");
@@ -3523,8 +3531,6 @@ void wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void *data)
 			WL_ERROR("%s Event WLC_E_PFN_NET_FOUND, send %s up : find %s len=%d\n",
 				 __func__, PNO_EVENT_UP,
 				 ssid->SSID, ssid->SSID_len);
-			WAKE_LOCK_TIMEOUT(iw->pub, WAKE_LOCK_PNO_FIND_TMOUT,
-					  20 * HZ);
 			cmd = IWEVCUSTOM;
 			memset(&wrqu, 0, sizeof(wrqu));
 			strcpy(extra, PNO_EVENT_UP);

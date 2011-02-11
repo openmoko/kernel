@@ -79,23 +79,23 @@ static void DoRecvCompletion(HTC_ENDPOINT     *pEndpoint,
             } while (!HTC_QUEUE_EMPTY(pQueueToIndicate));                                              
         }
         
-    } while (FALSE);
+    } while (false);
 
 }
 
-static INLINE A_STATUS HTCProcessTrailer(HTC_TARGET *target,
-                                         A_UINT8    *pBuffer,
+static INLINE int HTCProcessTrailer(HTC_TARGET *target,
+                                         u8 *pBuffer,
                                          int         Length,
-                                         A_UINT32   *pNextLookAheads,
+                                         u32 *pNextLookAheads,
                                          int        *pNumLookAheads,
                                          HTC_ENDPOINT_ID FromEndpoint)
 {
     HTC_RECORD_HDR          *pRecord;
-    A_UINT8                 *pRecordBuf;
+    u8 *pRecordBuf;
     HTC_LOOKAHEAD_REPORT    *pLookAhead;
-    A_UINT8                 *pOrigBuffer;
+    u8 *pOrigBuffer;
     int                     origLength;
-    A_STATUS                status;
+    int                status;
 
     AR_DEBUG_PRINTF(ATH_DEBUG_RECV, ("+HTCProcessTrailer (length:%d) \n", Length));
 
@@ -105,7 +105,7 @@ static INLINE A_STATUS HTCProcessTrailer(HTC_TARGET *target,
 
     pOrigBuffer = pBuffer;
     origLength = Length;
-    status = A_OK;
+    status = 0;
     
     while (Length > 0) {
 
@@ -149,14 +149,14 @@ static INLINE A_STATUS HTCProcessTrailer(HTC_TARGET *target,
                                 pLookAhead->PostValid));
 
                         /* look ahead bytes are valid, copy them over */
-                    ((A_UINT8 *)(&pNextLookAheads[0]))[0] = pLookAhead->LookAhead[0];
-                    ((A_UINT8 *)(&pNextLookAheads[0]))[1] = pLookAhead->LookAhead[1];
-                    ((A_UINT8 *)(&pNextLookAheads[0]))[2] = pLookAhead->LookAhead[2];
-                    ((A_UINT8 *)(&pNextLookAheads[0]))[3] = pLookAhead->LookAhead[3];
+                    ((u8 *)(&pNextLookAheads[0]))[0] = pLookAhead->LookAhead[0];
+                    ((u8 *)(&pNextLookAheads[0]))[1] = pLookAhead->LookAhead[1];
+                    ((u8 *)(&pNextLookAheads[0]))[2] = pLookAhead->LookAhead[2];
+                    ((u8 *)(&pNextLookAheads[0]))[3] = pLookAhead->LookAhead[3];
 
 #ifdef ATH_DEBUG_MODULE
                     if (AR_DEBUG_LVL_CHECK(ATH_DEBUG_RECV)) {
-                        DebugDumpBytes((A_UINT8 *)pNextLookAheads,4,"Next Look Ahead");
+                        DebugDumpBytes((u8 *)pNextLookAheads,4,"Next Look Ahead");
                     }
 #endif
                         /* just one normal lookahead */
@@ -182,16 +182,16 @@ static INLINE A_STATUS HTCProcessTrailer(HTC_TARGET *target,
                             HTC_HOST_MAX_MSG_PER_BUNDLE) {
                             /* this should never happen, the target restricts the number
                              * of messages per bundle configured by the host */        
-                        A_ASSERT(FALSE);
+                        A_ASSERT(false);
                         status = A_EPROTO;
                         break;        
                     }
                                          
                     for (i = 0; i < (int)(pRecord->Length / (sizeof(HTC_BUNDLED_LOOKAHEAD_REPORT))); i++) {
-                        ((A_UINT8 *)(&pNextLookAheads[i]))[0] = pBundledLookAheadRpt->LookAhead[0];
-                        ((A_UINT8 *)(&pNextLookAheads[i]))[1] = pBundledLookAheadRpt->LookAhead[1];
-                        ((A_UINT8 *)(&pNextLookAheads[i]))[2] = pBundledLookAheadRpt->LookAhead[2];
-                        ((A_UINT8 *)(&pNextLookAheads[i]))[3] = pBundledLookAheadRpt->LookAhead[3];
+                        ((u8 *)(&pNextLookAheads[i]))[0] = pBundledLookAheadRpt->LookAhead[0];
+                        ((u8 *)(&pNextLookAheads[i]))[1] = pBundledLookAheadRpt->LookAhead[1];
+                        ((u8 *)(&pNextLookAheads[i]))[2] = pBundledLookAheadRpt->LookAhead[2];
+                        ((u8 *)(&pNextLookAheads[i]))[3] = pBundledLookAheadRpt->LookAhead[3];
                         pBundledLookAheadRpt++;
                     }
                     
@@ -204,7 +204,7 @@ static INLINE A_STATUS HTCProcessTrailer(HTC_TARGET *target,
                 break;
         }
 
-        if (A_FAILED(status)) {
+        if (status) {
             break;
         }
 
@@ -214,7 +214,7 @@ static INLINE A_STATUS HTCProcessTrailer(HTC_TARGET *target,
     }
 
 #ifdef ATH_DEBUG_MODULE
-    if (A_FAILED(status)) {
+    if (status) {
         DebugDumpBytes(pOrigBuffer,origLength,"BAD Recv Trailer");
     }
 #endif
@@ -226,16 +226,16 @@ static INLINE A_STATUS HTCProcessTrailer(HTC_TARGET *target,
 
 /* process a received message (i.e. strip off header, process any trailer data)
  * note : locks must be released when this function is called */
-static A_STATUS HTCProcessRecvHeader(HTC_TARGET *target, 
+static int HTCProcessRecvHeader(HTC_TARGET *target,
                                      HTC_PACKET *pPacket, 
-                                     A_UINT32   *pNextLookAheads, 
+                                     u32 *pNextLookAheads,
                                      int        *pNumLookAheads)
 {
-    A_UINT8   temp;
-    A_UINT8   *pBuf;
-    A_STATUS  status = A_OK;
-    A_UINT16  payloadLen;
-    A_UINT32  lookAhead;
+    u8 temp;
+    u8 *pBuf;
+    int  status = 0;
+    u16 payloadLen;
+    u32 lookAhead;
 
     pBuf = pPacket->pBuffer;
     
@@ -254,10 +254,10 @@ static A_STATUS HTCProcessRecvHeader(HTC_TARGET *target,
          * retrieve 16 bit fields */
         payloadLen = A_GET_UINT16_FIELD(pBuf, HTC_FRAME_HDR, PayloadLen);
         
-        ((A_UINT8 *)&lookAhead)[0] = pBuf[0];
-        ((A_UINT8 *)&lookAhead)[1] = pBuf[1];
-        ((A_UINT8 *)&lookAhead)[2] = pBuf[2];
-        ((A_UINT8 *)&lookAhead)[3] = pBuf[3];
+        ((u8 *)&lookAhead)[0] = pBuf[0];
+        ((u8 *)&lookAhead)[1] = pBuf[1];
+        ((u8 *)&lookAhead)[2] = pBuf[2];
+        ((u8 *)&lookAhead)[3] = pBuf[3];
 
         if (pPacket->PktInfo.AsRx.HTCRxFlags & HTC_RX_PKT_REFRESH_HDR) {
                 /* refresh expected hdr, since this was unknown at the time we grabbed the packets
@@ -293,10 +293,10 @@ static A_STATUS HTCProcessRecvHeader(HTC_TARGET *target,
                     ("HTCProcessRecvHeader, lookahead mismatch! (pPkt:0x%lX flags:0x%X) \n", 
                         (unsigned long)pPacket, pPacket->PktInfo.AsRx.HTCRxFlags));
 #ifdef ATH_DEBUG_MODULE
-             DebugDumpBytes((A_UINT8 *)&pPacket->PktInfo.AsRx.ExpectedHdr,4,"Expected Message LookAhead");
+             DebugDumpBytes((u8 *)&pPacket->PktInfo.AsRx.ExpectedHdr,4,"Expected Message LookAhead");
              DebugDumpBytes(pBuf,sizeof(HTC_FRAME_HDR),"Current Frame Header");
 #ifdef HTC_CAPTURE_LAST_FRAME
-            DebugDumpBytes((A_UINT8 *)&target->LastFrameHdr,sizeof(HTC_FRAME_HDR),"Last Frame Header");
+            DebugDumpBytes((u8 *)&target->LastFrameHdr,sizeof(HTC_FRAME_HDR),"Last Frame Header");
             if (target->LastTrailerLength != 0) {
                 DebugDumpBytes(target->LastTrailer,
                                target->LastTrailerLength,
@@ -341,7 +341,7 @@ static A_STATUS HTCProcessRecvHeader(HTC_TARGET *target,
                                        pNumLookAheads,
                                        pPacket->Endpoint);
 
-            if (A_FAILED(status)) {
+            if (status) {
                 break;
             }
 
@@ -363,9 +363,9 @@ static A_STATUS HTCProcessRecvHeader(HTC_TARGET *target,
         pPacket->pBuffer += HTC_HDR_LENGTH;
         pPacket->ActualLength -= HTC_HDR_LENGTH;
 
-    } while (FALSE);
+    } while (false);
 
-    if (A_FAILED(status)) {
+    if (status) {
             /* dump the whole packet */
 #ifdef ATH_DEBUG_MODULE
         DebugDumpBytes(pBuf,pPacket->ActualLength < 256 ? pPacket->ActualLength : 256 ,"BAD HTC Recv PKT");
@@ -386,13 +386,13 @@ static A_STATUS HTCProcessRecvHeader(HTC_TARGET *target,
 }
 
 static INLINE void HTCAsyncRecvCheckMorePackets(HTC_TARGET  *target, 
-                                                A_UINT32    NextLookAheads[], 
+                                                u32 NextLookAheads[],
                                                 int         NumLookAheads,
-                                                A_BOOL      CheckMoreMsgs)
+                                                bool      CheckMoreMsgs)
 {
         /* was there a lookahead for the next packet? */
     if (NumLookAheads > 0) {
-        A_STATUS nextStatus;
+        int nextStatus;
         int      fetched = 0;
         AR_DEBUG_PRINTF(ATH_DEBUG_RECV,
                         ("HTCAsyncRecvCheckMorePackets - num lookaheads were non-zero : %d \n",
@@ -405,12 +405,12 @@ static INLINE void HTCAsyncRecvCheckMorePackets(HTC_TARGET  *target,
             AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
                         ("Next look ahead from recv header was INVALID\n"));
 #ifdef ATH_DEBUG_MODULE
-            DebugDumpBytes((A_UINT8 *)NextLookAheads,
-                            NumLookAheads * (sizeof(A_UINT32)),
+            DebugDumpBytes((u8 *)NextLookAheads,
+                            NumLookAheads * (sizeof(u32)),
                             "BAD lookaheads from lookahead report");
 #endif
         }
-        if (A_SUCCESS(nextStatus) && !fetched) {
+        if (!nextStatus && !fetched) {
                 /* we could not fetch any more packets due to resources */
             DevAsyncIrqProcessComplete(&target->Device);        
         }
@@ -454,7 +454,7 @@ static INLINE void DrainRecvIndicationQueue(HTC_TARGET *target, HTC_ENDPOINT *pE
     
     /******* at this point only 1 thread may enter ******/
      
-    while (TRUE) { 
+    while (true) {
                 
             /* transfer items from main recv queue to the local one so we can release the lock */ 
         HTC_PACKET_QUEUE_TRANSFER_TO_TAIL(&recvCompletions, &pEndpoint->RecvIndicationQueue);
@@ -496,7 +496,7 @@ static INLINE void DrainRecvIndicationQueue(HTC_TARGET *target, HTC_ENDPOINT *pE
     (P)->PktInfo.AsRx.IndicationFlags |= HTC_RX_FLAGS_INDICATE_MORE_PKTS; 
    
    /* note: this function can be called with the RX lock held */     
-static INLINE void SetRxPacketIndicationFlags(A_UINT32      LookAhead, 
+static INLINE void SetRxPacketIndicationFlags(u32 LookAhead,
                                               HTC_ENDPOINT  *pEndpoint, 
                                               HTC_PACKET    *pPacket)
 {
@@ -519,10 +519,10 @@ void HTCRecvCompleteHandler(void *Context, HTC_PACKET *pPacket)
 {
     HTC_TARGET      *target = (HTC_TARGET *)Context;
     HTC_ENDPOINT    *pEndpoint;
-    A_UINT32        nextLookAheads[HTC_HOST_MAX_MSG_PER_BUNDLE];
+    u32 nextLookAheads[HTC_HOST_MAX_MSG_PER_BUNDLE];
     int             numLookAheads = 0;
-    A_STATUS        status;
-    A_BOOL          checkMorePkts = TRUE;
+    int        status;
+    bool          checkMorePkts = true;
 
     AR_DEBUG_PRINTF(ATH_DEBUG_RECV, ("+HTCRecvCompleteHandler (pkt:0x%lX, status:%d, ep:%d) \n",
                 (unsigned long)pPacket, pPacket->Status, pPacket->Endpoint));
@@ -537,7 +537,7 @@ void HTCRecvCompleteHandler(void *Context, HTC_PACKET *pPacket)
 
     do {
         
-        if (A_FAILED(status)) {
+        if (status) {
             AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("HTCRecvCompleteHandler: request failed (status:%d, ep:%d) \n",
                 pPacket->Status, pPacket->Endpoint));
             break;
@@ -545,7 +545,7 @@ void HTCRecvCompleteHandler(void *Context, HTC_PACKET *pPacket)
             /* process the header for any trailer data */
         status = HTCProcessRecvHeader(target,pPacket,nextLookAheads,&numLookAheads);
 
-        if (A_FAILED(status)) {
+        if (status) {
             break;
         }
         
@@ -554,7 +554,7 @@ void HTCRecvCompleteHandler(void *Context, HTC_PACKET *pPacket)
                  * It was fetched one message at a time.  There may be other asynchronous reads queued behind this one.
                  * Do no issue another check for more packets since the last one in the series of requests
                  * will handle it */
-            checkMorePkts = FALSE;    
+            checkMorePkts = false;
         }
           
         DUMP_RECV_PKT_INFO(pPacket);    
@@ -568,9 +568,9 @@ void HTCRecvCompleteHandler(void *Context, HTC_PACKET *pPacket)
             /* check for more recv packets before indicating */
         HTCAsyncRecvCheckMorePackets(target,nextLookAheads,numLookAheads,checkMorePkts);
 
-    } while (FALSE);
+    } while (false);
 
-    if (A_FAILED(status)) {
+    if (status) {
          AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
                          ("HTCRecvCompleteHandler , message fetch failed (status = %d) \n",
                          status));
@@ -587,10 +587,10 @@ void HTCRecvCompleteHandler(void *Context, HTC_PACKET *pPacket)
 /* synchronously wait for a control message from the target,
  * This function is used at initialization time ONLY.  At init messages
  * on ENDPOINT 0 are expected. */
-A_STATUS HTCWaitforControlMessage(HTC_TARGET *target, HTC_PACKET **ppControlPacket)
+int HTCWaitforControlMessage(HTC_TARGET *target, HTC_PACKET **ppControlPacket)
 {
-    A_STATUS        status;
-    A_UINT32        lookAhead;
+    int        status;
+    u32 lookAhead;
     HTC_PACKET      *pPacket = NULL;
     HTC_FRAME_HDR   *pHdr;
 
@@ -605,7 +605,7 @@ A_STATUS HTCWaitforControlMessage(HTC_TARGET *target, HTC_PACKET **ppControlPack
                                     &lookAhead,
                                     HTC_TARGET_RESPONSE_TIMEOUT);
 
-        if (A_FAILED(status)) {
+        if (status) {
             break;
         }
 
@@ -617,14 +617,14 @@ A_STATUS HTCWaitforControlMessage(HTC_TARGET *target, HTC_PACKET **ppControlPack
 
         if (pHdr->EndpointID != ENDPOINT_0) {
                 /* unexpected endpoint number, should be zero */
-            AR_DEBUG_ASSERT(FALSE);
+            AR_DEBUG_ASSERT(false);
             status = A_EPROTO;
             break;
         }
 
-        if (A_FAILED(status)) {
+        if (status) {
                 /* bad message */
-            AR_DEBUG_ASSERT(FALSE);
+            AR_DEBUG_ASSERT(false);
             status = A_EPROTO;
             break;
         }
@@ -632,7 +632,7 @@ A_STATUS HTCWaitforControlMessage(HTC_TARGET *target, HTC_PACKET **ppControlPack
         pPacket = HTC_ALLOC_CONTROL_RX(target);
 
         if (pPacket == NULL) {
-            AR_DEBUG_ASSERT(FALSE);
+            AR_DEBUG_ASSERT(false);
             status = A_NO_MEMORY;
             break;
         }
@@ -642,7 +642,7 @@ A_STATUS HTCWaitforControlMessage(HTC_TARGET *target, HTC_PACKET **ppControlPack
         pPacket->ActualLength = pHdr->PayloadLen + HTC_HDR_LENGTH;
 
         if (pPacket->ActualLength > pPacket->BufferLength) {
-            AR_DEBUG_ASSERT(FALSE);
+            AR_DEBUG_ASSERT(false);
             status = A_EPROTO;
             break;
         }
@@ -653,7 +653,7 @@ A_STATUS HTCWaitforControlMessage(HTC_TARGET *target, HTC_PACKET **ppControlPack
             /* get the message from the device, this will block */
         status = HTCIssueRecv(target, pPacket);
 
-        if (A_FAILED(status)) {
+        if (status) {
             break;
         }
 
@@ -662,7 +662,7 @@ A_STATUS HTCWaitforControlMessage(HTC_TARGET *target, HTC_PACKET **ppControlPack
 
         pPacket->Status = status;
 
-        if (A_FAILED(status)) {
+        if (status) {
             AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
                     ("HTCWaitforControlMessage, HTCProcessRecvHeader failed (status = %d) \n",
                      status));
@@ -672,9 +672,9 @@ A_STATUS HTCWaitforControlMessage(HTC_TARGET *target, HTC_PACKET **ppControlPack
             /* give the caller this control message packet, they are responsible to free */
         *ppControlPacket = pPacket;
 
-    } while (FALSE);
+    } while (false);
 
-    if (A_FAILED(status)) {
+    if (status) {
         if (pPacket != NULL) {
                 /* cleanup buffer on error */
             HTC_FREE_CONTROL_RX(target,pPacket);
@@ -686,19 +686,19 @@ A_STATUS HTCWaitforControlMessage(HTC_TARGET *target, HTC_PACKET **ppControlPack
     return status;
 }
 
-static A_STATUS AllocAndPrepareRxPackets(HTC_TARGET       *target, 
-                                         A_UINT32         LookAheads[], 
+static int AllocAndPrepareRxPackets(HTC_TARGET       *target,
+                                         u32 LookAheads[],
                                          int              Messages,                                        
                                          HTC_ENDPOINT     *pEndpoint, 
                                          HTC_PACKET_QUEUE *pQueue)
 {
-    A_STATUS         status = A_OK;
+    int         status = 0;
     HTC_PACKET      *pPacket;
     HTC_FRAME_HDR   *pHdr;
     int              i,j;
     int              numMessages;
     int              fullLength;
-    A_BOOL           noRecycle;
+    bool           noRecycle;
             
         /* lock RX while we assemble the packet buffers */
     LOCK_HTC_RX(target);
@@ -724,7 +724,7 @@ static A_STATUS AllocAndPrepareRxPackets(HTC_TARGET       *target,
        
         if (pHdr->PayloadLen > HTC_MAX_PAYLOAD_LENGTH) {
             AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("Payload length %d exceeds max HTC : %d !\n",
-                    pHdr->PayloadLen, (A_UINT32)HTC_MAX_PAYLOAD_LENGTH));
+                    pHdr->PayloadLen, (u32)HTC_MAX_PAYLOAD_LENGTH));
             status = A_EPROTO;
             break;
         }
@@ -759,11 +759,11 @@ static A_STATUS AllocAndPrepareRxPackets(HTC_TARGET       *target,
             
                 /* reset flag, any packets allocated using the RecvAlloc() API cannot be recycled on cleanup,
                  * they must be explicitly returned */
-            noRecycle = FALSE;
+            noRecycle = false;
                                                                                    
             if (pEndpoint->EpCallBacks.EpRecvAlloc != NULL) {
                 UNLOCK_HTC_RX(target);
-                noRecycle = TRUE;
+                noRecycle = true;
                     /* user is using a per-packet allocation callback */
                 pPacket = pEndpoint->EpCallBacks.EpRecvAlloc(pEndpoint->EpCallBacks.pContext,
                                                              pEndpoint->Id,
@@ -776,7 +776,7 @@ static A_STATUS AllocAndPrepareRxPackets(HTC_TARGET       *target,
                 INC_HTC_EP_STAT(pEndpoint,RxAllocThreshBytes,pHdr->PayloadLen);                
                     /* threshold was hit, call the special recv allocation callback */        
                 UNLOCK_HTC_RX(target);
-                noRecycle = TRUE;
+                noRecycle = true;
                     /* user wants to allocate packets above a certain threshold */
                 pPacket = pEndpoint->EpCallBacks.EpRecvAllocThresh(pEndpoint->EpCallBacks.pContext,
                                                                    pEndpoint->Id,
@@ -816,7 +816,7 @@ static A_STATUS AllocAndPrepareRxPackets(HTC_TARGET       *target,
                 /* clear flags */
             pPacket->PktInfo.AsRx.HTCRxFlags = 0;
             pPacket->PktInfo.AsRx.IndicationFlags = 0;
-            pPacket->Status = A_OK;
+            pPacket->Status = 0;
             
             if (noRecycle) {
                     /* flag that these packets cannot be recycled, they have to be returned to the 
@@ -832,7 +832,7 @@ static A_STATUS AllocAndPrepareRxPackets(HTC_TARGET       *target,
             }
     
                 /* make sure this message can fit in the endpoint buffer */
-            if ((A_UINT32)fullLength > pPacket->BufferLength) {
+            if ((u32)fullLength > pPacket->BufferLength) {
                 AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
                         ("Payload Length Error : header reports payload of: %d (%d) endpoint buffer size: %d \n",
                         pHdr->PayloadLen, fullLength, pPacket->BufferLength));
@@ -856,10 +856,10 @@ static A_STATUS AllocAndPrepareRxPackets(HTC_TARGET       *target,
             pPacket->ActualLength = pHdr->PayloadLen + HTC_HDR_LENGTH;
         }
         
-        if (A_FAILED(status)) {
+        if (status) {
             if (A_NO_RESOURCE == status) {
                     /* this is actually okay */
-                status = A_OK;    
+                status = 0;
             }
             break;    
         }
@@ -868,7 +868,7 @@ static A_STATUS AllocAndPrepareRxPackets(HTC_TARGET       *target,
     
     UNLOCK_HTC_RX(target);
     
-    if (A_FAILED(status)) {
+    if (status) {
         while (!HTC_QUEUE_EMPTY(pQueue)) {
             pPacket = HTC_PACKET_DEQUEUE(pQueue);
                 /* recycle all allocated packets */
@@ -884,25 +884,25 @@ static void HTCAsyncRecvScatterCompletion(HIF_SCATTER_REQ *pScatterReq)
     int                 i;    
     HTC_PACKET          *pPacket;
     HTC_ENDPOINT        *pEndpoint;
-    A_UINT32            lookAheads[HTC_HOST_MAX_MSG_PER_BUNDLE];
+    u32 lookAheads[HTC_HOST_MAX_MSG_PER_BUNDLE];
     int                 numLookAheads = 0;
     HTC_TARGET          *target = (HTC_TARGET *)pScatterReq->Context;
-    A_STATUS            status;
-    A_BOOL              partialBundle = FALSE;
+    int            status;
+    bool              partialBundle = false;
     HTC_PACKET_QUEUE    localRecvQueue;
-    A_BOOL              procError = FALSE;
+    bool              procError = false;
            
     AR_DEBUG_PRINTF(ATH_DEBUG_RECV,("+HTCAsyncRecvScatterCompletion  TotLen: %d  Entries: %d\n",
         pScatterReq->TotalLength, pScatterReq->ValidScatterEntries));
     
     A_ASSERT(!IS_DEV_IRQ_PROC_SYNC_MODE(&target->Device));
            
-    if (A_FAILED(pScatterReq->CompletionStatus)) {
+    if (pScatterReq->CompletionStatus) {
         AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("** Recv Scatter Request Failed: %d \n",pScatterReq->CompletionStatus));            
     }
     
     if (pScatterReq->CallerFlags & HTC_SCATTER_REQ_FLAGS_PARTIAL_BUNDLE) {
-        partialBundle = TRUE;    
+        partialBundle = true;
     }
     
     DEV_FINISH_SCATTER_OPERATION(pScatterReq);
@@ -923,14 +923,14 @@ static void HTCAsyncRecvScatterCompletion(HIF_SCATTER_REQ *pScatterReq)
              * break out of this loop */
         numLookAheads = 0;
         
-        if (A_SUCCESS(pScatterReq->CompletionStatus)) {      
+        if (!pScatterReq->CompletionStatus) {
                 /* process header for each of the recv packets */            
             status = HTCProcessRecvHeader(target,pPacket,lookAheads,&numLookAheads);
         } else {
             status = A_ERROR;    
         }
         
-        if (A_SUCCESS(status)) {    
+        if (!status) {
 #ifdef HTC_EP_STAT_PROFILING
             LOCK_HTC_RX(target);              
             HTC_RX_STAT_PROFILE(target,pEndpoint,numLookAheads);
@@ -956,7 +956,7 @@ static void HTCAsyncRecvScatterCompletion(HIF_SCATTER_REQ *pScatterReq)
                 /* recycle failed recv */
             HTC_RECYCLE_RX_PKT(target, pPacket, pEndpoint);
                 /* set flag and continue processing the remaining scatter entries */
-            procError = TRUE;
+            procError = true;
         }   
     
     }
@@ -975,7 +975,7 @@ static void HTCAsyncRecvScatterCompletion(HIF_SCATTER_REQ *pScatterReq)
         HTCAsyncRecvCheckMorePackets(target,
                                      lookAheads,
                                      numLookAheads,
-                                     partialBundle ? FALSE : TRUE);
+                                     partialBundle ? false : true);
     }
     
         /* now drain the indication queue */
@@ -984,18 +984,18 @@ static void HTCAsyncRecvScatterCompletion(HIF_SCATTER_REQ *pScatterReq)
     AR_DEBUG_PRINTF(ATH_DEBUG_RECV,("-HTCAsyncRecvScatterCompletion \n"));
 }
 
-static A_STATUS HTCIssueRecvPacketBundle(HTC_TARGET        *target,
+static int HTCIssueRecvPacketBundle(HTC_TARGET        *target,
                                          HTC_PACKET_QUEUE  *pRecvPktQueue, 
                                          HTC_PACKET_QUEUE  *pSyncCompletionQueue,
                                          int               *pNumPacketsFetched,
-                                         A_BOOL             PartialBundle)
+                                         bool             PartialBundle)
 {
-    A_STATUS        status = A_OK;
+    int        status = 0;
     HIF_SCATTER_REQ *pScatterReq;
     int             i, totalLength;
     int             pktsToScatter;
     HTC_PACKET      *pPacket;
-    A_BOOL          asyncMode = (pSyncCompletionQueue == NULL) ? TRUE : FALSE;
+    bool          asyncMode = (pSyncCompletionQueue == NULL) ? true : false;
     int             scatterSpaceRemaining = DEV_GET_MAX_BUNDLE_RECV_LENGTH(&target->Device);
         
     pktsToScatter = HTC_PACKET_QUEUE_DEPTH(pRecvPktQueue);
@@ -1004,7 +1004,7 @@ static A_STATUS HTCIssueRecvPacketBundle(HTC_TARGET        *target,
     if ((HTC_PACKET_QUEUE_DEPTH(pRecvPktQueue) - pktsToScatter) > 0) {
             /* we were forced to split this bundle receive operation
              * all packets in this partial bundle must have their lookaheads ignored */
-        PartialBundle = TRUE;
+        PartialBundle = true;
             /* this would only happen if the target ignored our max bundle limit */
         AR_DEBUG_PRINTF(ATH_DEBUG_WARN,
                          ("HTCIssueRecvPacketBundle : partial bundle detected num:%d , %d \n",
@@ -1085,7 +1085,7 @@ static A_STATUS HTCIssueRecvPacketBundle(HTC_TARGET        *target,
         
         status = DevSubmitScatterRequest(&target->Device, pScatterReq, DEV_SCATTER_READ, asyncMode);
         
-        if (A_SUCCESS(status)) {
+        if (!status) {
             *pNumPacketsFetched = i;    
         }
         
@@ -1094,7 +1094,7 @@ static A_STATUS HTCIssueRecvPacketBundle(HTC_TARGET        *target,
             DEV_FREE_SCATTER_REQ(&target->Device, pScatterReq);   
         }
         
-    } while (FALSE);
+    } while (false);
    
     AR_DEBUG_PRINTF(ATH_DEBUG_RECV,("-HTCIssueRecvPacketBundle (status:%d) (fetched:%d) \n",
             status,*pNumPacketsFetched));
@@ -1117,17 +1117,17 @@ static INLINE void CheckRecvWaterMark(HTC_ENDPOINT    *pEndpoint)
 }
 
 /* callback when device layer or lookahead report parsing detects a pending message */
-A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], int NumLookAheads, A_BOOL *pAsyncProc, int *pNumPktsFetched)
+int HTCRecvMessagePendingHandler(void *Context, u32 MsgLookAheads[], int NumLookAheads, bool *pAsyncProc, int *pNumPktsFetched)
 {
     HTC_TARGET      *target = (HTC_TARGET *)Context;
-    A_STATUS         status = A_OK;
+    int         status = 0;
     HTC_PACKET      *pPacket;
     HTC_ENDPOINT    *pEndpoint;
-    A_BOOL          asyncProc = FALSE;
-    A_UINT32        lookAheads[HTC_HOST_MAX_MSG_PER_BUNDLE];
+    bool          asyncProc = false;
+    u32 lookAheads[HTC_HOST_MAX_MSG_PER_BUNDLE];
     int             pktsFetched;
     HTC_PACKET_QUEUE recvPktQueue, syncCompletedPktsQueue;
-    A_BOOL          partialBundle;
+    bool          partialBundle;
     HTC_ENDPOINT_ID id;
     int             totalFetched = 0;
     
@@ -1141,7 +1141,7 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
             /* We use async mode to get the packets if the device layer supports it.
              * The device layer interfaces with HIF in which HIF may have restrictions on
              * how interrupts are processed */
-        asyncProc = TRUE;
+        asyncProc = true;
     }
 
     if (pAsyncProc != NULL) {
@@ -1150,14 +1150,14 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
     }
     
     if (NumLookAheads > HTC_HOST_MAX_MSG_PER_BUNDLE) {
-        A_ASSERT(FALSE);
+        A_ASSERT(false);
         return A_EPROTO; 
     }
         
         /* on first entry copy the lookaheads into our temp array for processing */
-    A_MEMCPY(lookAheads, MsgLookAheads, (sizeof(A_UINT32)) * NumLookAheads);  
+    A_MEMCPY(lookAheads, MsgLookAheads, (sizeof(u32)) * NumLookAheads);
             
-    while (TRUE) {
+    while (true) {
         
             /* reset packets queues */
         INIT_HTC_PACKET_QUEUE(&recvPktQueue);
@@ -1165,7 +1165,7 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
         
         if (NumLookAheads > HTC_HOST_MAX_MSG_PER_BUNDLE) {
             status = A_EPROTO;
-            A_ASSERT(FALSE);
+            A_ASSERT(false);
             break;    
         }
    
@@ -1186,7 +1186,7 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
                                           NumLookAheads,
                                           pEndpoint, 
                                           &recvPktQueue);        
-        if (A_FAILED(status)) {
+        if (status) {
             break;    
         }
  
@@ -1200,7 +1200,7 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
             /* we've got packet buffers for all we can currently fetch, 
              * this count is not valid anymore  */
         NumLookAheads = 0;
-        partialBundle = FALSE;
+        partialBundle = false;
        
             /* now go fetch the list of HTC packets */
         while (!HTC_QUEUE_EMPTY(&recvPktQueue)) {   
@@ -1214,14 +1214,14 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
                                                   asyncProc ? NULL : &syncCompletedPktsQueue,
                                                   &pktsFetched,
                                                   partialBundle);                                                   
-                if (A_FAILED(status)) {
+                if (status) {
                     break;
                 }
                 
                 if (HTC_PACKET_QUEUE_DEPTH(&recvPktQueue) != 0) {
                         /* we couldn't fetch all packets at one time, this creates a broken
                          * bundle  */
-                    partialBundle = TRUE;    
+                    partialBundle = true;
                 }                                                                     
             }
             
@@ -1248,7 +1248,7 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
                                     
                     /* go fetch the packet */
                 status = HTCIssueRecv(target, pPacket);              
-                if (A_FAILED(status)) {
+                if (status) {
                     break;
                 }  
                                
@@ -1261,7 +1261,7 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
             
         }
 
-        if (A_SUCCESS(status)) {  
+        if (!status) {
             CheckRecvWaterMark(pEndpoint);
         }
             
@@ -1295,7 +1295,7 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
                 /* process header for each of the recv packets
                  * note: the lookahead of the last packet is useful for us to continue in this loop */            
             status = HTCProcessRecvHeader(target,pPacket,lookAheads,&NumLookAheads);
-            if (A_FAILED(status)) {
+            if (status) {
                 break;
             }
             
@@ -1317,7 +1317,7 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
             DO_RCV_COMPLETION(pEndpoint,&container);
         }
 
-        if (A_FAILED(status)) {
+        if (status) {
             break;
         }
             
@@ -1346,7 +1346,7 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
         REF_IRQ_STATUS_RECHECK(&target->Device);
     }
     
-    if (A_FAILED(status)) {
+    if (status) {
         AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
                         ("Failed to get pending recv messages (%d) \n",status));
             /* cleanup any packets we allocated but didn't use to actually fetch any packets */                        
@@ -1385,18 +1385,18 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
     return status;
 }
 
-A_STATUS HTCAddReceivePktMultiple(HTC_HANDLE HTCHandle, HTC_PACKET_QUEUE *pPktQueue)
+int HTCAddReceivePktMultiple(HTC_HANDLE HTCHandle, HTC_PACKET_QUEUE *pPktQueue)
 {
     HTC_TARGET      *target = GET_HTC_TARGET_FROM_HANDLE(HTCHandle);
     HTC_ENDPOINT    *pEndpoint;
-    A_BOOL          unblockRecv = FALSE;
-    A_STATUS        status = A_OK;
+    bool          unblockRecv = false;
+    int        status = 0;
     HTC_PACKET      *pFirstPacket;
 
     pFirstPacket = HTC_GET_PKT_AT_HEAD(pPktQueue);
     
     if (NULL == pFirstPacket) {
-        A_ASSERT(FALSE);
+        A_ASSERT(false);
         return A_EINVAL;    
     }
     
@@ -1438,7 +1438,7 @@ A_STATUS HTCAddReceivePktMultiple(HTC_HANDLE HTCHandle, HTC_PACKET_QUEUE *pPktQu
                     target->EpWaitingForBuffers));
                 target->RecvStateFlags &= ~HTC_RECV_WAIT_BUFFERS;
                 target->EpWaitingForBuffers = ENDPOINT_MAX;
-                unblockRecv = TRUE;
+                unblockRecv = true;
             }
         }
 
@@ -1449,13 +1449,13 @@ A_STATUS HTCAddReceivePktMultiple(HTC_HANDLE HTCHandle, HTC_PACKET_QUEUE *pPktQu
             DevEnableRecv(&target->Device,DEV_ENABLE_RECV_SYNC);
         }
 
-    } while (FALSE);
+    } while (false);
 
     return status;
 }
 
 /* Makes a buffer available to the HTC module */
-A_STATUS HTCAddReceivePkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket)
+int HTCAddReceivePkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket)
 {
     HTC_PACKET_QUEUE queue;
     INIT_HTC_PACKET_QUEUE_AND_ADD(&queue,pPacket); 
@@ -1465,7 +1465,7 @@ A_STATUS HTCAddReceivePkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket)
 void HTCUnblockRecv(HTC_HANDLE HTCHandle)
 {
     HTC_TARGET *target = GET_HTC_TARGET_FROM_HANDLE(HTCHandle);
-    A_BOOL      unblockRecv = FALSE;
+    bool      unblockRecv = false;
 
     LOCK_HTC_RX(target);
 
@@ -1475,7 +1475,7 @@ void HTCUnblockRecv(HTC_HANDLE HTCHandle)
             target->EpWaitingForBuffers));
         target->RecvStateFlags &= ~HTC_RECV_WAIT_BUFFERS;
         target->EpWaitingForBuffers = ENDPOINT_MAX;
-        unblockRecv = TRUE;
+        unblockRecv = true;
     }
 
     UNLOCK_HTC_RX(target);
@@ -1563,11 +1563,11 @@ int HTCGetNumRecvBuffers(HTC_HANDLE      HTCHandle,
     return HTC_PACKET_QUEUE_DEPTH(&(target->EndPoint[Endpoint].RxBuffers));
 }
 
-A_STATUS HTCWaitForPendingRecv(HTC_HANDLE   HTCHandle,
-                               A_UINT32     TimeoutInMs,
-                               A_BOOL      *pbIsRecvPending)
+int HTCWaitForPendingRecv(HTC_HANDLE   HTCHandle,
+                               u32 TimeoutInMs,
+                               bool      *pbIsRecvPending)
 {
-    A_STATUS    status  = A_OK;
+    int    status  = 0;
     HTC_TARGET *target  = GET_HTC_TARGET_FROM_HANDLE(HTCHandle);
 
     status = DevWaitForPendingRecv(&target->Device,

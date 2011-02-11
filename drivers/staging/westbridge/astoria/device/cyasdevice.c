@@ -40,9 +40,6 @@
 #include "../include/linux/westbridge/cyashal.h"
 #include "../include/linux/westbridge/cyasregs.h"
 
-/* API exports include file */
-#include "cyandevice_export.h"
-
 typedef struct cyasdevice {
 		/* Handle to the Antioch device */
 		cy_as_device_handle			dev_handle;
@@ -389,7 +386,7 @@ EXPORT_SYMBOL(cyasdevice_gethaltag);
 static int __init cyasdevice_init(void)
 {
 	if (cyasdevice_initialize() != 0)
-		return ENODEV;
+		return -ENODEV;
 
 	return 0;
 }

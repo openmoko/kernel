@@ -345,26 +345,6 @@ void dhd_prot_hdrpush(dhd_pub_t *dhd, int ifidx, struct sk_buff *pktbuf)
 	BDC_SET_IF_IDX(h, ifidx);
 }
 
-bool dhd_proto_fcinfo(dhd_pub_t *dhd, struct sk_buff *pktbuf, u8 * fcbits)
-{
-#ifdef BDC
-	struct bdc_header *h;
-
-	if (pktbuf->len < BDC_HEADER_LEN) {
-		DHD_ERROR(("%s: rx data too short (%d < %d)\n",
-			   __func__, pktbuf->len, BDC_HEADER_LEN));
-		return BCME_ERROR;
-	}
-
-	h = (struct bdc_header *)(pktbuf->data);
-
-	*fcbits = h->priority >> BDC_PRIORITY_FC_SHIFT;
-	if ((h->flags2 & BDC_FLAG2_FC_FLAG) == BDC_FLAG2_FC_FLAG)
-		return true;
-#endif
-	return false;
-}
-
 int dhd_prot_hdrpull(dhd_pub_t *dhd, int *ifidx, struct sk_buff *pktbuf)
 {
 #ifdef BDC
@@ -477,7 +457,7 @@ int dhd_prot_init(dhd_pub_t *dhd)
 		dhd_os_proto_unblock(dhd);
 		return ret;
 	}
-	memcpy(dhd->mac.octet, buf, ETH_ALEN);
+	memcpy(dhd->mac, buf, ETH_ALEN);
 
 	dhd_os_proto_unblock(dhd);
 

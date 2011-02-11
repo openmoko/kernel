@@ -64,7 +64,7 @@ HTC_PACKET *HTCAllocControlBuffer(HTC_TARGET *target,  HTC_PACKET_QUEUE *pList)
 /* cleanup the HTC instance */
 static void HTCCleanup(HTC_TARGET *target)
 {
-    A_INT32 i;
+    s32 i;
 
     DevCleanup(&target->Device);
     
@@ -93,10 +93,10 @@ static void HTCCleanup(HTC_TARGET *target)
 HTC_HANDLE HTCCreate(void *hif_handle, HTC_INIT_INFO *pInfo)
 {
     HTC_TARGET              *target = NULL;
-    A_STATUS                 status = A_OK;
+    int                 status = 0;
     int                      i;
-    A_UINT32                 ctrl_bufsz;
-    A_UINT32                 blocksizes[HTC_MAILBOX_NUM_MAX];
+    u32 ctrl_bufsz;
+    u32 blocksizes[HTC_MAILBOX_NUM_MAX];
 
     AR_DEBUG_PRINTF(ATH_DEBUG_TRC, ("HTCCreate - Enter\n"));
 
@@ -137,7 +137,7 @@ HTC_HANDLE HTCCreate(void *hif_handle, HTC_INIT_INFO *pInfo)
             /* setup device layer */
         status = DevSetup(&target->Device);
 
-        if (A_FAILED(status)) {
+        if (status) {
             break;
         }
 
@@ -145,7 +145,7 @@ HTC_HANDLE HTCCreate(void *hif_handle, HTC_INIT_INFO *pInfo)
         /* get the block sizes */
         status = HIFConfigureDevice(hif_handle, HIF_DEVICE_GET_MBOX_BLOCK_SIZE,
                                     blocksizes, sizeof(blocksizes));
-        if (A_FAILED(status)) {
+        if (status) {
             AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("Failed to get block size info from HIF layer...\n"));
             break;
         }
@@ -165,7 +165,7 @@ HTC_HANDLE HTCCreate(void *hif_handle, HTC_INIT_INFO *pInfo)
             }
         }
 
-        if (A_FAILED(status)) {
+        if (status) {
             break;
         }
 
@@ -190,9 +190,9 @@ HTC_HANDLE HTCCreate(void *hif_handle, HTC_INIT_INFO *pInfo)
              HTC_FREE_CONTROL_TX(target,pControlPacket);
         }
 
-    } while (FALSE);
+    } while (false);
 
-    if (A_FAILED(status)) {
+    if (status) {
         if (target != NULL) {
             HTCCleanup(target);
             target = NULL;
@@ -222,10 +222,10 @@ void *HTCGetHifDevice(HTC_HANDLE HTCHandle)
 
 /* wait for the target to arrive (sends HTC Ready message)
  * this operation is fully synchronous and the message is polled for */
-A_STATUS HTCWaitTarget(HTC_HANDLE HTCHandle)
+int HTCWaitTarget(HTC_HANDLE HTCHandle)
 {
     HTC_TARGET              *target = GET_HTC_TARGET_FROM_HANDLE(HTCHandle);
-    A_STATUS                 status;
+    int                 status;
     HTC_PACKET              *pPacket = NULL;
     HTC_READY_EX_MSG        *pRdyMsg;
 
@@ -240,7 +240,7 @@ A_STATUS HTCWaitTarget(HTC_HANDLE HTCHandle)
 
         status = DoMboxHWTest(&target->Device);
 
-        if (status != A_OK) {
+        if (status) {
             break;
         }
 
@@ -249,7 +249,7 @@ A_STATUS HTCWaitTarget(HTC_HANDLE HTCHandle)
             /* we should be getting 1 control message that the target is ready */
         status = HTCWaitforControlMessage(target, &pPacket);
 
-        if (A_FAILED(status)) {
+        if (status) {
             AR_DEBUG_PRINTF(ATH_DEBUG_ERR, (" Target Not Available!!\n"));
             break;
         }
@@ -260,7 +260,7 @@ A_STATUS HTCWaitTarget(HTC_HANDLE HTCHandle)
         if ((pRdyMsg->Version2_0_Info.MessageID != HTC_MSG_READY_ID) ||
             (pPacket->ActualLength < sizeof(HTC_READY_MSG))) {
                 /* this message is not valid */
-            AR_DEBUG_ASSERT(FALSE);
+            AR_DEBUG_ASSERT(false);
             status = A_EPROTO;
             break;
         }
@@ -268,7 +268,7 @@ A_STATUS HTCWaitTarget(HTC_HANDLE HTCHandle)
         
         if (pRdyMsg->Version2_0_Info.CreditCount == 0 || pRdyMsg->Version2_0_Info.CreditSize == 0) {
               /* this message is not valid */
-            AR_DEBUG_ASSERT(FALSE);
+            AR_DEBUG_ASSERT(false);
             status = A_EPROTO;
             break;
         }
@@ -305,7 +305,7 @@ A_STATUS HTCWaitTarget(HTC_HANDLE HTCHandle)
                 /* limit what HTC can handle */
             target->MaxMsgPerBundle = min(HTC_HOST_MAX_MSG_PER_BUNDLE, target->MaxMsgPerBundle);          
                 /* target supports message bundling, setup device layer */
-            if (A_FAILED(DevSetupMsgBundling(&target->Device,target->MaxMsgPerBundle))) {
+            if (DevSetupMsgBundling(&target->Device,target->MaxMsgPerBundle)) {
                     /* device layer can't handle bundling */
                 target->MaxMsgPerBundle = 0;        
             } else {
@@ -320,10 +320,10 @@ A_STATUS HTCWaitTarget(HTC_HANDLE HTCHandle)
                     (" HTC bundling allowed. Max Msg Per HTC Bundle: %d\n", target->MaxMsgPerBundle));    
            
             if (DEV_GET_MAX_BUNDLE_SEND_LENGTH(&target->Device) != 0) {           
-                target->SendBundlingEnabled = TRUE;
+                target->SendBundlingEnabled = true;
             }            
             if (DEV_GET_MAX_BUNDLE_RECV_LENGTH(&target->Device) != 0) {    
-                target->RecvBundlingEnabled = TRUE;    
+                target->RecvBundlingEnabled = true;
             }
                             
             if (!DEV_IS_LEN_BLOCK_ALIGNED(&target->Device,target->TargetCreditSize)) {
@@ -331,7 +331,7 @@ A_STATUS HTCWaitTarget(HTC_HANDLE HTCHandle)
                         target->TargetCreditSize));    
                     /* disallow send bundling since the credit size is not aligned to a block size
                      * the I/O block padding will spill into the next credit buffer which is fatal */
-                target->SendBundlingEnabled = FALSE;
+                target->SendBundlingEnabled = false;
             }
         }
            
@@ -351,11 +351,11 @@ A_STATUS HTCWaitTarget(HTC_HANDLE HTCHandle)
                                    &connect,
                                    &resp);
 
-        if (!A_FAILED(status)) {
+        if (!status) {
             break;
         }
 
-    } while (FALSE);
+    } while (false);
 
     if (pPacket != NULL) {
         HTC_FREE_CONTROL_RX(target,pPacket);
@@ -369,11 +369,11 @@ A_STATUS HTCWaitTarget(HTC_HANDLE HTCHandle)
 
 
 /* Start HTC, enable interrupts and let the target know host has finished setup */
-A_STATUS HTCStart(HTC_HANDLE HTCHandle)
+int HTCStart(HTC_HANDLE HTCHandle)
 {
     HTC_TARGET *target = GET_HTC_TARGET_FROM_HANDLE(HTCHandle);
     HTC_PACKET *pPacket;
-    A_STATUS   status;
+    int   status;
 
     AR_DEBUG_PRINTF(ATH_DEBUG_TRC, ("HTCStart Enter\n"));
 
@@ -419,18 +419,18 @@ A_STATUS HTCStart(HTC_HANDLE HTCHandle)
             * target that the setup phase is complete */
         status = HTCSendSetupComplete(target);
 
-        if (A_FAILED(status)) {
+        if (status) {
             break;
         }
 
             /* unmask interrupts */
         status = DevUnmaskInterrupts(&target->Device);
 
-        if (A_FAILED(status)) {
+        if (status) {
             HTCStop(target);
         }
 
-    } while (FALSE);
+    } while (false);
 
     AR_DEBUG_PRINTF(ATH_DEBUG_TRC, ("HTCStart Exit\n"));
     return status;
@@ -511,7 +511,7 @@ static void HTCReportFailure(void *Context)
 {
     HTC_TARGET *target = (HTC_TARGET *)Context;
 
-    target->TargetFailure = TRUE;
+    target->TargetFailure = true;
 
     if (target->HTCInitInfo.TargetFailure != NULL) {
             /* let upper layer know, it needs to call HTCStop() */
@@ -519,7 +519,7 @@ static void HTCReportFailure(void *Context)
     }
 }
 
-A_BOOL HTCGetEndpointStatistics(HTC_HANDLE               HTCHandle,
+bool HTCGetEndpointStatistics(HTC_HANDLE               HTCHandle,
                                 HTC_ENDPOINT_ID          Endpoint,
                                 HTC_ENDPOINT_STAT_ACTION Action,
                                 HTC_ENDPOINT_STATS       *pStats)
@@ -527,19 +527,19 @@ A_BOOL HTCGetEndpointStatistics(HTC_HANDLE               HTCHandle,
 
 #ifdef HTC_EP_STAT_PROFILING
     HTC_TARGET *target = GET_HTC_TARGET_FROM_HANDLE(HTCHandle);
-    A_BOOL     clearStats = FALSE;
-    A_BOOL     sample = FALSE;
+    bool     clearStats = false;
+    bool     sample = false;
 
     switch (Action) {
         case HTC_EP_STAT_SAMPLE :
-            sample = TRUE;
+            sample = true;
             break;
         case HTC_EP_STAT_SAMPLE_AND_CLEAR :
-            sample = TRUE;
-            clearStats = TRUE;
+            sample = true;
+            clearStats = true;
             break;
         case HTC_EP_STAT_CLEAR :
-            clearStats = TRUE;
+            clearStats = true;
             break;
         default:
             break;
@@ -565,9 +565,9 @@ A_BOOL HTCGetEndpointStatistics(HTC_HANDLE               HTCHandle,
     UNLOCK_HTC_RX(target);
     UNLOCK_HTC_TX(target);
 
-    return TRUE;
+    return true;
 #else
-    return FALSE;
+    return false;
 #endif
 }
 

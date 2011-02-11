@@ -41,11 +41,11 @@ extern "C" {
 
 typedef void *HTC_HANDLE;
 
-typedef A_UINT16 HTC_SERVICE_ID;
+typedef u16 HTC_SERVICE_ID;
 
 typedef struct _HTC_INIT_INFO {
     void   *pContext;           /* context for target failure notification */
-    void   (*TargetFailure)(void *Instance, A_STATUS Status);
+    void   (*TargetFailure)(void *Instance, int Status);
 } HTC_INIT_INFO;
 
 /* per service connection send completion */
@@ -141,12 +141,12 @@ typedef struct _HTC_EP_CALLBACKS {
 /* service connection information */
 typedef struct _HTC_SERVICE_CONNECT_REQ {
     HTC_SERVICE_ID   ServiceID;                 /* service ID to connect to */
-    A_UINT16         ConnectionFlags;           /* connection flags, see htc protocol definition */
-    A_UINT8         *pMetaData;                 /* ptr to optional service-specific meta-data */
-    A_UINT8          MetaDataLength;            /* optional meta data length */
+    u16 ConnectionFlags;           /* connection flags, see htc protocol definition */
+    u8 *pMetaData;                 /* ptr to optional service-specific meta-data */
+    u8 MetaDataLength;            /* optional meta data length */
     HTC_EP_CALLBACKS EpCallbacks;               /* endpoint callbacks */
     int              MaxSendQueueDepth;         /* maximum depth of any send queue */
-    A_UINT32         LocalConnectionFlags;      /* HTC flags for the host-side (local) connection */
+    u32 LocalConnectionFlags;      /* HTC flags for the host-side (local) connection */
     unsigned int     MaxSendMsgSize;            /* override max message size in send direction */
 } HTC_SERVICE_CONNECT_REQ;
 
@@ -154,12 +154,12 @@ typedef struct _HTC_SERVICE_CONNECT_REQ {
 
 /* service connection response information */
 typedef struct _HTC_SERVICE_CONNECT_RESP {
-    A_UINT8         *pMetaData;         /* caller supplied buffer to optional meta-data */
-    A_UINT8         BufferLength;       /* length of caller supplied buffer */
-    A_UINT8         ActualLength;       /* actual length of meta data */
+    u8 *pMetaData;         /* caller supplied buffer to optional meta-data */
+    u8 BufferLength;       /* length of caller supplied buffer */
+    u8 ActualLength;       /* actual length of meta data */
     HTC_ENDPOINT_ID Endpoint;           /* endpoint to communicate over */
     unsigned int    MaxMsgLength;       /* max length of all messages over this endpoint */
-    A_UINT8         ConnectRespCode;    /* connect response code from target */
+    u8 ConnectRespCode;    /* connect response code from target */
 } HTC_SERVICE_CONNECT_RESP;
 
 /* endpoint distribution structure */
@@ -168,7 +168,7 @@ typedef struct _HTC_ENDPOINT_CREDIT_DIST {
     struct _HTC_ENDPOINT_CREDIT_DIST *pPrev;
     HTC_SERVICE_ID      ServiceID;          /* Service ID (set by HTC) */
     HTC_ENDPOINT_ID     Endpoint;           /* endpoint for this distribution struct (set by HTC) */
-    A_UINT32            DistFlags;          /* distribution flags, distribution function can
+    u32 DistFlags;          /* distribution flags, distribution function can
                                                set default activity using SET_EP_ACTIVE() macro */
     int                 TxCreditsNorm;      /* credits for normal operation, anything above this
                                                indicates the endpoint is over-subscribed, this field
@@ -197,7 +197,7 @@ typedef struct _HTC_ENDPOINT_CREDIT_DIST {
                                               */
 } HTC_ENDPOINT_CREDIT_DIST;
 
-#define HTC_EP_ACTIVE                            ((A_UINT32) (1u << 31))
+#define HTC_EP_ACTIVE                            ((u32) (1u << 31))
 
 /* macro to check if an endpoint has gone active, useful for credit
  * distributions */
@@ -232,29 +232,29 @@ typedef enum _HTC_ENDPOINT_STAT_ACTION {
 
     /* endpoint statistics */
 typedef struct _HTC_ENDPOINT_STATS {
-    A_UINT32  TxCreditLowIndications;  /* number of times the host set the credit-low flag in a send message on
+    u32 TxCreditLowIndications;  /* number of times the host set the credit-low flag in a send message on
                                         this endpoint */
-    A_UINT32  TxIssued;               /* running count of total TX packets issued */
-    A_UINT32  TxPacketsBundled;       /* running count of TX packets that were issued in bundles */
-    A_UINT32  TxBundles;              /* running count of TX bundles that were issued */
-    A_UINT32  TxDropped;              /* tx packets that were dropped */
-    A_UINT32  TxCreditRpts;           /* running count of total credit reports received for this endpoint */
-    A_UINT32  TxCreditRptsFromRx;     /* credit reports received from this endpoint's RX packets */
-    A_UINT32  TxCreditRptsFromOther;  /* credit reports received from RX packets of other endpoints */
-    A_UINT32  TxCreditRptsFromEp0;    /* credit reports received from endpoint 0 RX packets */
-    A_UINT32  TxCreditsFromRx;        /* count of credits received via Rx packets on this endpoint */
-    A_UINT32  TxCreditsFromOther;     /* count of credits received via another endpoint */
-    A_UINT32  TxCreditsFromEp0;       /* count of credits received via another endpoint */
-    A_UINT32  TxCreditsConsummed;     /* count of consummed credits */
-    A_UINT32  TxCreditsReturned;      /* count of credits returned */
-    A_UINT32  RxReceived;             /* count of RX packets received */
-    A_UINT32  RxLookAheads;           /* count of lookahead records
+    u32 TxIssued;               /* running count of total TX packets issued */
+    u32 TxPacketsBundled;       /* running count of TX packets that were issued in bundles */
+    u32 TxBundles;              /* running count of TX bundles that were issued */
+    u32 TxDropped;              /* tx packets that were dropped */
+    u32 TxCreditRpts;           /* running count of total credit reports received for this endpoint */
+    u32 TxCreditRptsFromRx;     /* credit reports received from this endpoint's RX packets */
+    u32 TxCreditRptsFromOther;  /* credit reports received from RX packets of other endpoints */
+    u32 TxCreditRptsFromEp0;    /* credit reports received from endpoint 0 RX packets */
+    u32 TxCreditsFromRx;        /* count of credits received via Rx packets on this endpoint */
+    u32 TxCreditsFromOther;     /* count of credits received via another endpoint */
+    u32 TxCreditsFromEp0;       /* count of credits received via another endpoint */
+    u32 TxCreditsConsummed;     /* count of consummed credits */
+    u32 TxCreditsReturned;      /* count of credits returned */
+    u32 RxReceived;             /* count of RX packets received */
+    u32 RxLookAheads;           /* count of lookahead records
                                          found in messages received on this endpoint */
-    A_UINT32  RxPacketsBundled;       /* count of recv packets received in a bundle */                                     
-    A_UINT32  RxBundleLookAheads;     /* count of number of bundled lookaheads */
-    A_UINT32  RxBundleIndFromHdr;     /* count of the number of bundle indications from the HTC header */
-    A_UINT32  RxAllocThreshHit;       /* count of the number of times the recv allocation threshhold was hit */
-    A_UINT32  RxAllocThreshBytes;     /* total number of bytes */
+    u32 RxPacketsBundled;       /* count of recv packets received in a bundle */
+    u32 RxBundleLookAheads;     /* count of number of bundled lookaheads */
+    u32 RxBundleIndFromHdr;     /* count of the number of bundle indications from the HTC header */
+    u32 RxAllocThreshHit;       /* count of the number of times the recv allocation threshhold was hit */
+    u32 RxAllocThreshBytes;     /* total number of bytes */
 } HTC_ENDPOINT_STATS;
 
 /* ------ Function Prototypes ------ */
@@ -319,7 +319,7 @@ void        HTCSetCreditDistribution(HTC_HANDLE               HTCHandle,
   @example:
   @see also: HTCConnectService
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-A_STATUS    HTCWaitTarget(HTC_HANDLE HTCHandle);
+int    HTCWaitTarget(HTC_HANDLE HTCHandle);
 /*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   @desc: Start target service communications
   @function name: HTCStart
@@ -334,21 +334,21 @@ A_STATUS    HTCWaitTarget(HTC_HANDLE HTCHandle);
   @example:
   @see also: HTCConnectService
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-A_STATUS    HTCStart(HTC_HANDLE HTCHandle);
+int    HTCStart(HTC_HANDLE HTCHandle);
 /*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   @desc: Add receive packet to HTC
   @function name: HTCAddReceivePkt
   @input:  HTCHandle - HTC handle
            pPacket - HTC receive packet to add
   @output:
-  @return: A_OK on success
+  @return: 0 on success
   @notes:  user must supply HTC packets for capturing incomming HTC frames.  The caller
            must initialize each HTC packet using the SET_HTC_PACKET_INFO_RX_REFILL()
            macro.
   @example:
   @see also:
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-A_STATUS    HTCAddReceivePkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket);
+int    HTCAddReceivePkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket);
 /*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   @desc: Connect to an HTC service
   @function name: HTCConnectService
@@ -361,7 +361,7 @@ A_STATUS    HTCAddReceivePkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket);
   @example:
   @see also: HTCStart
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-A_STATUS    HTCConnectService(HTC_HANDLE HTCHandle,
+int    HTCConnectService(HTC_HANDLE HTCHandle,
                               HTC_SERVICE_CONNECT_REQ  *pReq,
                               HTC_SERVICE_CONNECT_RESP *pResp);
 /*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -370,14 +370,14 @@ A_STATUS    HTCConnectService(HTC_HANDLE HTCHandle,
   @input:  HTCHandle - HTC handle
            pPacket - packet to send
   @output:
-  @return: A_OK
+  @return: 0
   @notes:  Caller must initialize packet using SET_HTC_PACKET_INFO_TX() macro.
            This interface is fully asynchronous.  On error, HTC SendPkt will
            call the registered Endpoint callback to cleanup the packet.
   @example:
   @see also: HTCFlushEndpoint
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-A_STATUS    HTCSendPkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket);
+int    HTCSendPkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket);
 /*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   @desc: Stop HTC service communications
   @function name: HTCStop
@@ -431,7 +431,7 @@ void        HTCDumpCreditStates(HTC_HANDLE HTCHandle);
   @function name: HTCIndicateActivityChange
   @input:  HTCHandle - HTC handle
            Endpoint - endpoint in which activity has changed
-           Active - TRUE if active, FALSE if it has become inactive
+           Active - true if active, false if it has become inactive
   @output:
   @return:
   @notes:  This triggers the registered credit distribution function to
@@ -441,7 +441,7 @@ void        HTCDumpCreditStates(HTC_HANDLE HTCHandle);
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 void        HTCIndicateActivityChange(HTC_HANDLE      HTCHandle,
                                       HTC_ENDPOINT_ID Endpoint,
-                                      A_BOOL          Active);
+                                      bool          Active);
 
 /*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   @desc: Get endpoint statistics
@@ -452,9 +452,9 @@ void        HTCIndicateActivityChange(HTC_HANDLE      HTCHandle,
   @output:
            pStats - statistics that were sampled (can be NULL if Action is HTC_EP_STAT_CLEAR)
 
-  @return: TRUE if statistics profiling is enabled, otherwise FALSE.
+  @return: true if statistics profiling is enabled, otherwise false.
 
-  @notes:  Statistics is a compile-time option and this function may return FALSE
+  @notes:  Statistics is a compile-time option and this function may return false
            if HTC is not compiled with profiling.
 
            The caller can specify the statistic "action" to take when sampling
@@ -469,7 +469,7 @@ void        HTCIndicateActivityChange(HTC_HANDLE      HTCHandle,
   @example:
   @see also:
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-A_BOOL       HTCGetEndpointStatistics(HTC_HANDLE               HTCHandle,
+bool       HTCGetEndpointStatistics(HTC_HANDLE               HTCHandle,
                                       HTC_ENDPOINT_ID          Endpoint,
                                       HTC_ENDPOINT_STAT_ACTION Action,
                                       HTC_ENDPOINT_STATS       *pStats);
@@ -499,7 +499,7 @@ void HTCUnblockRecv(HTC_HANDLE HTCHandle);
   @input:  HTCHandle - HTC handle
            pPktQueue - local queue holding packets to send
   @output:
-  @return: A_OK
+  @return: 0
   @notes:  Caller must initialize each packet using SET_HTC_PACKET_INFO_TX() macro.
            The queue must only contain packets directed at the same endpoint.
            Caller supplies a pointer to an HTC_PACKET_QUEUE structure holding the TX packets in FIFO order.
@@ -511,7 +511,7 @@ void HTCUnblockRecv(HTC_HANDLE HTCHandle);
   @example:
   @see also: HTCFlushEndpoint
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-A_STATUS    HTCSendPktsMultiple(HTC_HANDLE HTCHandle, HTC_PACKET_QUEUE *pPktQueue);
+int    HTCSendPktsMultiple(HTC_HANDLE HTCHandle, HTC_PACKET_QUEUE *pPktQueue);
 
 /*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   @desc: Add multiple receive packets to HTC
@@ -519,7 +519,7 @@ A_STATUS    HTCSendPktsMultiple(HTC_HANDLE HTCHandle, HTC_PACKET_QUEUE *pPktQueu
   @input:  HTCHandle - HTC handle
            pPktQueue - HTC receive packet queue holding packets to add
   @output:
-  @return: A_OK on success
+  @return: 0 on success
   @notes:  user must supply HTC packets for capturing incomming HTC frames.  The caller
            must initialize each HTC packet using the SET_HTC_PACKET_INFO_RX_REFILL()
            macro. The queue must only contain recv packets for the same endpoint.
@@ -530,7 +530,7 @@ A_STATUS    HTCSendPktsMultiple(HTC_HANDLE HTCHandle, HTC_PACKET_QUEUE *pPktQueu
   @example:
   @see also:
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-A_STATUS    HTCAddReceivePktMultiple(HTC_HANDLE HTCHandle, HTC_PACKET_QUEUE *pPktQueue);
+int    HTCAddReceivePktMultiple(HTC_HANDLE HTCHandle, HTC_PACKET_QUEUE *pPktQueue);
 
 /*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   @desc: Check if an endpoint is marked active
@@ -538,12 +538,12 @@ A_STATUS    HTCAddReceivePktMultiple(HTC_HANDLE HTCHandle, HTC_PACKET_QUEUE *pPk
   @input:  HTCHandle - HTC handle
            Endpoint - endpoint to check for active state
   @output:
-  @return: returns TRUE if Endpoint is Active
+  @return: returns true if Endpoint is Active
   @notes:  
   @example:
   @see also:
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-A_BOOL      HTCIsEndpointActive(HTC_HANDLE      HTCHandle,
+bool      HTCIsEndpointActive(HTC_HANDLE      HTCHandle,
                                 HTC_ENDPOINT_ID Endpoint);
 
 
@@ -564,9 +564,9 @@ int         HTCGetNumRecvBuffers(HTC_HANDLE      HTCHandle,
 /* internally used functions for testing... */
 void HTCEnableRecv(HTC_HANDLE HTCHandle);
 void HTCDisableRecv(HTC_HANDLE HTCHandle);
-A_STATUS HTCWaitForPendingRecv(HTC_HANDLE   HTCHandle,
-                               A_UINT32     TimeoutInMs,
-                               A_BOOL      *pbIsRecvPending);
+int HTCWaitForPendingRecv(HTC_HANDLE   HTCHandle,
+                               u32 TimeoutInMs,
+                               bool      *pbIsRecvPending);
 
 #ifdef __cplusplus
 }

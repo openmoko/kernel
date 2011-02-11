@@ -46,12 +46,12 @@ struct _HTC_PACKET;
 
 typedef void (* HTC_PACKET_COMPLETION)(void *,struct _HTC_PACKET *);
 
-typedef A_UINT16 HTC_TX_TAG;
+typedef u16 HTC_TX_TAG;
 
 typedef struct _HTC_TX_PACKET_INFO {
     HTC_TX_TAG    Tag;            /* tag used to selective flush packets */
     int           CreditsUsed;    /* number of credits used for this TX packet (HTC internal) */
-    A_UINT8       SendFlags;      /* send flags (HTC internal) */
+    u8 SendFlags;      /* send flags (HTC internal) */
     int           SeqNo;          /* internal seq no for debugging (HTC internal) */
 } HTC_TX_PACKET_INFO;
 
@@ -60,9 +60,9 @@ typedef struct _HTC_TX_PACKET_INFO {
 #define HTC_TX_PACKET_TAG_USER_DEFINED (HTC_TX_PACKET_TAG_INTERNAL + 9) /* user-defined tags start here */
 
 typedef struct _HTC_RX_PACKET_INFO {
-    A_UINT32    ExpectedHdr;        /* HTC internal use */
-    A_UINT32    HTCRxFlags;         /* HTC internal use */
-    A_UINT32    IndicationFlags;    /* indication flags set on each RX packet indication */
+    u32 ExpectedHdr;        /* HTC internal use */
+    u32 HTCRxFlags;         /* HTC internal use */
+    u32 IndicationFlags;    /* indication flags set on each RX packet indication */
 } HTC_RX_PACKET_INFO;
 
 #define HTC_RX_FLAGS_INDICATE_MORE_PKTS  (1 << 0)   /* more packets on this endpoint are being fetched */
@@ -72,7 +72,7 @@ typedef struct _HTC_PACKET {
     DL_LIST         ListLink;       /* double link */
     void            *pPktContext;   /* caller's per packet specific context */
 
-    A_UINT8         *pBufferStart;  /* the true buffer start , the caller can
+    u8 *pBufferStart;  /* the true buffer start , the caller can
                                        store the real buffer start here.  In
                                        receive callbacks, the HTC layer sets pBuffer
                                        to the start of the payload past the header. This
@@ -85,11 +85,11 @@ typedef struct _HTC_PACKET {
      * points to the start of the HTC header but when returned
      * to the caller points to the start of the payload
      */
-    A_UINT8         *pBuffer;       /* payload start (RX/TX) */
-    A_UINT32        BufferLength;   /* length of buffer */
-    A_UINT32        ActualLength;   /* actual length of payload */
+    u8 *pBuffer;       /* payload start (RX/TX) */
+    u32 BufferLength;   /* length of buffer */
+    u32 ActualLength;   /* actual length of payload */
     HTC_ENDPOINT_ID Endpoint;       /* endpoint that this packet was sent/recv'd from */
-    A_STATUS        Status;         /* completion status */
+    int        Status;         /* completion status */
     union {
         HTC_TX_PACKET_INFO  AsTx;   /* Tx Packet specific info */
         HTC_RX_PACKET_INFO  AsRx;   /* Rx Packet specific info */

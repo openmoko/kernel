@@ -33,7 +33,7 @@
 #include "aggr_rx_internal.h"
 #include "wmi.h"
 
-extern A_STATUS
+extern int
 wmi_dot3_2_dix(void *osbuf);
 
 static void
@@ -43,7 +43,7 @@ static void
 aggr_timeout(A_ATH_TIMER arg);
 
 static void
-aggr_deque_frms(AGGR_INFO *p_aggr, A_UINT8 tid, A_UINT16 seq_no, A_UINT8 order);
+aggr_deque_frms(AGGR_INFO *p_aggr, u8 tid, u16 seq_no, u8 order);
 
 static void
 aggr_dispatch_frames(AGGR_INFO *p_aggr, A_NETBUF_QUEUE_T *q);
@@ -56,8 +56,8 @@ aggr_init(ALLOC_NETBUFS netbuf_allocator)
 {
     AGGR_INFO   *p_aggr = NULL;
     RXTID *rxtid;
-    A_UINT8 i;
-    A_STATUS status = A_OK;
+    u8 i;
+    int status = 0;
 
     A_PRINTF("In aggr_init..\n");
 
@@ -73,7 +73,7 @@ aggr_init(ALLOC_NETBUFS netbuf_allocator)
         A_MEMZERO(p_aggr, sizeof(AGGR_INFO));
         p_aggr->aggr_sz = AGGR_SZ_DEFAULT;
         A_INIT_TIMER(&p_aggr->timer, aggr_timeout, p_aggr);
-        p_aggr->timerScheduled = FALSE;
+        p_aggr->timerScheduled = false;
         A_NETBUF_QUEUE_INIT(&p_aggr->freeQ);
 
         p_aggr->netbuf_allocator = netbuf_allocator;
@@ -81,27 +81,27 @@ aggr_init(ALLOC_NETBUFS netbuf_allocator)
 
         for(i = 0; i < NUM_OF_TIDS; i++) {
             rxtid = AGGR_GET_RXTID(p_aggr, i);
-            rxtid->aggr = FALSE;
-            rxtid->progress = FALSE;
-            rxtid->timerMon = FALSE;
+            rxtid->aggr = false;
+            rxtid->progress = false;
+            rxtid->timerMon = false;
             A_NETBUF_QUEUE_INIT(&rxtid->q);
             A_MUTEX_INIT(&rxtid->lock);
         }
-    }while(FALSE);
+    }while(false);
 
     A_PRINTF("going out of aggr_init..status %s\n",
-                    (status == A_OK) ? "OK":"Error");
+                    (status == 0) ? "OK":"Error");
 
-    if(status != A_OK) {
+    if (status) {
         /* Cleanup */
         aggr_module_destroy(p_aggr);
     }
-    return ((status == A_OK) ? p_aggr : NULL);
+    return ((status == 0) ? p_aggr : NULL);
 }
 
 /* utility function to clear rx hold_q for a tid */
 static void
-aggr_delete_tid_state(AGGR_INFO *p_aggr, A_UINT8 tid)
+aggr_delete_tid_state(AGGR_INFO *p_aggr, u8 tid)
 {
     RXTID *rxtid;
     RXTID_STATS *stats;
@@ -115,9 +115,9 @@ aggr_delete_tid_state(AGGR_INFO *p_aggr, A_UINT8 tid)
         aggr_deque_frms(p_aggr, tid, 0, ALL_SEQNO);
     }
 
-    rxtid->aggr = FALSE;
-    rxtid->progress = FALSE;
-    rxtid->timerMon = FALSE;
+    rxtid->aggr = false;
+    rxtid->progress = false;
+    rxtid->timerMon = false;
     rxtid->win_sz = 0;
     rxtid->seq_next = 0;
     rxtid->hold_q_sz = 0;
@@ -135,14 +135,14 @@ aggr_module_destroy(void *cntxt)
 {
     AGGR_INFO *p_aggr = (AGGR_INFO *)cntxt;
     RXTID *rxtid;
-    A_UINT8 i, k;
+    u8 i, k;
     A_PRINTF("%s(): aggr = %p\n",_A_FUNCNAME_, p_aggr);
     A_ASSERT(p_aggr);
 
     if(p_aggr) {
         if(p_aggr->timerScheduled) {
             A_UNTIMEOUT(&p_aggr->timer);
-            p_aggr->timerScheduled = FALSE;
+            p_aggr->timerScheduled = false;
         }
 
         for(i = 0; i < NUM_OF_TIDS; i++) {
@@ -187,7 +187,7 @@ aggr_register_rx_dispatcher(void *cntxt, void * dev, RX_CALLBACK fn)
 
 
 void
-aggr_process_bar(void *cntxt, A_UINT8 tid, A_UINT16 seq_no)
+aggr_process_bar(void *cntxt, u8 tid, u16 seq_no)
 {
     AGGR_INFO *p_aggr = (AGGR_INFO *)cntxt;
     RXTID_STATS *stats;
@@ -201,7 +201,7 @@ aggr_process_bar(void *cntxt, A_UINT8 tid, A_UINT16 seq_no)
 
 
 void
-aggr_recv_addba_req_evt(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_UINT8 win_sz)
+aggr_recv_addba_req_evt(void *cntxt, u8 tid, u16 seq_no, u8 win_sz)
 {
     AGGR_INFO *p_aggr = (AGGR_INFO *)cntxt;
     RXTID *rxtid;
@@ -249,11 +249,11 @@ aggr_recv_addba_req_evt(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_UINT8 win_s
         A_ASSERT(0);
     }
 
-    rxtid->aggr = TRUE;
+    rxtid->aggr = true;
 }
 
 void
-aggr_recv_delba_req_evt(void *cntxt, A_UINT8 tid)
+aggr_recv_delba_req_evt(void *cntxt, u8 tid)
 {
     AGGR_INFO *p_aggr = (AGGR_INFO *)cntxt;
     RXTID *rxtid;
@@ -269,11 +269,11 @@ aggr_recv_delba_req_evt(void *cntxt, A_UINT8 tid)
 }
 
 static void
-aggr_deque_frms(AGGR_INFO *p_aggr, A_UINT8 tid, A_UINT16 seq_no, A_UINT8 order)
+aggr_deque_frms(AGGR_INFO *p_aggr, u8 tid, u16 seq_no, u8 order)
 {
     RXTID *rxtid;
     OSBUF_HOLD_Q *node;
-    A_UINT16 idx, idx_end, seq_end;
+    u16 idx, idx_end, seq_end;
     RXTID_STATS *stats;
 
     A_ASSERT(p_aggr);
@@ -359,8 +359,8 @@ static void
 aggr_slice_amsdu(AGGR_INFO *p_aggr, RXTID *rxtid, void **osbuf)
 {
     void *new_buf;
-    A_UINT16 frame_8023_len, payload_8023_len, mac_hdr_len, amsdu_len;
-    A_UINT8 *framep;
+    u16 frame_8023_len, payload_8023_len, mac_hdr_len, amsdu_len;
+    u8 *framep;
 
     /* Frame format at this point:
      *  [DIX hdr | 802.3 | 802.3 | ... | 802.3]
@@ -399,7 +399,7 @@ aggr_slice_amsdu(AGGR_INFO *p_aggr, RXTID *rxtid, void **osbuf)
 
         A_MEMCPY(A_NETBUF_DATA(new_buf), framep, frame_8023_len);
         A_NETBUF_PUT(new_buf, frame_8023_len);
-        if (wmi_dot3_2_dix(new_buf) != A_OK) {
+        if (wmi_dot3_2_dix(new_buf) != 0) {
             A_PRINTF("dot3_2_dix err..\n");
             A_NETBUF_FREE(new_buf);
             break;
@@ -426,13 +426,13 @@ aggr_slice_amsdu(AGGR_INFO *p_aggr, RXTID *rxtid, void **osbuf)
 }
 
 void
-aggr_process_recv_frm(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_BOOL is_amsdu, void **osbuf)
+aggr_process_recv_frm(void *cntxt, u8 tid, u16 seq_no, bool is_amsdu, void **osbuf)
 {
     AGGR_INFO *p_aggr = (AGGR_INFO *)cntxt;
     RXTID *rxtid;
     RXTID_STATS *stats;
-    A_UINT16 idx, st, cur, end;
-    A_UINT16 *log_idx;
+    u16 idx, st, cur, end;
+    u16 *log_idx;
     OSBUF_HOLD_Q *node;
     PACKET_LOG *log;
 
@@ -472,7 +472,7 @@ aggr_process_recv_frm(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_BOOL is_amsdu
          * be assumed that the window has moved for some valid reason.
          * Therefore, we dequeue all frames and start fresh.
          */
-        A_UINT16 extended_end;
+        u16 extended_end;
 
         extended_end = (end + rxtid->hold_q_sz-1) & IEEE80211_MAX_SEQ_NO;
 
@@ -536,17 +536,17 @@ aggr_process_recv_frm(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_BOOL is_amsdu
     aggr_deque_frms(p_aggr, tid, 0, CONTIGUOUS_SEQNO);
 
     if(p_aggr->timerScheduled) {
-        rxtid->progress = TRUE;
+        rxtid->progress = true;
     }else{
         for(idx=0 ; idx<rxtid->hold_q_sz ; idx++) {
             if(rxtid->hold_q[idx].osbuf) {
                 /* there is a frame in the queue and no timer so
                  * start a timer to ensure that the frame doesn't remain
                  * stuck forever. */
-                p_aggr->timerScheduled = TRUE;
+                p_aggr->timerScheduled = true;
                 A_TIMEOUT_MS(&p_aggr->timer, AGGR_RX_TIMEOUT, 0);
-                rxtid->progress = FALSE;
-                rxtid->timerMon = TRUE;
+                rxtid->progress = false;
+                rxtid->timerMon = true;
                 break;
             }
         }
@@ -561,7 +561,7 @@ aggr_process_recv_frm(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_BOOL is_amsdu
 void
 aggr_reset_state(void *cntxt)
 {
-    A_UINT8 tid;
+    u8 tid;
     AGGR_INFO *p_aggr = (AGGR_INFO *)cntxt;
 
     A_ASSERT(p_aggr);
@@ -575,7 +575,7 @@ aggr_reset_state(void *cntxt)
 static void
 aggr_timeout(A_ATH_TIMER arg)
 {
-    A_UINT8 i,j;
+    u8 i,j;
     AGGR_INFO *p_aggr = (AGGR_INFO *)arg;
     RXTID   *rxtid;
     RXTID_STATS *stats;
@@ -588,9 +588,9 @@ aggr_timeout(A_ATH_TIMER arg)
         rxtid = AGGR_GET_RXTID(p_aggr, i);
         stats = AGGR_GET_RXTID_STATS(p_aggr, i);
 
-        if(rxtid->aggr == FALSE ||
-           rxtid->timerMon == FALSE ||
-           rxtid->progress == TRUE) {
+        if(rxtid->aggr == false ||
+           rxtid->timerMon == false ||
+           rxtid->progress == true) {
             continue;
         }
         // dequeue all frames in for this tid
@@ -599,25 +599,25 @@ aggr_timeout(A_ATH_TIMER arg)
         aggr_deque_frms(p_aggr, i, 0, ALL_SEQNO);
     }
 
-    p_aggr->timerScheduled = FALSE;
+    p_aggr->timerScheduled = false;
     // determine whether a new timer should be started.
     for(i = 0; i < NUM_OF_TIDS; i++) {
         rxtid = AGGR_GET_RXTID(p_aggr, i);
 
-        if(rxtid->aggr == TRUE && rxtid->hold_q) {
+        if(rxtid->aggr == true && rxtid->hold_q) {
             for(j = 0 ; j < rxtid->hold_q_sz ; j++)
             {
                 if(rxtid->hold_q[j].osbuf)
                 {
-                    p_aggr->timerScheduled = TRUE;
-                    rxtid->timerMon = TRUE;
-                    rxtid->progress = FALSE;
+                    p_aggr->timerScheduled = true;
+                    rxtid->timerMon = true;
+                    rxtid->progress = false;
                     break;
                 }
             }
 
             if(j >= rxtid->hold_q_sz) {
-                rxtid->timerMon = FALSE;
+                rxtid->timerMon = false;
             }
         }
     }
@@ -645,7 +645,7 @@ aggr_dump_stats(void *cntxt, PACKET_LOG **log_buf)
     AGGR_INFO *p_aggr = (AGGR_INFO *)cntxt;
     RXTID   *rxtid;
     RXTID_STATS *stats;
-    A_UINT8 i;
+    u8 i;
 
     *log_buf = &p_aggr->pkt_log;
     A_PRINTF("\n\n================================================\n");

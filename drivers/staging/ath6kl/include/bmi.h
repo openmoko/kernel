@@ -43,90 +43,90 @@ BMIInit(void);
 void
 BMICleanup(void);
 
-A_STATUS
+int
 BMIDone(HIF_DEVICE *device);
 
-A_STATUS
+int
 BMIGetTargetInfo(HIF_DEVICE *device, struct bmi_target_info *targ_info);
 
-A_STATUS
+int
 BMIReadMemory(HIF_DEVICE *device,
-              A_UINT32 address,
+              u32 address,
               A_UCHAR *buffer,
-              A_UINT32 length);
+              u32 length);
 
-A_STATUS
+int
 BMIWriteMemory(HIF_DEVICE *device,
-               A_UINT32 address,
+               u32 address,
                A_UCHAR *buffer,
-               A_UINT32 length);
+               u32 length);
 
-A_STATUS
+int
 BMIExecute(HIF_DEVICE *device,
-           A_UINT32 address,
-           A_UINT32 *param);
+           u32 address,
+           u32 *param);
 
-A_STATUS
+int
 BMISetAppStart(HIF_DEVICE *device,
-               A_UINT32 address);
+               u32 address);
 
-A_STATUS
+int
 BMIReadSOCRegister(HIF_DEVICE *device,
-                   A_UINT32 address,
-                   A_UINT32 *param);
+                   u32 address,
+                   u32 *param);
 
-A_STATUS
+int
 BMIWriteSOCRegister(HIF_DEVICE *device,
-                    A_UINT32 address,
-                    A_UINT32 param);
+                    u32 address,
+                    u32 param);
 
-A_STATUS
+int
 BMIrompatchInstall(HIF_DEVICE *device,
-                   A_UINT32 ROM_addr,
-                   A_UINT32 RAM_addr,
-                   A_UINT32 nbytes,
-                   A_UINT32 do_activate,
-                   A_UINT32 *patch_id);
+                   u32 ROM_addr,
+                   u32 RAM_addr,
+                   u32 nbytes,
+                   u32 do_activate,
+                   u32 *patch_id);
 
-A_STATUS
+int
 BMIrompatchUninstall(HIF_DEVICE *device,
-                     A_UINT32 rompatch_id);
+                     u32 rompatch_id);
 
-A_STATUS
+int
 BMIrompatchActivate(HIF_DEVICE *device,
-                    A_UINT32 rompatch_count,
-                    A_UINT32 *rompatch_list);
+                    u32 rompatch_count,
+                    u32 *rompatch_list);
 
-A_STATUS
+int
 BMIrompatchDeactivate(HIF_DEVICE *device,
-                      A_UINT32 rompatch_count,
-                      A_UINT32 *rompatch_list);
+                      u32 rompatch_count,
+                      u32 *rompatch_list);
 
-A_STATUS
+int
 BMILZStreamStart(HIF_DEVICE *device,
-                 A_UINT32 address);
+                 u32 address);
 
-A_STATUS
+int
 BMILZData(HIF_DEVICE *device,
           A_UCHAR *buffer,
-          A_UINT32 length);
+          u32 length);
 
-A_STATUS
+int
 BMIFastDownload(HIF_DEVICE *device,
-                A_UINT32 address,
+                u32 address,
                 A_UCHAR *buffer,
-                A_UINT32 length);
+                u32 length);
 
-A_STATUS
+int
 BMIRawWrite(HIF_DEVICE *device,
             A_UCHAR *buffer,
-            A_UINT32 length);
+            u32 length);
 
-A_STATUS
+int
 BMIRawRead(HIF_DEVICE *device, 
            A_UCHAR *buffer, 
-           A_UINT32 length, 
-           A_BOOL want_timeout);
+           u32 length,
+           bool want_timeout);
 
 #ifdef __cplusplus
 }

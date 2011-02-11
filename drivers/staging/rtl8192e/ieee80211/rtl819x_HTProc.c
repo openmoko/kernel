@@ -29,18 +29,18 @@ u16 MCS_DATA_RATE[2][2][77] =
 			660, 450, 540, 630, 540, 630, 720, 810, 720, 810, 900, 900, 990}	}	// Short GI, 40MHz
 	};
 
-static u8 UNKNOWN_BORADCOM[3] = {0x00, 0x14, 0xbf};
-static u8 LINKSYSWRT330_LINKSYSWRT300_BROADCOM[3] = {0x00, 0x1a, 0x70};
-static u8 LINKSYSWRT350_LINKSYSWRT150_BROADCOM[3] = {0x00, 0x1d, 0x7e};
+static const u8 UNKNOWN_BORADCOM[3] = {0x00, 0x14, 0xbf};
+static const u8 LINKSYSWRT330_LINKSYSWRT300_BROADCOM[3] = {0x00, 0x1a, 0x70};
+static const u8 LINKSYSWRT350_LINKSYSWRT150_BROADCOM[3] = {0x00, 0x1d, 0x7e};
 //static u8 NETGEAR834Bv2_BROADCOM[3] = {0x00, 0x1b, 0x2f};
-static u8 BELKINF5D8233V1_RALINK[3] = {0x00, 0x17, 0x3f};	//cosa 03202008
-static u8 BELKINF5D82334V3_RALINK[3] = {0x00, 0x1c, 0xdf};
-static u8 PCI_RALINK[3] = {0x00, 0x90, 0xcc};
-static u8 EDIMAX_RALINK[3] = {0x00, 0x0e, 0x2e};
-static u8 AIRLINK_RALINK[3] = {0x00, 0x18, 0x02};
-static u8 DLINK_ATHEROS[3] = {0x00, 0x1c, 0xf0};
-static u8 CISCO_BROADCOM[3] = {0x00, 0x17, 0x94};
-static u8 LINKSYS_MARVELL_4400N[3] = {0x00, 0x14, 0xa4};
+static const u8 BELKINF5D8233V1_RALINK[3] = {0x00, 0x17, 0x3f};
+static const u8 BELKINF5D82334V3_RALINK[3] = {0x00, 0x1c, 0xdf};
+static const u8 PCI_RALINK[3] = {0x00, 0x90, 0xcc};
+static const u8 EDIMAX_RALINK[3] = {0x00, 0x0e, 0x2e};
+static const u8 AIRLINK_RALINK[3] = {0x00, 0x18, 0x02};
+static const u8 DLINK_ATHEROS[3] = {0x00, 0x1c, 0xf0};
+static const u8 CISCO_BROADCOM[3] = {0x00, 0x17, 0x94};
+static const u8 LINKSYS_MARVELL_4400N[3] = {0x00, 0x14, 0xa4};
 
 // 2008/04/01 MH For Cisco G mode RX TP We need to change FW duration. Should we put the
 // code in other place??
@@ -55,10 +55,7 @@ static u8 LINKSYS_MARVELL_4400N[3] = {0x00, 0x14, 0xa4};
 void HTUpdateDefaultSetting(struct ieee80211_device* ieee)
 {
 	PRT_HIGH_THROUGHPUT	pHTInfo = ieee->pHTInfo;
-	//const typeof( ((struct ieee80211_device *)0)->pHTInfo ) *__mptr = &pHTInfo;
 
-	//printk("pHTinfo:%p, &pHTinfo:%p, mptr:%p,  offsetof:%x\n", pHTInfo, &pHTInfo, __mptr, offsetof(struct ieee80211_device, pHTInfo));
-	//printk("===>ieee:%p,\n", ieee);
 	// ShortGI support
 	pHTInfo->bRegShortGI20MHz= 1;
 	pHTInfo->bRegShortGI40MHz= 1;
@@ -148,8 +145,6 @@ void HTDebugHTCapability(u8* CapIE, u8* TitleString )
 	IEEE80211_DEBUG(IEEE80211_DL_HT,  "\tMPDU Density = %d\n", pCapELE->MPDUDensity);
 	IEEE80211_DEBUG(IEEE80211_DL_HT,  "\tMCS Rate Set = [%x][%x][%x][%x][%x]\n", pCapELE->MCS[0],\
 				pCapELE->MCS[1], pCapELE->MCS[2], pCapELE->MCS[3], pCapELE->MCS[4]);
-	return;
-
 }
 /********************************************************************************************************************
  *function:  This function print out each field on HT Information IE mainly from (Beacon/ProbeRsp)
@@ -214,7 +209,6 @@ void HTDebugHTInfo(u8*	InfoIE, u8* TitleString)
 
 	IEEE80211_DEBUG(IEEE80211_DL_HT, "\tBasic MCS Rate Set = [%x][%x][%x][%x][%x]\n", pHTInfoEle->BasicMSC[0],\
 				pHTInfoEle->BasicMSC[1], pHTInfoEle->BasicMSC[2], pHTInfoEle->BasicMSC[3], pHTInfoEle->BasicMSC[4]);
-	return;
 }
 
 /*
@@ -732,15 +726,6 @@ void HTConstructCapabilityElement(struct ieee80211_device* ieee, u8* posHTCap, u
 		*len = 30 + 2;
 	else
 		*len = 26 + 2;
-
-
-
-//	IEEE80211_DEBUG_DATA(IEEE80211_DL_DATA | IEEE80211_DL_HT, posHTCap, *len -2);
-
-	//Print each field in detail. Driver should not print out this message by default
-//	HTDebugHTCapability(posHTCap, (u8*)"HTConstructCapability()");
-	return;
-
 }
 /********************************************************************************************************************
  *function:  Construct  Information Element in Beacon... if HTEnable is turned on
@@ -792,9 +777,6 @@ void HTConstructInfoElement(struct ieee80211_device* ieee, u8* posHTInfo, u8* le
 		//STA should not generate High Throughput Information Element
 		*len = 0;
 	}
-	//IEEE80211_DEBUG_DATA(IEEE80211_DL_DATA | IEEE80211_DL_HT, posHTInfo, *len - 2);
-	//HTDebugHTInfo(posHTInfo, "HTConstructInforElement");
-	return;
 }
 
 /*
@@ -1651,7 +1633,6 @@ void HTUseDefaultSetting(struct ieee80211_device* ieee)
 	{
 		pHTInfo->bCurrentHTSupport = false;
 	}
-	return;
 }
 /********************************************************************************************************************
  *function:  check whether HT control field exists

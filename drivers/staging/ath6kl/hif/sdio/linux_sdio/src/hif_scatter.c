@@ -79,17 +79,17 @@ static HIF_SCATTER_REQ *AllocScatterReq(HIF_DEVICE *device)
 }
 
     /* called by async task to perform the operation synchronously using direct MMC APIs  */
-A_STATUS DoHifReadWriteScatter(HIF_DEVICE *device, BUS_REQUEST *busrequest)
+int DoHifReadWriteScatter(HIF_DEVICE *device, BUS_REQUEST *busrequest)
 {
     int                     i;
-    A_UINT8                 rw;
-    A_UINT8                 opcode;
+    u8 rw;
+    u8 opcode;
     struct mmc_request      mmcreq;
     struct mmc_command      cmd;
     struct mmc_data         data;
     HIF_SCATTER_REQ_PRIV   *pReqPriv;   
     HIF_SCATTER_REQ        *pReq;       
-    A_STATUS                status = A_OK;
+    int                status = 0;
     struct                  scatterlist *pSg;
     
     pReqPriv = busrequest->pScatterReq;
@@ -176,7 +176,7 @@ A_STATUS DoHifReadWriteScatter(HIF_DEVICE *device, BUS_REQUEST *busrequest)
         AR_DEBUG_PRINTF(ATH_DEBUG_ERROR, ("HIF-SCATTER: data error: %d \n",data.error));   
     }
 
-    if (A_FAILED(status)) {
+    if (status) {
         AR_DEBUG_PRINTF(ATH_DEBUG_ERROR, ("HIF-SCATTER: FAILED!!! (%s) Address: 0x%X, Block mode (BlockLen: %d, BlockCount: %d)\n",
               (pReq->Request & HIF_WRITE) ? "WRITE":"READ",pReq->Address, data.blksz, data.blocks));        
     }
@@ -199,10 +199,10 @@ A_STATUS DoHifReadWriteScatter(HIF_DEVICE *device, BUS_REQUEST *busrequest)
 }
 
     /* callback to issue a read-write scatter request */
-static A_STATUS HifReadWriteScatter(HIF_DEVICE *device, HIF_SCATTER_REQ *pReq)
+static int HifReadWriteScatter(HIF_DEVICE *device, HIF_SCATTER_REQ *pReq)
 {
-    A_STATUS             status = A_EINVAL;
-    A_UINT32             request = pReq->Request;
+    int             status = A_EINVAL;
+    u32 request = pReq->Request;
     HIF_SCATTER_REQ_PRIV *pReqPriv = (HIF_SCATTER_REQ_PRIV *)pReq->HIFPrivate[0];
     
     do {
@@ -237,7 +237,7 @@ static A_STATUS HifReadWriteScatter(HIF_DEVICE *device, HIF_SCATTER_REQ *pReq)
         }
         
         if (pReq->TotalLength == 0) {
-            A_ASSERT(FALSE);
+            A_ASSERT(false);
             break;    
         }
         
@@ -260,24 +260,24 @@ static A_STATUS HifReadWriteScatter(HIF_DEVICE *device, HIF_SCATTER_REQ *pReq)
             AR_DEBUG_PRINTF(ATH_DEBUG_SCATTER, ("HIF-SCATTER: queued async req: 0x%lX\n", (unsigned long)pReqPriv->busrequest));
                 /* wake thread, it will process and then take care of the async callback */
             up(&device->sem_async);
-            status = A_OK;
+            status = 0;
         }           
        
-    } while (FALSE);
+    } while (false);
 
-    if (A_FAILED(status) && (request & HIF_ASYNCHRONOUS)) {
+    if (status && (request & HIF_ASYNCHRONOUS)) {
         pReq->CompletionStatus = status;
         pReq->CompletionRoutine(pReq);
-        status = A_OK;
+        status = 0;
     }
         
     return status;  
 }
 
     /* setup of HIF scatter resources */
-A_STATUS SetupHIFScatterSupport(HIF_DEVICE *device, HIF_DEVICE_SCATTER_SUPPORT_INFO *pInfo)
+int SetupHIFScatterSupport(HIF_DEVICE *device, HIF_DEVICE_SCATTER_SUPPORT_INFO *pInfo)
 {
-    A_STATUS              status = A_ERROR;   
+    int              status = A_ERROR;
     int                   i;
     HIF_SCATTER_REQ_PRIV *pReqPriv;
     BUS_REQUEST          *busrequest;
@@ -344,11 +344,11 @@ A_STATUS SetupHIFScatterSupport(HIF_DEVICE *device, HIF_DEVICE_SCATTER_SUPPORT_I
         pInfo->MaxScatterEntries = MAX_SCATTER_ENTRIES_PER_REQ;
         pInfo->MaxTransferSizePerScatterReq = MAX_SCATTER_REQ_TRANSFER_SIZE;
      
-        status = A_OK;
+        status = 0;
         
-    } while (FALSE);
+    } while (false);
     
-    if (A_FAILED(status)) {
+    if (status) {
         CleanupHIFScatterResources(device);   
     }
     

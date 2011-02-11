@@ -65,45 +65,26 @@ static u8 tempbuffer[1600];
 // Notes:
 //
 //---------------------------------------------------------------------------
-static int ft1000_control(struct ft1000_device *ft1000dev,unsigned int pipe,
-                          u8 request,
-                          u8 requesttype,
-                          u16 value,
-                          u16 index,
-                          void *data,
-                          u16 size,
-                          int timeout)
+static int ft1000_control(struct ft1000_device *ft1000dev, unsigned int pipe,
+			  u8 request, u8 requesttype, u16 value, u16 index,
+			  void *data, u16 size, int timeout)
 {
 	u16 ret;
 
-    if (ft1000dev == NULL )
-    {
-        DEBUG("NULL ft1000dev, failure\n");
-	return -ENODEV;
-    }
-    else if ( ft1000dev->dev == NULL )
-    {
-        DEBUG("NULL ft1000dev->dev, failure\n");
-	return -ENODEV;
-    }
+	if ((ft1000dev == NULL) || (ft1000dev->dev == NULL)) {
+		DEBUG("ft1000dev or ft1000dev->dev == NULL, failure\n");
+		return -ENODEV;
+	}
 
-    ret = usb_control_msg(ft1000dev->dev,
-                          pipe,
-                          request,
-                          requesttype,
-                          value,
-                          index,
-                          data,
-                          size,
-                          LARGE_TIMEOUT);
+	ret = usb_control_msg(ft1000dev->dev, pipe, request, requesttype,
+			      value, index, data, size, LARGE_TIMEOUT);
 
 	if (ret > 0)
 		ret = 0;
 
-    return ret;
-
-
+	return ret;
 }
+
 //---------------------------------------------------------------------------
 // Function:    ft1000_read_register
 //
@@ -120,28 +101,22 @@ static int ft1000_control(struct ft1000_device *ft1000dev,unsigned int pipe,
 //
 //---------------------------------------------------------------------------
 
-u16 ft1000_read_register(struct ft1000_device *ft1000dev, u16* Data, u16 nRegIndx)
+int ft1000_read_register(struct ft1000_device *ft1000dev, u16* Data,
+			 u16 nRegIndx)
 {
-    u16 ret = STATUS_SUCCESS;
+	int ret = STATUS_SUCCESS;
 
-    //DEBUG("ft1000_read_register: reg index is %d\n", nRegIndx);
-    //DEBUG("ft1000_read_register: spin_lock locked\n");
-    ret = ft1000_control(ft1000dev,
-                         usb_rcvctrlpipe(ft1000dev->dev,0),
-                         HARLEY_READ_REGISTER,   //request --READ_REGISTER
-                         HARLEY_READ_OPERATION,  //requestType
-                         0,                      //value
-                         nRegIndx,               //index
-                         Data,                   //data
-                         2,                      //data size
-                         LARGE_TIMEOUT );        //timeout
+	ret = ft1000_control(ft1000dev,
+			     usb_rcvctrlpipe(ft1000dev->dev, 0),
+			     HARLEY_READ_REGISTER,
+			     HARLEY_READ_OPERATION,
+			     0,
+			     nRegIndx,
+			     Data,
+			     2,
+			     LARGE_TIMEOUT);
 
-   //DEBUG("ft1000_read_register: ret is  %d \n", ret);
-
-   //DEBUG("ft1000_read_register: data is  %x \n", *Data);
-
-   return ret;
-
+	return ret;
 }
 
 //---------------------------------------------------------------------------
@@ -159,23 +134,22 @@ u16 ft1000_read_register(struct ft1000_device *ft1000dev, u16* Data, u16 nRegInd
 // Notes:
 //
 //---------------------------------------------------------------------------
-u16 ft1000_write_register(struct ft1000_device *ft1000dev, u16 value, u16 nRegIndx)
+int ft1000_write_register(struct ft1000_device *ft1000dev, u16 value,
+			  u16 nRegIndx)
 {
-     u16 ret = STATUS_SUCCESS;
+	int ret = STATUS_SUCCESS;
 
-     //DEBUG("ft1000_write_register: value is: %d, reg index is: %d\n", value, nRegIndx);
+	ret = ft1000_control(ft1000dev,
+			     usb_sndctrlpipe(ft1000dev->dev, 0),
+			     HARLEY_WRITE_REGISTER,
+			     HARLEY_WRITE_OPERATION,
+			     value,
+			     nRegIndx,
+			     NULL,
+			     0,
+			     LARGE_TIMEOUT);
 
-     ret = ft1000_control(ft1000dev,
-                           usb_sndctrlpipe(ft1000dev->dev, 0),
-                           HARLEY_WRITE_REGISTER,       //request -- WRITE_REGISTER
-                           HARLEY_WRITE_OPERATION,      //requestType
-                           value,
-                           nRegIndx,
-                           NULL,
-                           0,
-                           LARGE_TIMEOUT );
-
-    return ret;
+	return ret;
 }
 
 //---------------------------------------------------------------------------
@@ -195,27 +169,22 @@ u16 ft1000_write_register(struct ft1000_device *ft1000dev, u16 value, u16 nRegIn
 //
 //---------------------------------------------------------------------------
 
-u16 ft1000_read_dpram32(struct ft1000_device *ft1000dev, u16 indx, u8 *buffer, u16 cnt)
+int ft1000_read_dpram32(struct ft1000_device *ft1000dev, u16 indx, u8 *buffer,
+			u16 cnt)
 {
-    u16 ret = STATUS_SUCCESS;
+	int ret = STATUS_SUCCESS;
 
-    //DEBUG("ft1000_read_dpram32: indx: %d  cnt: %d\n", indx, cnt);
-    ret =ft1000_control(ft1000dev,
-                         usb_rcvctrlpipe(ft1000dev->dev,0),
-                         HARLEY_READ_DPRAM_32,                //request --READ_DPRAM_32
-                         HARLEY_READ_OPERATION,               //requestType
-                         0,                                   //value
-                         indx,                                //index
-                         buffer,                              //data
-                         cnt,                                 //data size
-                         LARGE_TIMEOUT );                     //timeout
+	ret = ft1000_control(ft1000dev,
+			     usb_rcvctrlpipe(ft1000dev->dev, 0),
+			     HARLEY_READ_DPRAM_32,
+			     HARLEY_READ_OPERATION,
+			     0,
+			     indx,
+			     buffer,
+			     cnt,
+			     LARGE_TIMEOUT);
 
-   //DEBUG("ft1000_read_dpram32: ret is  %d \n", ret);
-
-   //DEBUG("ft1000_read_dpram32: ret=%d \n", ret);
-
-   return ret;
-
+	return ret;
 }
 
 //---------------------------------------------------------------------------
@@ -234,25 +203,25 @@ u16 ft1000_read_dpram32(struct ft1000_device *ft1000dev, u16 indx, u8 *buffer, u
 // Notes:
 //
 //---------------------------------------------------------------------------
-u16 ft1000_write_dpram32(struct ft1000_device *ft1000dev, u16 indx, u8 *buffer, u16 cnt)
+int ft1000_write_dpram32(struct ft1000_device *ft1000dev, u16 indx, u8 *buffer,
+			 u16 cnt)
 {
-     u16 ret = STATUS_SUCCESS;
+	int ret = STATUS_SUCCESS;
 
-     //DEBUG("ft1000_write_dpram32: indx: %d   buffer: %x cnt: %d\n", indx, buffer, cnt);
-     if ( cnt % 4)
-         cnt += cnt - (cnt % 4);
+	if (cnt % 4)
+		cnt += cnt - (cnt % 4);
 
-     ret = ft1000_control(ft1000dev,
-                           usb_sndctrlpipe(ft1000dev->dev, 0),
-                           HARLEY_WRITE_DPRAM_32,              //request -- WRITE_DPRAM_32
-                           HARLEY_WRITE_OPERATION,             //requestType
-                           0,                                  //value
-                           indx,                               //index
-                           buffer,                             //buffer
-                           cnt,                                //buffer size
-                           LARGE_TIMEOUT );
+	ret = ft1000_control(ft1000dev,
+			     usb_sndctrlpipe(ft1000dev->dev, 0),
+			     HARLEY_WRITE_DPRAM_32,
+			     HARLEY_WRITE_OPERATION,
+			     0,
+			     indx,
+			     buffer,
+			     cnt,
+			     LARGE_TIMEOUT);
 
-    return ret;
+	return ret;
 }
 
 //---------------------------------------------------------------------------
@@ -271,36 +240,28 @@ u16 ft1000_write_dpram32(struct ft1000_device *ft1000dev, u16 indx, u8 *buffer, 
 // Notes:
 //
 //---------------------------------------------------------------------------
-u16 ft1000_read_dpram16(struct ft1000_device *ft1000dev, u16 indx, u8 *buffer, u8 highlow)
+int ft1000_read_dpram16(struct ft1000_device *ft1000dev, u16 indx, u8 *buffer,
+			u8 highlow)
 {
-    u16 ret = STATUS_SUCCESS;
+	int ret = STATUS_SUCCESS;
+	u8 request;
 
-    //DEBUG("ft1000_read_dpram16: indx: %d  hightlow: %d\n", indx, highlow);
+	if (highlow == 0)
+		request = HARLEY_READ_DPRAM_LOW;
+	else
+		request = HARLEY_READ_DPRAM_HIGH;
 
-    u8 request;
+	ret = ft1000_control(ft1000dev,
+			     usb_rcvctrlpipe(ft1000dev->dev, 0),
+			     request,
+			     HARLEY_READ_OPERATION,
+			     0,
+			     indx,
+			     buffer,
+			     2,
+			     LARGE_TIMEOUT);
 
-    if (highlow == 0 )
-        request = HARLEY_READ_DPRAM_LOW;
-    else
-        request = HARLEY_READ_DPRAM_HIGH;
-
-    ret = ft1000_control(ft1000dev,
-                         usb_rcvctrlpipe(ft1000dev->dev,0),
-                         request,                     //request --READ_DPRAM_H/L
-                         HARLEY_READ_OPERATION,       //requestType
-                         0,                           //value
-                         indx,                        //index
-                         buffer,                      //data
-                         2,                           //data size
-                         LARGE_TIMEOUT );             //timeout
-
-   //DEBUG("ft1000_read_dpram16: ret is  %d \n", ret);
-
-
-   //DEBUG("ft1000_read_dpram16: data is  %x \n", *buffer);
-
-   return ret;
-
+	return ret;
 }
 
 //---------------------------------------------------------------------------
@@ -319,33 +280,27 @@ u16 ft1000_read_dpram16(struct ft1000_device *ft1000dev, u16 indx, u8 *buffer, u
 // Notes:
 //
 //---------------------------------------------------------------------------
-u16 ft1000_write_dpram16(struct ft1000_device *ft1000dev, u16 indx, u16 value, u8 highlow)
+int ft1000_write_dpram16(struct ft1000_device *ft1000dev, u16 indx, u16 value, u8 highlow)
 {
-     u16 ret = STATUS_SUCCESS;
+	int ret = STATUS_SUCCESS;
+	u8 request;
 
+	if (highlow == 0)
+		request = HARLEY_WRITE_DPRAM_LOW;
+	else
+		request = HARLEY_WRITE_DPRAM_HIGH;
 
+	ret = ft1000_control(ft1000dev,
+			     usb_sndctrlpipe(ft1000dev->dev, 0),
+			     request,
+			     HARLEY_WRITE_OPERATION,
+			     value,
+			     indx,
+			     NULL,
+			     0,
+			     LARGE_TIMEOUT);
 
-     //DEBUG("ft1000_write_dpram16: indx: %d  value: %d  highlow: %d\n", indx, value, highlow);
-
-     u8 request;
-
-
-     if ( highlow == 0 )
-         request = HARLEY_WRITE_DPRAM_LOW;
-     else
-         request = HARLEY_WRITE_DPRAM_HIGH;
-
-     ret = ft1000_control(ft1000dev,
-                           usb_sndctrlpipe(ft1000dev->dev, 0),
-                           request,                             //request -- WRITE_DPRAM_H/L
-                           HARLEY_WRITE_OPERATION,              //requestType
-                           value,                                   //value
-                           indx,                                //index
-                           NULL,                               //buffer
-                           0,                                   //buffer size
-                           LARGE_TIMEOUT );
-
-    return ret;
+	return ret;
 }
 
 //---------------------------------------------------------------------------
@@ -364,36 +319,31 @@ u16 ft1000_write_dpram16(struct ft1000_device *ft1000dev, u16 indx, u16 value, u
 // Notes:
 //
 //---------------------------------------------------------------------------
-u16 fix_ft1000_read_dpram32(struct ft1000_device *ft1000dev, u16 indx, u8 *buffer)
+int fix_ft1000_read_dpram32(struct ft1000_device *ft1000dev, u16 indx,
+			    u8 *buffer)
 {
-    u8 buf[16];
-    u16 pos;
-    u16 ret = STATUS_SUCCESS;
+	u8 buf[16];
+	u16 pos;
+	int ret = STATUS_SUCCESS;
 
-    //DEBUG("fix_ft1000_read_dpram32: indx: %d  \n", indx);
-    pos = (indx / 4)*4;
-    ret = ft1000_read_dpram32(ft1000dev, pos, buf, 16);
-    if (ret == STATUS_SUCCESS)
-    {
-        pos = (indx % 4)*4;
-        *buffer++ = buf[pos++];
-        *buffer++ = buf[pos++];
-        *buffer++ = buf[pos++];
-        *buffer++ = buf[pos++];
-    }
-    else
-    {
-        DEBUG("fix_ft1000_read_dpram32: DPRAM32 Read failed\n");
-        *buffer++ = 0;
-        *buffer++ = 0;
-        *buffer++ = 0;
-        *buffer++ = 0;
+	pos = (indx / 4) * 4;
+	ret = ft1000_read_dpram32(ft1000dev, pos, buf, 16);
 
-    }
+	if (ret == STATUS_SUCCESS) {
+		pos = (indx % 4) * 4;
+		*buffer++ = buf[pos++];
+		*buffer++ = buf[pos++];
+		*buffer++ = buf[pos++];
+		*buffer++ = buf[pos++];
+	} else {
+		DEBUG("fix_ft1000_read_dpram32: DPRAM32 Read failed\n");
+		*buffer++ = 0;
+		*buffer++ = 0;
+		*buffer++ = 0;
+		*buffer++ = 0;
+	}
 
-   //DEBUG("fix_ft1000_read_dpram32: data is  %x \n", *buffer);
-   return ret;
-
+	return ret;
 }
 
 
@@ -413,70 +363,60 @@ u16 fix_ft1000_read_dpram32(struct ft1000_device *ft1000dev, u16 indx, u8 *buffe
 // Notes:
 //
 //---------------------------------------------------------------------------
-u16 fix_ft1000_write_dpram32(struct ft1000_device *ft1000dev, u16 indx, u8 *buffer)
+int fix_ft1000_write_dpram32(struct ft1000_device *ft1000dev, u16 indx, u8 *buffer)
 {
-    u16 pos1;
-    u16 pos2;
-    u16 i;
-    u8 buf[32];
-    u8 resultbuffer[32];
-    u8 *pdata;
-    u16 ret  = STATUS_SUCCESS;
+	u16 pos1;
+	u16 pos2;
+	u16 i;
+	u8 buf[32];
+	u8 resultbuffer[32];
+	u8 *pdata;
+	int ret  = STATUS_SUCCESS;
 
-    //DEBUG("fix_ft1000_write_dpram32: Entered:\n");
+	pos1 = (indx / 4) * 4;
+	pdata = buffer;
+	ret = ft1000_read_dpram32(ft1000dev, pos1, buf, 16);
 
-    pos1 = (indx / 4)*4;
-    pdata = buffer;
-    ret = ft1000_read_dpram32(ft1000dev, pos1, buf, 16);
-    if (ret == STATUS_SUCCESS)
-    {
-        pos2 = (indx % 4)*4;
-        buf[pos2++] = *buffer++;
-        buf[pos2++] = *buffer++;
-        buf[pos2++] = *buffer++;
-        buf[pos2++] = *buffer++;
-        ret = ft1000_write_dpram32(ft1000dev, pos1, buf, 16);
-    }
-    else
-    {
-        DEBUG("fix_ft1000_write_dpram32: DPRAM32 Read failed\n");
+	if (ret == STATUS_SUCCESS) {
+		pos2 = (indx % 4)*4;
+		buf[pos2++] = *buffer++;
+		buf[pos2++] = *buffer++;
+		buf[pos2++] = *buffer++;
+		buf[pos2++] = *buffer++;
+		ret = ft1000_write_dpram32(ft1000dev, pos1, buf, 16);
+	} else {
+		DEBUG("fix_ft1000_write_dpram32: DPRAM32 Read failed\n");
+		return ret;
+	}
 
-        return ret;
-    }
+	ret = ft1000_read_dpram32(ft1000dev, pos1, (u8 *)&resultbuffer[0], 16);
 
-    ret = ft1000_read_dpram32(ft1000dev, pos1, (u8 *)&resultbuffer[0], 16);
-    if (ret == STATUS_SUCCESS)
-    {
-        buffer = pdata;
-        for (i=0; i<16; i++)
-        {
-            if (buf[i] != resultbuffer[i]){
+	if (ret == STATUS_SUCCESS) {
+		buffer = pdata;
+		for (i = 0; i < 16; i++) {
+			if (buf[i] != resultbuffer[i])
+				ret = STATUS_FAILURE;
+		}
+	}
 
-                ret = STATUS_FAILURE;
-            }
-        }
-    }
+	if (ret == STATUS_FAILURE) {
+		ret = ft1000_write_dpram32(ft1000dev, pos1,
+					   (u8 *)&tempbuffer[0], 16);
+		ret = ft1000_read_dpram32(ft1000dev, pos1,
+					  (u8 *)&resultbuffer[0], 16);
+		if (ret == STATUS_SUCCESS) {
+			buffer = pdata;
+			for (i = 0; i < 16; i++) {
+				if (tempbuffer[i] != resultbuffer[i]) {
+					ret = STATUS_FAILURE;
+					DEBUG("%s Failed to write\n",
+					      __func__);
+				}
+			}
+		}
+	}
 
-    if (ret == STATUS_FAILURE)
-    {
-        ret = ft1000_write_dpram32(ft1000dev, pos1, (u8 *)&tempbuffer[0], 16);
-        ret = ft1000_read_dpram32(ft1000dev, pos1, (u8 *)&resultbuffer[0], 16);
-        if (ret == STATUS_SUCCESS)
-        {
-            buffer = pdata;
-            for (i=0; i<16; i++)
-            {
-                if (tempbuffer[i] != resultbuffer[i])
-                {
-                    ret = STATUS_FAILURE;
-                    DEBUG("fix_ft1000_write_dpram32 Failed to write\n");
-                }
-            }
-         }
-    }
-
-    return ret;
-
+	return ret;
 }
 
 
@@ -490,33 +430,40 @@ u16 fix_ft1000_write_dpram32(struct ft1000_device *ft1000dev, u16 indx, u8 *buff
 //
 //  Returns:    None
 //-----------------------------------------------------------------------
-static void card_reset_dsp (struct ft1000_device *ft1000dev, bool value)
+static void card_reset_dsp(struct ft1000_device *ft1000dev, bool value)
 {
-    u16 status = STATUS_SUCCESS;
-    u16 tempword;
+	u16 status = STATUS_SUCCESS;
+	u16 tempword;
 
-    status = ft1000_write_register (ft1000dev, HOST_INTF_BE, FT1000_REG_SUP_CTRL);
-    status = ft1000_read_register(ft1000dev, &tempword, FT1000_REG_SUP_CTRL);
-    if (value)
-    {
-        DEBUG("Reset DSP\n");
-        status = ft1000_read_register(ft1000dev, &tempword, FT1000_REG_RESET);
-        tempword |= DSP_RESET_BIT;
-        status = ft1000_write_register(ft1000dev, tempword, FT1000_REG_RESET);
-    }
-    else
-    {
-        DEBUG("Activate DSP\n");
-        status = ft1000_read_register(ft1000dev, &tempword, FT1000_REG_RESET);
-	tempword |= DSP_ENCRYPTED;
-	tempword &= ~DSP_UNENCRYPTED;
-	status = ft1000_write_register(ft1000dev, tempword, FT1000_REG_RESET);
-        status = ft1000_read_register(ft1000dev, &tempword, FT1000_REG_RESET);
-        tempword &= ~EFUSE_MEM_DISABLE;
-        tempword &= ~DSP_RESET_BIT;
-        status = ft1000_write_register(ft1000dev, tempword, FT1000_REG_RESET);
-        status = ft1000_read_register(ft1000dev, &tempword, FT1000_REG_RESET);
-    }
+	status = ft1000_write_register(ft1000dev, HOST_INTF_BE,
+					FT1000_REG_SUP_CTRL);
+	status = ft1000_read_register(ft1000dev, &tempword,
+				      FT1000_REG_SUP_CTRL);
+
+	if (value) {
+		DEBUG("Reset DSP\n");
+		status = ft1000_read_register(ft1000dev, &tempword,
+					      FT1000_REG_RESET);
+		tempword |= DSP_RESET_BIT;
+		status = ft1000_write_register(ft1000dev, tempword,
+					       FT1000_REG_RESET);
+	} else {
+		DEBUG("Activate DSP\n");
+		status = ft1000_read_register(ft1000dev, &tempword,
+					      FT1000_REG_RESET);
+		tempword |= DSP_ENCRYPTED;
+		tempword &= ~DSP_UNENCRYPTED;
+		status = ft1000_write_register(ft1000dev, tempword,
+					       FT1000_REG_RESET);
+		status = ft1000_read_register(ft1000dev, &tempword,
+					      FT1000_REG_RESET);
+		tempword &= ~EFUSE_MEM_DISABLE;
+		tempword &= ~DSP_RESET_BIT;
+		status = ft1000_write_register(ft1000dev, tempword,
+					       FT1000_REG_RESET);
+		status = ft1000_read_register(ft1000dev, &tempword,
+					      FT1000_REG_RESET);
+	}
 }
 
 //---------------------------------------------------------------------------

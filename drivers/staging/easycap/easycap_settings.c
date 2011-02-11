@@ -26,7 +26,6 @@
 /*****************************************************************************/
 
 #include "easycap.h"
-#include "easycap_debug.h"
 
 /*---------------------------------------------------------------------------*/
 /*
@@ -44,7 +43,7 @@ const struct easycap_standard easycap_standard[] = {
 .mask = 0x00FF & PAL_BGHIN ,
 .v4l2_standard = {
 	.index = PAL_BGHIN,
-	.id = (V4L2_STD_PAL_B | V4L2_STD_PAL_G | V4L2_STD_PAL_H | \
+	.id = (V4L2_STD_PAL_B | V4L2_STD_PAL_G | V4L2_STD_PAL_H |
 					V4L2_STD_PAL_I | V4L2_STD_PAL_N),
 	.name = "PAL_BGHIN",
 	.frameperiod = {1, 25},
@@ -165,8 +164,8 @@ const struct easycap_standard easycap_standard[] = {
 .mask = 0x8000 | (0x00FF & PAL_BGHIN_SLOW),
 .v4l2_standard = {
 	.index = PAL_BGHIN_SLOW,
-	.id = (V4L2_STD_PAL_B | V4L2_STD_PAL_G | V4L2_STD_PAL_H | \
-				V4L2_STD_PAL_I | V4L2_STD_PAL_N | \
+	.id = (V4L2_STD_PAL_B | V4L2_STD_PAL_G | V4L2_STD_PAL_H |
+				V4L2_STD_PAL_I | V4L2_STD_PAL_N |
 					(((v4l2_std_id)0x01) << 32)),
 	.name = "PAL_BGHIN_SLOW",
 	.frameperiod = {1, 5},
@@ -315,11 +314,11 @@ int
 fillin_formats(void)
 {
 int i, j, k, m, n;
-__u32 width, height, pixelformat, bytesperline, sizeimage;
-__u32 field, colorspace;
-__u16 mask1, mask2, mask3, mask4;
+u32 width, height, pixelformat, bytesperline, sizeimage;
+enum v4l2_field field;
+enum v4l2_colorspace colorspace;
+u16 mask1, mask2, mask3, mask4;
 char name1[32], name2[32], name3[32], name4[32];
-
 for (i = 0, n = 0; i < STANDARD_MANY; i++) {
 	mask1 = 0x0000;
 	switch (i) {
@@ -506,39 +505,39 @@ for (i = 0, n = 0; i < STANDARD_MANY; i++) {
 			mask3 = 0x0000;
 			switch (k) {
 			case FMT_UYVY: {
-				strcpy(&name3[0], "_" STRINGIZE(FMT_UYVY));
+				strcpy(&name3[0], "_" __stringify(FMT_UYVY));
 				pixelformat = V4L2_PIX_FMT_UYVY;
 				mask3 |= (0x02 << 5);
 				break;
 			}
 			case FMT_YUY2: {
-				strcpy(&name3[0], "_" STRINGIZE(FMT_YUY2));
+				strcpy(&name3[0], "_" __stringify(FMT_YUY2));
 				pixelformat = V4L2_PIX_FMT_YUYV;
 				mask3 |= (0x02 << 5);
 				mask3 |= 0x0100;
 				break;
 			}
 			case FMT_RGB24: {
-				strcpy(&name3[0], "_" STRINGIZE(FMT_RGB24));
+				strcpy(&name3[0], "_" __stringify(FMT_RGB24));
 				pixelformat = V4L2_PIX_FMT_RGB24;
 				mask3 |= (0x03 << 5);
 				break;
 			}
 			case FMT_RGB32: {
-				strcpy(&name3[0], "_" STRINGIZE(FMT_RGB32));
+				strcpy(&name3[0], "_" __stringify(FMT_RGB32));
 				pixelformat = V4L2_PIX_FMT_RGB32;
 				mask3 |= (0x04 << 5);
 				break;
 			}
 			case FMT_BGR24: {
-				strcpy(&name3[0], "_" STRINGIZE(FMT_BGR24));
+				strcpy(&name3[0], "_" __stringify(FMT_BGR24));
 				pixelformat = V4L2_PIX_FMT_BGR24;
 				mask3 |= (0x03 << 5);
 				mask3 |= 0x0100;
 				break;
 			}
 			case FMT_BGR32: {
-				strcpy(&name3[0], "_" STRINGIZE(FMT_BGR32));
+				strcpy(&name3[0], "_" __stringify(FMT_BGR32));
 				pixelformat = V4L2_PIX_FMT_BGR32;
 				mask3 |= (0x04 << 5);
 				mask3 |= 0x0100;
@@ -573,25 +572,25 @@ for (i = 0, n = 0; i < STANDARD_MANY; i++) {
 				strcat(&easycap_format[n].name[0], &name2[0]);
 				strcat(&easycap_format[n].name[0], &name3[0]);
 				strcat(&easycap_format[n].name[0], &name4[0]);
-				easycap_format[n].mask = \
+				easycap_format[n].mask =
 						mask1 | mask2 | mask3 | mask4;
-				easycap_format[n].v4l2_format\
+				easycap_format[n].v4l2_format
 					.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-				easycap_format[n].v4l2_format\
+				easycap_format[n].v4l2_format
 					.fmt.pix.width = width;
-				easycap_format[n].v4l2_format\
+				easycap_format[n].v4l2_format
 					.fmt.pix.height = height;
-				easycap_format[n].v4l2_format\
+				easycap_format[n].v4l2_format
 					.fmt.pix.pixelformat = pixelformat;
-				easycap_format[n].v4l2_format\
+				easycap_format[n].v4l2_format
 					.fmt.pix.field = field;
-				easycap_format[n].v4l2_format\
+				easycap_format[n].v4l2_format
 					.fmt.pix.bytesperline = bytesperline;
-				easycap_format[n].v4l2_format\
+				easycap_format[n].v4l2_format
 					.fmt.pix.sizeimage = sizeimage;
-				easycap_format[n].v4l2_format\
+				easycap_format[n].v4l2_format
 					.fmt.pix.colorspace = colorspace;
-				easycap_format[n].v4l2_format\
+				easycap_format[n].v4l2_format
 					.fmt.pix.priv = 0;
 				n++;
 			}
@@ -604,7 +603,7 @@ easycap_format[n].mask = 0xFFFF;
 return n;
 }
 /*---------------------------------------------------------------------------*/
-struct v4l2_queryctrl easycap_control[] = \
+struct v4l2_queryctrl easycap_control[] =
 {{
 .id       = V4L2_CID_BRIGHTNESS,
 .type     = V4L2_CTRL_TYPE_INTEGER,

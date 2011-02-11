@@ -59,13 +59,6 @@ void PHY_SetRF8256Bandwidth(struct net_device* dev , HT_CHANNEL_WIDTH Bandwidth)
 					rtl8192_phy_SetRFReg(dev, (RF90_RADIO_PATH_E)eRFPath, 0x2c, bMask12Bits, 0x3ff);
 					rtl8192_phy_SetRFReg(dev, (RF90_RADIO_PATH_E)eRFPath, 0x0e, bMask12Bits, 0x0e1);
 
-					//cosa add for sd3's request 01/23/2008
-					#if 0
-					if(priv->chan == 3 || priv->chan == 9) //I need to set priv->chan whenever current channel changes
-						rtl8192_phy_SetRFReg(dev, (RF90_RADIO_PATH_E)eRFPath, 0x14, bMask12Bits, 0x59b);
-					else
-						rtl8192_phy_SetRFReg(dev, (RF90_RADIO_PATH_E)eRFPath, 0x14, bMask12Bits, 0x5ab);
-					#endif
 				}
 				else
 				{
@@ -241,41 +234,6 @@ void PHY_SetRF8256CCKTxPower(struct net_device*	dev, u8	powerlevel)
 {
 	u32	TxAGC=0;
 	struct r8192_priv *priv = ieee80211_priv(dev);
-#ifdef RTL8190P
-	u8				byte0, byte1;
-
-	TxAGC |= ((powerlevel<<8)|powerlevel);
-	TxAGC += priv->CCKTxPowerLevelOriginalOffset;
-
-	if(priv->bDynamicTxLowPower == true  //cosa 04282008 for cck long range
-		/*pMgntInfo->bScanInProgress == TRUE*/ ) //cosa 05/22/2008 for scan
-	{
-		if(priv->CustomerID == RT_CID_819x_Netcore)
-			TxAGC = 0x2222;
-		else
-		TxAGC += ((priv->CckPwEnl<<8)|priv->CckPwEnl);
-	}
-
-	byte0 = (u8)(TxAGC & 0xff);
-	byte1 = (u8)((TxAGC & 0xff00)>>8);
-	if(byte0 > 0x24)
-		byte0 = 0x24;
-	if(byte1 > 0x24)
-		byte1 = 0x24;
-	if(priv->rf_type == RF_2T4R)	//Only 2T4R you have to care the Antenna Tx Power offset
-	{	// check antenna C over the max index 0x24
-			if(priv->RF_C_TxPwDiff > 0)
-			{
-				if( (byte0 + (u8)priv->RF_C_TxPwDiff) > 0x24)
-					byte0 = 0x24 - priv->RF_C_TxPwDiff;
-				if( (byte1 + (u8)priv->RF_C_TxPwDiff) > 0x24)
-					byte1 = 0x24 - priv->RF_C_TxPwDiff;
-			}
-		}
-	TxAGC = (byte1<<8) |byte0;
-	write_nic_dword(dev, CCK_TXAGC, TxAGC);
-#else
-	#ifdef RTL8192E
 
 	TxAGC = powerlevel;
 	if(priv->bDynamicTxLowPower == true)//cosa 04282008 for cck long range
@@ -288,86 +246,13 @@ void PHY_SetRF8256CCKTxPower(struct net_device*	dev, u8	powerlevel)
 	if(TxAGC > 0x24)
 		TxAGC = 0x24;
 	rtl8192_setBBreg(dev, rTxAGC_CCK_Mcs32, bTxAGCRateCCK, TxAGC);
-	#endif
-#endif
 }
 
 
 void PHY_SetRF8256OFDMTxPower(struct net_device* dev, u8 powerlevel)
 {
 	struct r8192_priv *priv = ieee80211_priv(dev);
-	//Joseph TxPower for 8192 testing
-#ifdef RTL8190P
-	u32				TxAGC1=0, TxAGC2=0, TxAGC2_tmp = 0;
-	u8				i, byteVal1[4], byteVal2[4], byteVal3[4];
 
-	if(priv->bDynamicTxHighPower == true)     //Add by Jacken 2008/03/06
-	{
-		TxAGC1 |= ((powerlevel<<24)|(powerlevel<<16)|(powerlevel<<8)|powerlevel);
-		//for tx power track
-		TxAGC2_tmp = TxAGC1;
-
-		TxAGC1 += priv->MCSTxPowerLevelOriginalOffset[0];
-		TxAGC2 =0x03030303;
-
-		//for tx power track
-		TxAGC2_tmp += priv->MCSTxPowerLevelOriginalOffset[1];
-	}
-	else
-	{
-		TxAGC1 |= ((powerlevel<<24)|(powerlevel<<16)|(powerlevel<<8)|powerlevel);
-		TxAGC2 = TxAGC1;
-
-		TxAGC1 += priv->MCSTxPowerLevelOriginalOffset[0];
-		TxAGC2 += priv->MCSTxPowerLevelOriginalOffset[1];
-
-		TxAGC2_tmp = TxAGC2;
-
-	}
-	for(i=0; i<4; i++)
-	{
-		byteVal1[i] = (u8)(  (TxAGC1 & (0xff<<(i*8))) >>(i*8) );
-		if(byteVal1[i] > 0x24)
-			byteVal1[i] = 0x24;
-		byteVal2[i] = (u8)(  (TxAGC2 & (0xff<<(i*8))) >>(i*8) );
-		if(byteVal2[i] > 0x24)
-			byteVal2[i] = 0x24;
-
-		//for tx power track
-		byteVal3[i] = (u8)(  (TxAGC2_tmp & (0xff<<(i*8))) >>(i*8) );
-		if(byteVal3[i] > 0x24)
-			byteVal3[i] = 0x24;
-	}
-
-	if(priv->rf_type == RF_2T4R)	//Only 2T4R you have to care the Antenna Tx Power offset
-	{	// check antenna C over the max index 0x24
-		if(priv->RF_C_TxPwDiff > 0)
-		{
-			for(i=0; i<4; i++)
-			{
-				if( (byteVal1[i] + (u8)priv->RF_C_TxPwDiff) > 0x24)
-					byteVal1[i] = 0x24 - priv->RF_C_TxPwDiff;
-				if( (byteVal2[i] + (u8)priv->RF_C_TxPwDiff) > 0x24)
-					byteVal2[i] = 0x24 - priv->RF_C_TxPwDiff;
-				if( (byteVal3[i] + (u8)priv->RF_C_TxPwDiff) > 0x24)
-					byteVal3[i] = 0x24 - priv->RF_C_TxPwDiff;
-			}
-		}
-	}
-
-	TxAGC1 = (byteVal1[3]<<24) | (byteVal1[2]<<16) |(byteVal1[1]<<8) |byteVal1[0];
-	TxAGC2 = (byteVal2[3]<<24) | (byteVal2[2]<<16) |(byteVal2[1]<<8) |byteVal2[0];
-
-	//for tx power track
-	TxAGC2_tmp = (byteVal3[3]<<24) | (byteVal3[2]<<16) |(byteVal3[1]<<8) |byteVal3[0];
-	priv->Pwr_Track = TxAGC2_tmp;
-	//DbgPrint("TxAGC2_tmp = 0x%x\n", TxAGC2_tmp);
-
-	//DbgPrint("TxAGC1/TxAGC2 = 0x%x/0x%x\n", TxAGC1, TxAGC2);
-	write_nic_dword(dev, MCS_TXAGC, TxAGC1);
-	write_nic_dword(dev, MCS_TXAGC+4, TxAGC2);
-#else
-#ifdef RTL8192E
 	u32 writeVal, powerBase0, powerBase1, writeVal_tmp;
 	u8 index = 0;
 	u16 RegOffset[6] = {0xe00, 0xe04, 0xe10, 0xe14, 0xe18, 0xe1c};
@@ -410,307 +295,134 @@ void PHY_SetRF8256OFDMTxPower(struct net_device* dev, u8 powerlevel)
 		}
 		rtl8192_setBBreg(dev, RegOffset[index], 0x7f7f7f7f, writeVal);
 	}
-
-#endif
-#endif
 }
 
 #define MAX_DOZE_WAITING_TIMES_9x 64
+static void r8192e_drain_tx_queues(struct r8192_priv *priv)
+{
+	u8 i, QueueID;
+
+	for (QueueID = 0, i = 0; QueueID < MAX_TX_QUEUE; )
+	{
+		struct rtl8192_tx_ring *ring = &priv->tx_ring[QueueID];
+
+		if(skb_queue_len(&ring->queue) == 0)
+		{
+			QueueID++;
+			continue;
+		}
+
+		udelay(10);
+		i++;
+
+		if (i >= MAX_DOZE_WAITING_TIMES_9x)
+		{
+			RT_TRACE(COMP_POWER, "r8192e_drain_tx_queues() timeout queue %d\n", QueueID);
+			break;
+		}
+	}
+}
+
 static bool
-SetRFPowerState8190(
-	struct net_device* dev,
-	RT_RF_POWER_STATE	eRFPowerState
-	)
+SetRFPowerState8190(struct net_device *dev, RT_RF_POWER_STATE eRFPowerState)
 {
 	struct r8192_priv *priv = ieee80211_priv(dev);
 	PRT_POWER_SAVE_CONTROL	pPSC = (PRT_POWER_SAVE_CONTROL)(&(priv->ieee80211->PowerSaveControl));
 	bool bResult = true;
-	//u8 eRFPath;
-	u8	i = 0, QueueID = 0;
-	//ptx_ring	head=NULL,tail=NULL;
-	struct rtl8192_tx_ring  *ring = NULL;
 
 	if(priv->SetRFPowerStateInProgress == true)
 		return false;
-	//RT_TRACE(COMP_PS, "===========> SetRFPowerState8190()!\n");
 	priv->SetRFPowerStateInProgress = true;
 
-	switch(priv->rf_chip)
+	switch( eRFPowerState )
 	{
-		case RF_8256:
-		switch( eRFPowerState )
-		{
-			case eRfOn:
-				//RT_TRACE(COMP_PS, "SetRFPowerState8190() eRfOn !\n");
-						//RXTX enable control: On
-					//for(eRFPath = 0; eRFPath <pHalData->NumTotalRFPath; eRFPath++)
-					//	PHY_SetRFReg(dev, (RF90_RADIO_PATH_E)eRFPath, 0x4, 0xC00, 0x2);
-#ifdef RTL8190P
-				if(priv->rf_type == RF_2T4R)
-				{
-					//enable RF-Chip A/B
-					rtl8192_setBBreg(dev, rFPGA0_XA_RFInterfaceOE, BIT4, 0x1); // 0x860[4]
-					//enable RF-Chip C/D
-					rtl8192_setBBreg(dev, rFPGA0_XC_RFInterfaceOE, BIT4, 0x1); // 0x868[4]
-					//analog to digital on
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter4, 0xf00, 0xf);// 0x88c[11:8]
-					//digital to analog on
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x1e0, 0xf); // 0x880[8:5]
-					//rx antenna on
-					rtl8192_setBBreg(dev, rOFDM0_TRxPathEnable, 0xf, 0xf);// 0xc04[3:0]
-					//rx antenna on
-					rtl8192_setBBreg(dev, rOFDM1_TRxPathEnable, 0xf, 0xf);// 0xd04[3:0]
-					//analog to digital part2 on
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x1e00, 0xf); // 0x880[12:9]
-				}
-				else if(priv->rf_type == RF_1T2R)	//RF-C, RF-D
-				{
-					//enable RF-Chip C/D
-					rtl8192_setBBreg(dev, rFPGA0_XC_RFInterfaceOE, BIT4, 0x1); // 0x868[4]
-					//analog to digital on
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter4, 0xc00, 0x3);// 0x88c[11:10]
-					//digital to analog on
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x180, 0x3); // 0x880[8:7]
-					//rx antenna on
-					rtl8192_setBBreg(dev, rOFDM0_TRxPathEnable, 0xc, 0x3);// 0xc04[3:2]
-					//rx antenna on
-					rtl8192_setBBreg(dev, rOFDM1_TRxPathEnable, 0xc, 0x3);// 0xd04[3:2]
-					//analog to digital part2 on
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x1800, 0x3); // 0x880[12:11]
-				}
-				else if(priv->rf_type == RF_1T1R)	//RF-C
-				{
-					//enable RF-Chip C/D
-					rtl8192_setBBreg(dev, rFPGA0_XC_RFInterfaceOE, BIT4, 0x1); // 0x868[4]
-					//analog to digital on
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter4, 0x400, 0x1);// 0x88c[10]
-					//digital to analog on
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x80, 0x1); // 0x880[7]
-					//rx antenna on
-					rtl8192_setBBreg(dev, rOFDM0_TRxPathEnable, 0x4, 0x1);// 0xc04[2]
-					//rx antenna on
-					rtl8192_setBBreg(dev, rOFDM1_TRxPathEnable, 0x4, 0x1);// 0xd04[2]
-					//analog to digital part2 on
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x800, 0x1); // 0x880[11]
-				}
+	case eRfOn:
 
-#elif defined RTL8192E
-				// turn on RF
-				if((priv->ieee80211->eRFPowerState == eRfOff) && RT_IN_PS_LEVEL(pPSC, RT_RF_OFF_LEVL_HALT_NIC))
-				{ // The current RF state is OFF and the RF OFF level is halting the NIC, re-initialize the NIC.
-					bool rtstatus = true;
-					u32 InitializeCount = 3;
-					do
-					{
-						InitializeCount--;
-						priv->RegRfOff = false;
-						rtstatus = NicIFEnableNIC(dev);
-					}while( (rtstatus != true) &&(InitializeCount >0) );
-
-					if(rtstatus != true)
-					{
-						RT_TRACE(COMP_ERR,"%s():Initialize Adapter fail,return\n",__FUNCTION__);
-						priv->SetRFPowerStateInProgress = false;
-						return false;
-					}
-
-					RT_CLEAR_PS_LEVEL(pPSC, RT_RF_OFF_LEVL_HALT_NIC);
-				} else {
-					write_nic_byte(dev, ANAPAR, 0x37);//160MHz
-					//write_nic_byte(dev, MacBlkCtrl, 0x17); // 0x403
-					mdelay(1);
-					//enable clock 80/88 MHz
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x4, 0x1); // 0x880[2]
-					priv->bHwRfOffAction = 0;
-					//}
-
-					//RF-A, RF-B
-					//enable RF-Chip A/B
-					rtl8192_setBBreg(dev, rFPGA0_XA_RFInterfaceOE, BIT4, 0x1);		// 0x860[4]
-					//analog to digital on
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter4, 0x300, 0x3);// 0x88c[9:8]
-					//digital to analog on
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x18, 0x3); // 0x880[4:3]
-					//rx antenna on
-					rtl8192_setBBreg(dev, rOFDM0_TRxPathEnable, 0x3, 0x3);// 0xc04[1:0]
-					//rx antenna on
-					rtl8192_setBBreg(dev, rOFDM1_TRxPathEnable, 0x3, 0x3);// 0xd04[1:0]
-					//analog to digital part2 on
-					rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x60, 0x3); 	// 0x880[6:5]
-
-					// Baseband reset 2008.09.30 add
-					//write_nic_byte(dev, BB_RESET, (read_nic_byte(dev, BB_RESET)|BIT0));
-
-				//2 	AFE
-					// 2008.09.30 add
-					//rtl8192_setBBreg(dev, rFPGA0_AnalogParameter2, 0x20000000, 0x1); // 0x884
-					//analog to digital part2 on
-					//rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x60, 0x3);		// 0x880[6:5]
-
-
-					//digital to analog on
-					//rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x98, 0x13); // 0x880[4:3]
-					//analog to digital on
-					//rtl8192_setBBreg(dev, rFPGA0_AnalogParameter4, 0xf03, 0xf03);// 0x88c[9:8]
-					//rx antenna on
-					//PHY_SetBBReg(dev, rOFDM0_TRxPathEnable, 0x3, 0x3);// 0xc04[1:0]
-					//rx antenna on 2008.09.30 mark
-					//PHY_SetBBReg(dev, rOFDM1_TRxPathEnable, 0x3, 0x3);// 0xd04[1:0]
-
-				//2 	RF
-					//enable RF-Chip A/B
-					//rtl8192_setBBreg(dev, rFPGA0_XA_RFInterfaceOE, BIT4, 0x1);		// 0x860[4]
-					//rtl8192_setBBreg(dev, rFPGA0_XB_RFInterfaceOE, BIT4, 0x1);		// 0x864[4]
-
-				}
-
-				#endif
-						break;
-
-				//
-				// In current solution, RFSleep=RFOff in order to save power under 802.11 power save.
-				// By Bruce, 2008-01-16.
-				//
-			case eRfSleep:
+		// turn on RF
+		if((priv->ieee80211->eRFPowerState == eRfOff) && RT_IN_PS_LEVEL(pPSC, RT_RF_OFF_LEVL_HALT_NIC))
+		{ // The current RF state is OFF and the RF OFF level is halting the NIC, re-initialize the NIC.
+			bool rtstatus = true;
+			u32 InitializeCount = 3;
+			do
 			{
-				// HW setting had been configured with deeper mode.
-				if(priv->ieee80211->eRFPowerState == eRfOff)
-					break;
+				InitializeCount--;
+				rtstatus = NicIFEnableNIC(dev);
+			}while( (rtstatus != true) &&(InitializeCount >0) );
 
-				// Update current RF state variable.
-				//priv->ieee80211->eRFPowerState = eRFPowerState;
-
-				//if (pPSC->bLeisurePs)
-				{
-					for(QueueID = 0, i = 0; QueueID < MAX_TX_QUEUE; )
-					{
-							ring = &priv->tx_ring[QueueID];
-
-							if(skb_queue_len(&ring->queue) == 0)
-							{
-								QueueID++;
-								continue;
-							}
-							else
-							{
-								RT_TRACE((COMP_POWER|COMP_RF), "eRf Off/Sleep: %d times TcbBusyQueue[%d] !=0 before doze!\n", (i+1), QueueID);
-								udelay(10);
-								i++;
-							}
-
-							if(i >= MAX_DOZE_WAITING_TIMES_9x)
-							{
-								RT_TRACE(COMP_POWER, "\n\n\n TimeOut!! SetRFPowerState8190(): eRfOff: %d times TcbBusyQueue[%d] != 0 !!!\n\n\n", MAX_DOZE_WAITING_TIMES_9x, QueueID);
-								break;
-							}
-						}
-				}
-
-				//if(Adapter->HardwareType == HARDWARE_TYPE_RTL8190P)
-#ifdef RTL8190P
-				{
-					PHY_SetRtl8190pRfOff(dev);
-				}
-				//else if(Adapter->HardwareType == HARDWARE_TYPE_RTL8192E)
-#elif defined RTL8192E
-				{
-					PHY_SetRtl8192eRfOff(dev);
-				}
-#endif
+			if(rtstatus != true)
+			{
+				RT_TRACE(COMP_ERR,"%s():Initialize Adapter fail,return\n",__FUNCTION__);
+				priv->SetRFPowerStateInProgress = false;
+				return false;
 			}
-								break;
 
-			case eRfOff:
-				//RT_TRACE(COMP_PS, "SetRFPowerState8190() eRfOff/Sleep !\n");
+			RT_CLEAR_PS_LEVEL(pPSC, RT_RF_OFF_LEVL_HALT_NIC);
+		} else {
+			write_nic_byte(priv, ANAPAR, 0x37);//160MHz
+			mdelay(1);
+			//enable clock 80/88 MHz
+			rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x4, 0x1); // 0x880[2]
+			priv->bHwRfOffAction = 0;
 
-				// Update current RF state variable.
-				//priv->ieee80211->eRFPowerState = eRFPowerState;
+			//RF-A, RF-B
+			//enable RF-Chip A/B
+			rtl8192_setBBreg(dev, rFPGA0_XA_RFInterfaceOE, BIT4, 0x1);		// 0x860[4]
+			//analog to digital on
+			rtl8192_setBBreg(dev, rFPGA0_AnalogParameter4, 0x300, 0x3);// 0x88c[9:8]
+			//digital to analog on
+			rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x18, 0x3); // 0x880[4:3]
+			//rx antenna on
+			rtl8192_setBBreg(dev, rOFDM0_TRxPathEnable, 0x3, 0x3);// 0xc04[1:0]
+			//rx antenna on
+			rtl8192_setBBreg(dev, rOFDM1_TRxPathEnable, 0x3, 0x3);// 0xd04[1:0]
+			//analog to digital part2 on
+			rtl8192_setBBreg(dev, rFPGA0_AnalogParameter1, 0x60, 0x3); 	// 0x880[6:5]
 
-				//
-				// Disconnect with Any AP or STA.
-				//
-				for(QueueID = 0, i = 0; QueueID < MAX_TX_QUEUE; )
-				{
-					ring = &priv->tx_ring[QueueID];
-
-					if(skb_queue_len(&ring->queue) == 0)
-						{
-							QueueID++;
-							continue;
-						}
-						else
-						{
-							RT_TRACE(COMP_POWER,
-							"eRf Off/Sleep: %d times TcbBusyQueue[%d] !=0 before doze!\n", (i+1), QueueID);
-							udelay(10);
-							i++;
-						}
-
-						if(i >= MAX_DOZE_WAITING_TIMES_9x)
-						{
-							RT_TRACE(COMP_POWER, "\n\n\n SetZebraRFPowerState8185B(): eRfOff: %d times TcbBusyQueue[%d] != 0 !!!\n\n\n", MAX_DOZE_WAITING_TIMES_9x, QueueID);
-							break;
-						}
-					}
-
-				//if(Adapter->HardwareType == HARDWARE_TYPE_RTL8190P)
-#if defined RTL8190P
-				{
-					PHY_SetRtl8190pRfOff(dev);
-				}
-				//else if(Adapter->HardwareType == HARDWARE_TYPE_RTL8192E)
-#elif defined RTL8192E
-				{
-					//if(pPSC->RegRfPsLevel & RT_RF_OFF_LEVL_HALT_NIC && !RT_IN_PS_LEVEL(pPSC, RT_RF_OFF_LEVL_HALT_NIC) && priv->ieee80211->RfOffReason > RF_CHANGE_BY_PS)
-					if (pPSC->RegRfPsLevel & RT_RF_OFF_LEVL_HALT_NIC && !RT_IN_PS_LEVEL(pPSC, RT_RF_OFF_LEVL_HALT_NIC))
-					{ // Disable all components.
-						//
-						// Note:
-						//	NicIFSetLinkStatus is a big problem when we indicate the status to OS,
-						//	the OS(XP) will reset. But now, we cnnot find why the NIC is hard to receive
-						//	packets after RF ON. Just keep this function here and still work to find out the root couse.
-						//	By Bruce, 2009-05-01.
-						//
-						//NicIFSetLinkStatus( Adapter, RT_MEDIA_DISCONNECT );
-						//if HW radio of , need to indicate scan complete first for not be reset.
-						//if(MgntScanInProgress(pMgntInfo))
-						//	MgntResetScanProcess( Adapter );
-
-						// <1> Disable Interrupt
-						//rtl8192_irq_disable(dev);
-						// <2> Stop all timer
-						//MgntCancelAllTimer(Adapter);
-						// <3> Disable Adapter
-						//NicIFHaltAdapter(Adapter, false);
-						NicIFDisableNIC(dev);
-						RT_SET_PS_LEVEL(pPSC, RT_RF_OFF_LEVL_HALT_NIC);
-					}
-					else if (!(pPSC->RegRfPsLevel & RT_RF_OFF_LEVL_HALT_NIC))
-					{ // Normal case.
-				  		// IPS should go to this.
-						PHY_SetRtl8192eRfOff(dev);
-					}
-				}
-#else
-				else
-				{
-					RT_TRACE(COMP_DBG,DBG_TRACE,("It is not 8190Pci and 8192PciE \n"));
-				}
-				#endif
-
-					break;
-
-			default:
-					bResult = false;
-					RT_TRACE(COMP_ERR, "SetRFPowerState8190(): unknow state to set: 0x%X!!!\n", eRFPowerState);
-					break;
 		}
 
 		break;
 
-		default:
-			RT_TRACE(COMP_ERR, "SetRFPowerState8190(): Unknown RF type\n");
+	//
+	// In current solution, RFSleep=RFOff in order to save power under 802.11 power save.
+	// By Bruce, 2008-01-16.
+	//
+	case eRfSleep:
+
+		// HW setting had been configured with deeper mode.
+		if(priv->ieee80211->eRFPowerState == eRfOff)
 			break;
+
+		r8192e_drain_tx_queues(priv);
+
+		PHY_SetRtl8192eRfOff(dev);
+
+		break;
+
+	case eRfOff:
+
+		//
+		// Disconnect with Any AP or STA.
+		//
+		r8192e_drain_tx_queues(priv);
+
+
+		if (pPSC->RegRfPsLevel & RT_RF_OFF_LEVL_HALT_NIC && !RT_IN_PS_LEVEL(pPSC, RT_RF_OFF_LEVL_HALT_NIC))
+		{
+			/* Disable all components. */
+			NicIFDisableNIC(dev);
+			RT_SET_PS_LEVEL(pPSC, RT_RF_OFF_LEVL_HALT_NIC);
+		}
+		else if (!(pPSC->RegRfPsLevel & RT_RF_OFF_LEVL_HALT_NIC))
+		{
+			/* Normal case - IPS should go to this. */
+			PHY_SetRtl8192eRfOff(dev);
+		}
+		break;
+
+	default:
+		bResult = false;
+		RT_TRACE(COMP_ERR, "SetRFPowerState8190(): unknow state to set: 0x%X!!!\n", eRFPowerState);
+		break;
 	}
 
 	if(bResult)
@@ -719,9 +431,7 @@ SetRFPowerState8190(
 		priv->ieee80211->eRFPowerState = eRFPowerState;
 	}
 
-	//printk("%s()priv->ieee80211->eRFPowerState:%s\n" ,__func__,priv->ieee80211->eRFPowerState == eRfOn ? "On" : "Off");
 	priv->SetRFPowerStateInProgress = false;
-	//RT_TRACE(COMP_PS, "<=========== SetRFPowerState8190() bResult = %d!\n", bResult);
 	return bResult;
 }
 
@@ -748,11 +458,7 @@ SetRFPowerState(
 	bool bResult = false;
 
 	RT_TRACE(COMP_RF,"---------> SetRFPowerState(): eRFPowerState(%d)\n", eRFPowerState);
-#ifdef RTL8192E
 	if(eRFPowerState == priv->ieee80211->eRFPowerState && priv->bHwRfOffAction == 0)
-#else
-	if(eRFPowerState == priv->ieee80211->eRFPowerState)
-#endif
 	{
 		RT_TRACE(COMP_POWER, "<--------- SetRFPowerState(): discard the request for eRFPowerState(%d) is the same.\n", eRFPowerState);
 		return bResult;
@@ -775,19 +481,17 @@ MgntDisconnectIBSS(
 	u8			i;
 	bool	bFilterOutNonAssociatedBSSID = false;
 
-	//IEEE80211_DEBUG(IEEE80211_DL_TRACE, "XXXXXXXXXX MgntDisconnect IBSS\n");
-
 	priv->ieee80211->state = IEEE80211_NOLINK;
 
 //	PlatformZeroMemory( pMgntInfo->Bssid, 6 );
 	for(i=0;i<6;i++)  priv->ieee80211->current_network.bssid[i]= 0x55;
 	priv->OpMode = RT_OP_MODE_NO_LINK;
-	write_nic_word(dev, BSSIDR, ((u16*)priv->ieee80211->current_network.bssid)[0]);
-	write_nic_dword(dev, BSSIDR+2, ((u32*)(priv->ieee80211->current_network.bssid+2))[0]);
+	write_nic_word(priv, BSSIDR, ((u16*)priv->ieee80211->current_network.bssid)[0]);
+	write_nic_dword(priv, BSSIDR+2, ((u32*)(priv->ieee80211->current_network.bssid+2))[0]);
 	{
 			RT_OP_MODE	OpMode = priv->OpMode;
 			//LED_CTL_MODE	LedAction = LED_CTL_NO_LINK;
-			u8	btMsr = read_nic_byte(dev, MSR);
+			u8	btMsr = read_nic_byte(priv, MSR);
 
 			btMsr &= 0xfc;
 
@@ -813,7 +517,7 @@ MgntDisconnectIBSS(
 				break;
 			}
 
-			write_nic_byte(dev, MSR, btMsr);
+			write_nic_byte(priv, MSR, btMsr);
 
 			// LED control
 			//Adapter->HalFunc.LedControlHandler(Adapter, LedAction);
@@ -825,7 +529,7 @@ MgntDisconnectIBSS(
 	{
 			u32 RegRCR, Type;
 			Type = bFilterOutNonAssociatedBSSID;
-			RegRCR = read_nic_dword(dev,RCR);
+			RegRCR = read_nic_dword(priv, RCR);
 			priv->ReceiveConfig = RegRCR;
 			if (Type == true)
 				RegRCR |= (RCR_CBSSID);
@@ -833,7 +537,7 @@ MgntDisconnectIBSS(
 				RegRCR &= (~RCR_CBSSID);
 
 			{
-				write_nic_dword(dev, RCR,RegRCR);
+				write_nic_dword(priv, RCR, RegRCR);
 				priv->ReceiveConfig = RegRCR;
 			}
 
@@ -870,7 +574,7 @@ MlmeDisassociateRequest(
 		{
 			RT_OP_MODE	OpMode = priv->OpMode;
 			//LED_CTL_MODE	LedAction = LED_CTL_NO_LINK;
-			u8 btMsr = read_nic_byte(dev, MSR);
+			u8 btMsr = read_nic_byte(priv, MSR);
 
 			btMsr &= 0xfc;
 
@@ -896,72 +600,45 @@ MlmeDisassociateRequest(
 				break;
 			}
 
-			write_nic_byte(dev, MSR, btMsr);
+			write_nic_byte(priv, MSR, btMsr);
 
 			// LED control
 			//Adapter->HalFunc.LedControlHandler(Adapter, LedAction);
 		}
 		ieee80211_disassociate(priv->ieee80211);
 
-		write_nic_word(dev, BSSIDR, ((u16*)priv->ieee80211->current_network.bssid)[0]);
-		write_nic_dword(dev, BSSIDR+2, ((u32*)(priv->ieee80211->current_network.bssid+2))[0]);
+		write_nic_word(priv, BSSIDR, ((u16*)priv->ieee80211->current_network.bssid)[0]);
+		write_nic_dword(priv, BSSIDR+2, ((u32*)(priv->ieee80211->current_network.bssid+2))[0]);
 
 	}
 
 }
 
 
-static void
-MgntDisconnectAP(
-	struct net_device* dev,
-	u8 asRsn
-)
+static void MgntDisconnectAP(struct net_device *dev, u8 asRsn)
 {
 	struct r8192_priv *priv = ieee80211_priv(dev);
 	bool bFilterOutNonAssociatedBSSID = false;
+	u32 RegRCR, Type;
 
-//
-// Commented out by rcnjko, 2005.01.27:
-// I move SecClearAllKeys() to MgntActSet_802_11_DISASSOCIATE().
-//
-//	//2004/09/15, kcwu, the key should be cleared, or the new handshaking will not success
-//	SecClearAllKeys(Adapter);
-
-	// In WPA WPA2 need to Clear all key ... because new key will set after new handshaking.
-#ifdef TO_DO
-	if(   pMgntInfo->SecurityInfo.AuthMode > RT_802_11AuthModeAutoSwitch ||
-		(pMgntInfo->bAPSuportCCKM && pMgntInfo->bCCX8021xenable) )	// In CCKM mode will Clear key
-	{
-		SecClearAllKeys(Adapter);
-		RT_TRACE(COMP_SEC, DBG_LOUD,("======>CCKM clear key..."))
-	}
-#endif
-	// If disconnect, clear RCR CBSSID bit
+	/* If disconnect, clear RCR CBSSID bit */
 	bFilterOutNonAssociatedBSSID = false;
-	{
-			u32 RegRCR, Type;
 
-			Type = bFilterOutNonAssociatedBSSID;
-			//Adapter->HalFunc.GetHwRegHandler(Adapter, HW_VAR_RCR, (pu1Byte)(&RegRCR));
-			RegRCR = read_nic_dword(dev,RCR);
-			priv->ReceiveConfig = RegRCR;
+	Type = bFilterOutNonAssociatedBSSID;
+	RegRCR = read_nic_dword(priv, RCR);
+	priv->ReceiveConfig = RegRCR;
 
-			if (Type == true)
-				RegRCR |= (RCR_CBSSID);
-			else if (Type == false)
-				RegRCR &= (~RCR_CBSSID);
+	if (Type == true)
+		RegRCR |= (RCR_CBSSID);
+	else if (Type == false)
+		RegRCR &= (~RCR_CBSSID);
 
-			write_nic_dword(dev, RCR,RegRCR);
-			priv->ReceiveConfig = RegRCR;
+	write_nic_dword(priv, RCR, RegRCR);
+	priv->ReceiveConfig = RegRCR;
 
-
-	}
-	// 2004.10.11, by rcnjko.
-	//MlmeDisassociateRequest( Adapter, pMgntInfo->Bssid, disas_lv_ss );
-	MlmeDisassociateRequest( dev, priv->ieee80211->current_network.bssid, asRsn );
+	MlmeDisassociateRequest(dev, priv->ieee80211->current_network.bssid, asRsn);
 
 	priv->ieee80211->state = IEEE80211_NOLINK;
-	//pMgntInfo->AsocTimestamp = 0;
 }
 
 
@@ -1004,7 +681,6 @@ MgntDisconnect(
 	{
 		if( priv->ieee80211->iw_mode == IW_MODE_ADHOC )
 		{
-			//RT_TRACE(COMP_MLME, "MgntDisconnect() ===> MgntDisconnectIBSS\n");
 			MgntDisconnectIBSS(dev);
 		}
 		if( priv->ieee80211->iw_mode == IW_MODE_INFRA )
@@ -1014,7 +690,6 @@ MgntDisconnect(
 			// e.g. OID_802_11_DISASSOCIATE in Windows while as MgntDisconnectAP() is
 			// used to handle disassociation related things to AP, e.g. send Disassoc
 			// frame to AP.  2005.01.27, by rcnjko.
-			//IEEE80211_DEBUG(IEEE80211_DL_TRACE,"MgntDisconnect() ===> MgntDisconnectAP\n");
 			MgntDisconnectAP(dev, asRsn);
 		}
 
@@ -1090,11 +765,6 @@ MgntActSet_RF_State(
 	switch(StateToSet)
 	{
 	case eRfOn:
-		//
-		// Turn On RF no matter the IPS setting because we need to update the RF state to Ndis under Vista, or
-		// the Windows does not allow the driver to perform site survey any more. By Bruce, 2007-10-02.
-		//
-
 		priv->ieee80211->RfOffReason &= (~ChangeSource);
 
 		if(! priv->ieee80211->RfOffReason)
@@ -1115,21 +785,11 @@ MgntActSet_RF_State(
 
 	case eRfOff:
 
-			if (priv->ieee80211->RfOffReason > RF_CHANGE_BY_IPS)
-			{
-				//
-				// 060808, Annie:
-				// Disconnect to current BSS when radio off. Asked by QuanTa.
-				//
-				// Set all link status falg, by Bruce, 2007-06-26.
-				//MgntActSet_802_11_DISASSOCIATE( Adapter, disas_lv_ss );
-				MgntDisconnect(dev, disas_lv_ss);
-
-				// Clear content of bssDesc[] and bssDesc4Query[] to avoid reporting old bss to UI.
-				// 2007.05.28, by shien chang.
-
-			}
-
+		if (priv->ieee80211->RfOffReason > RF_CHANGE_BY_IPS)
+		{
+			// Disconnect to current BSS when radio off. Asked by QuanTa.
+			MgntDisconnect(dev, disas_lv_ss);
+		}
 
 		priv->ieee80211->RfOffReason |= ChangeSource;
 		bActionAllowed = true;
@@ -1139,30 +799,13 @@ MgntActSet_RF_State(
 		priv->ieee80211->RfOffReason |= ChangeSource;
 		bActionAllowed = true;
 		break;
-
-	default:
-		break;
 	}
 
-	if(bActionAllowed)
+	if (bActionAllowed)
 	{
 		RT_TRACE(COMP_POWER, "MgntActSet_RF_State(): Action is allowed.... StateToSet(%d), RfOffReason(%#X)\n", StateToSet, priv->ieee80211->RfOffReason);
-				// Config HW to the specified mode.
+		// Config HW to the specified mode.
 		SetRFPowerState(dev, StateToSet);
-		// Turn on RF.
-		if(StateToSet == eRfOn)
-		{
-			//Adapter->HalFunc.HalEnableRxHandler(Adapter);
-			if(bConnectBySSID)
-			{
-				//MgntActSet_802_11_SSID(Adapter, Adapter->MgntInfo.Ssid.Octet, Adapter->MgntInfo.Ssid.Length, TRUE );
-			}
-		}
-		// Turn off RF.
-		else if(StateToSet == eRfOff)
-		{
-			//Adapter->HalFunc.HalDisableRxHandler(Adapter);
-		}
 	}
 	else
 	{

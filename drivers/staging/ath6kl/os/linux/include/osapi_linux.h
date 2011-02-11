@@ -76,7 +76,7 @@
 #define A_CPU2BE16(x)      htons(x)
 #define A_CPU2BE32(x)      htonl(x)
 
-#define A_MEMCPY(dst, src, len)         memcpy((A_UINT8 *)(dst), (src), (len))
+#define A_MEMCPY(dst, src, len)         memcpy((u8 *)(dst), (src), (len))
 #define A_MEMZERO(addr, len)            memset(addr, 0, len)
 #define A_MEMCMP(addr1, addr2, len)     memcmp((addr1), (addr2), (len))
 #define A_MALLOC(size)                  kmalloc((size), GFP_KERNEL)
@@ -116,7 +116,7 @@ typedef spinlock_t                      A_MUTEX_T;
 #define A_MUTEX_INIT(mutex)             spin_lock_init(mutex)
 #define A_MUTEX_LOCK(mutex)             spin_lock_bh(mutex)
 #define A_MUTEX_UNLOCK(mutex)           spin_unlock_bh(mutex)
-#define A_IS_MUTEX_VALID(mutex)         TRUE  /* okay to return true, since A_MUTEX_DELETE does nothing */
+#define A_IS_MUTEX_VALID(mutex)         true  /* okay to return true, since A_MUTEX_DELETE does nothing */
 #define A_MUTEX_DELETE(mutex)           /* spin locks are not kernel resources so nothing to free.. */
 
 /* Get current time in ms adding a constant offset (in ms) */
@@ -247,7 +247,7 @@ typedef struct sk_buff_head A_NETBUF_QUEUE_T;
 #define A_NETBUF_QUEUE_SIZE(q)  \
     a_netbuf_queue_size(q)
 #define A_NETBUF_QUEUE_EMPTY(q) \
-    a_netbuf_queue_empty(q)
+    (a_netbuf_queue_empty(q) ? true : false)
 
 /*
  * Network buffer support
@@ -306,17 +306,17 @@ void *a_netbuf_alloc(int size);
 void *a_netbuf_alloc_raw(int size);
 void a_netbuf_free(void *bufPtr);
 void *a_netbuf_to_data(void *bufPtr);
-A_UINT32 a_netbuf_to_len(void *bufPtr);
-A_STATUS a_netbuf_push(void *bufPtr, A_INT32 len);
-A_STATUS a_netbuf_push_data(void *bufPtr, char *srcPtr, A_INT32 len);
-A_STATUS a_netbuf_put(void *bufPtr, A_INT32 len);
-A_STATUS a_netbuf_put_data(void *bufPtr, char *srcPtr, A_INT32 len);
-A_STATUS a_netbuf_pull(void *bufPtr, A_INT32 len);
-A_STATUS a_netbuf_pull_data(void *bufPtr, char *dstPtr, A_INT32 len);
-A_STATUS a_netbuf_trim(void *bufPtr, A_INT32 len);
-A_STATUS a_netbuf_trim_data(void *bufPtr, char *dstPtr, A_INT32 len);
-A_STATUS a_netbuf_setlen(void *bufPtr, A_INT32 len);
-A_INT32 a_netbuf_headroom(void *bufPtr);
+u32 a_netbuf_to_len(void *bufPtr);
+int a_netbuf_push(void *bufPtr, s32 len);
+int a_netbuf_push_data(void *bufPtr, char *srcPtr, s32 len);
+int a_netbuf_put(void *bufPtr, s32 len);
+int a_netbuf_put_data(void *bufPtr, char *srcPtr, s32 len);
+int a_netbuf_pull(void *bufPtr, s32 len);
+int a_netbuf_pull_data(void *bufPtr, char *dstPtr, s32 len);
+int a_netbuf_trim(void *bufPtr, s32 len);
+int a_netbuf_trim_data(void *bufPtr, char *dstPtr, s32 len);
+int a_netbuf_setlen(void *bufPtr, s32 len);
+s32 a_netbuf_headroom(void *bufPtr);
 void a_netbuf_enqueue(A_NETBUF_QUEUE_T *q, void *pkt);
 void a_netbuf_prequeue(A_NETBUF_QUEUE_T *q, void *pkt);
 void *a_netbuf_dequeue(A_NETBUF_QUEUE_T *q);
@@ -328,8 +328,8 @@ void a_netbuf_queue_init(A_NETBUF_QUEUE_T *q);
 /*
  * Kernel v.s User space functions
  */
-A_UINT32 a_copy_to_user(void *to, const void *from, A_UINT32 n);
-A_UINT32 a_copy_from_user(void *to, const void *from, A_UINT32 n);
+u32 a_copy_to_user(void *to, const void *from, u32 n);
+u32 a_copy_from_user(void *to, const void *from, u32 n);
 
 /* In linux, WLAN Rx and Tx run in different contexts, so no need to check
  * for any commands/data queued for WLAN */

@@ -1202,11 +1202,7 @@ static int mount_ubifs(struct ubifs_info *c)
 	if (c->bulk_read == 1)
 		bu_init(c);
 
-	/*
-	 * We have to check all CRCs, even for data nodes, when we mount the FS
-	 * (specifically, when we are replaying).
-	 */
-	c->always_chk_crc = 1;
+	c->mounting = 1;
 
 	err = ubifs_read_superblock(c);
 	if (err)
@@ -1382,7 +1378,7 @@ static int mount_ubifs(struct ubifs_info *c)
 	if (err)
 		goto out_infos;
 
-	c->always_chk_crc = 0;
+	c->mounting = 0;
 
 	ubifs_msg("mounted UBI device %d, volume %d, name \"%s\"",
 		  c->vi.ubi_num, c->vi.vol_id, c->vi.name);
@@ -1543,7 +1539,6 @@ static int ubifs_remount_rw(struct ubifs_info *c)
 	mutex_lock(&c->umount_mutex);
 	dbg_save_space_info(c);
 	c->remounting_rw = 1;
-	c->always_chk_crc = 1;
 
 	err = check_free_space(c);
 	if (err)
@@ -1650,7 +1645,6 @@ static int ubifs_remount_rw(struct ubifs_info *c)
 	dbg_gen("re-mounted read-write");
 	c->ro_mount = 0;
 	c->remounting_rw = 0;
-	c->always_chk_crc = 0;
 	err = dbg_check_space_info(c);
 	mutex_unlock(&c->umount_mutex);
 	return err;
@@ -1667,7 +1661,6 @@ out:
 	c->ileb_buf = NULL;
 	ubifs_lpt_free(c, 1);
 	c->remounting_rw = 0;
-	c->always_chk_crc = 0;
 	mutex_unlock(&c->umount_mutex);
 	return err;
 }

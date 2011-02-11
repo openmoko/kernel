@@ -62,6 +62,7 @@
 #include <linux/notifier.h>
 #include <linux/cpu.h>
 #include <asm/mwait.h>
+#include <asm/msr.h>
 
 #define INTEL_IDLE_VERSION "0.4"
 #define PREFIX "intel_idle: "
@@ -83,6 +84,16 @@ static struct cpuidle_device __percpu *intel_idle_cpuidle_devices;
 static int intel_idle(struct cpuidle_device *dev, struct cpuidle_state *state);
 
 static struct cpuidle_state *cpuidle_state_table;
+
+/*
+ * Disable HW auto demotion on tick-less idle kernels
+ */
+static unsigned int has_nhm_snb_hw_auto_demotion;
+#ifdef CONFIG_NO_HZ
+static unsigned int auto_demote;
+#else
+static unsigned int auto_demote = 1;
+#endif
 
 /*
  * Set this flag for states where the HW flushes the TLB for us
@@ -281,6 +292,20 @@ static struct notifier_block setup_broadcast_notifier = {
 	.notifier_call = setup_broadcast_cpuhp_notify,
 };
 
+static long auto_demotion_disable(void *unused)
+{
+	unsigned long long msr_bits;
+
+	rdmsrl(MSR_NHM_SNB_PKG_CST_CFG_CTL, msr_bits);
+
+	msr_bits &= ~(NHM_C1_AUTO_DEMOTE | NHM_C3_AUTO_DEMOTE);
+
+	wrmsrl(MSR_NHM_SNB_PKG_CST_CFG_CTL, msr_bits);
+
+	return 0;
+}
+
+
 /*
  * intel_idle_probe()
  */
@@ -324,6 +349,7 @@ static int intel_idle_probe(void)
 	case 0x25:	/* Westmere */
 	case 0x2C:	/* Westmere */
 		cpuidle_state_table = nehalem_cstates;
+		has_nhm_snb_hw_auto_demotion = 1;
 		break;
 
 	case 0x1C:	/* 28 - Atom Processor */
@@ -334,6 +360,7 @@ static int intel_idle_probe(void)
 	case 0x2A:	/* SNB */
 	case 0x2D:	/* SNB Xeon */
 		cpuidle_state_table = snb_cstates;
+		has_nhm_snb_hw_auto_demotion = 1;
 		break;
 
 	default:
@@ -436,6 +463,8 @@ static int intel_idle_cpuidle_devices_init(void)
 			return -EIO;
 		}
 	}
+	if (has_nhm_snb_hw_auto_demotion && (auto_demote == 0))
+		smp_call_function(auto_demotion_disable, NULL, 1);
 
 	return 0;
 }
@@ -486,6 +515,7 @@ module_init(intel_idle_init);
 module_exit(intel_idle_exit);
 
 module_param(max_cstate, int, 0444);
+module_param(auto_demote, int, 0444);
 
 MODULE_AUTHOR("Len Brown <len.brown@intel.com>");
 MODULE_DESCRIPTION("Cpuidle driver for Intel Hardware v" INTEL_IDLE_VERSION);

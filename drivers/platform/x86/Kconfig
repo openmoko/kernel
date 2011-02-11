@@ -227,7 +227,7 @@ config SONYPI_COMPAT
 config IDEAPAD_LAPTOP
 	tristate "Lenovo IdeaPad Laptop Extras"
 	depends on ACPI
-	depends on RFKILL
+	depends on RFKILL && INPUT
 	select INPUT_SPARSEKMAP
 	help
 	  This is a driver for the rfkill switches on Lenovo IdeaPad netbooks.
@@ -598,6 +598,13 @@ config GPIO_INTEL_PMIC
 	  Say Y here to support GPIO via the SCU IPC interface
 	  on Intel MID platforms.
 
+config INTEL_MFLD_THERMAL
+        tristate "Thermal driver for Intel Medfield platform"
+	depends on INTEL_SCU_IPC && THERMAL
+	---help---
+	  Say Y here to enable thermal driver support for the  Intel Medfield
+	  platform.
+
 config RAR_REGISTER
 	bool "Restricted Access Region Register Driver"
 	depends on PCI && X86_MRST
@@ -653,5 +660,13 @@ config XO1_RFKILL
 	---help---
 	  Support for enabling/disabling the WLAN interface on the OLPC XO-1
 	  laptop.
+
+config INTEL_MID_POWER_BUTTON
+	tristate "power button driver for Intel MID platforms"
+	depends on INTEL_SCU_IPC
+	help
+	  This driver handles the power button on the Intel MID platforms.
+
+	  If unsure, say N.
 
 endif # X86_PLATFORM_DEVICES

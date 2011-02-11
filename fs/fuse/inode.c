@@ -95,6 +95,7 @@ static struct inode *fuse_alloc_inode(struct super_block *sb)
 	INIT_LIST_HEAD(&fi->queued_writes);
 	INIT_LIST_HEAD(&fi->writepages);
 	init_waitqueue_head(&fi->page_waitq);
+	mutex_init(&fi->unmap_mutex);
 	fi->forget = fuse_alloc_forget();
 	if (!fi->forget) {
 		kmem_cache_free(fuse_inode_cachep, inode);
@@ -197,8 +198,10 @@ void fuse_change_attributes(struct inode *inode, struct fuse_attr *attr,
 	spin_unlock(&fc->lock);
 
 	if (S_ISREG(inode->i_mode) && oldsize != attr->size) {
+		mutex_lock(&fi->unmap_mutex);
 		truncate_pagecache(inode, oldsize, attr->size);
 		invalidate_inode_pages2(inode->i_mapping);
+		mutex_unlock(&fi->unmap_mutex);
 	}
 }
 
@@ -286,13 +289,16 @@ int fuse_reverse_inval_inode(struct super_block *sb, u64 nodeid,
 
 	fuse_invalidate_attr(inode);
 	if (offset >= 0) {
+		struct fuse_inode *fi = get_fuse_inode(inode);
 		pg_start = offset >> PAGE_CACHE_SHIFT;
 		if (len <= 0)
 			pg_end = -1;
 		else
 			pg_end = (offset + len - 1) >> PAGE_CACHE_SHIFT;
+		mutex_lock(&fi->unmap_mutex);
 		invalidate_inode_pages2_range(inode->i_mapping,
 					      pg_start, pg_end);
+		mutex_unlock(&fi->unmap_mutex);
 	}
 	iput(inode);
 	return 0;

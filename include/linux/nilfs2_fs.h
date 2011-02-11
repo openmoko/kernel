@@ -41,26 +41,6 @@
 #include <linux/types.h>
 #include <linux/ioctl.h>
 
-/*
- * Inode flags stored in nilfs_inode and on-memory nilfs inode
- *
- * We define these flags based on ext2-fs because of the
- * compatibility reason; to avoid problems in chattr(1)
- */
-#define NILFS_SECRM_FL		0x00000001 /* Secure deletion */
-#define NILFS_UNRM_FL		0x00000002 /* Undelete */
-#define NILFS_SYNC_FL		0x00000008 /* Synchronous updates */
-#define NILFS_IMMUTABLE_FL	0x00000010 /* Immutable file */
-#define NILFS_APPEND_FL		0x00000020 /* writes to file may only append */
-#define NILFS_NODUMP_FL		0x00000040 /* do not dump file */
-#define NILFS_NOATIME_FL	0x00000080 /* do not update atime */
-/* Reserved for compression usage... */
-#define NILFS_NOTAIL_FL		0x00008000 /* file tail should not be merged */
-#define NILFS_DIRSYNC_FL	0x00010000 /* dirsync behaviour */
-
-#define NILFS_FL_USER_VISIBLE	0x0003DFFF /* User visible flags */
-#define NILFS_FL_USER_MODIFIABLE	0x000380FF /* User modifiable flags */
-
 
 #define NILFS_INODE_BMAP_SIZE	7
 /**
@@ -346,17 +326,21 @@ static inline unsigned nilfs_rec_len_from_disk(__le16 dlen)
 {
 	unsigned len = le16_to_cpu(dlen);
 
+#if !defined(__KERNEL__) || (PAGE_CACHE_SIZE >= 65536)
 	if (len == NILFS_MAX_REC_LEN)
 		return 1 << 16;
+#endif
 	return len;
 }
 
 static inline __le16 nilfs_rec_len_to_disk(unsigned len)
 {
+#if !defined(__KERNEL__) || (PAGE_CACHE_SIZE >= 65536)
 	if (len == (1 << 16))
 		return cpu_to_le16(NILFS_MAX_REC_LEN);
 	else if (len > (1 << 16))
 		BUG();
+#endif
 	return cpu_to_le16(len);
 }
 

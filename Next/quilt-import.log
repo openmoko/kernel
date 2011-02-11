@@ -1,0 +1,23 @@
+Importing i2c based on 2.6.38-rc4
+Unchanged quilt series i2c
+Importing jdelvare-hwmon based on 2.6.38-rc4
+Unchanged quilt series jdelvare-hwmon
+Importing kernel-doc based on 2.6.38-rc3
+Unchanged quilt series kernel-doc
+Importing rr based on v2.6.38-rc4-25-gd3d373e
+$ git clone -s -l -n -q . ../quilt-tmp
+$ cd ../quilt-tmp
+$ git reset --hard d3d373e0e3f51f335d8c722dd1340ab812fdf94b
+HEAD is now at d3d373e Merge git://git.kernel.org/pub/scm/linux/kernel/git/rusty/linux-2.6-for-linus
+$ git quiltimport --author Rusty Russell <rusty@rustcorp.com.au> --patches ../quilt/rr
+module:deal_with_alignment_issues_in_built_in_versions.patch
+module:do_not_hide_modver_version_show_declaration_behind_ifdef.patch
+virtio:blk_allow_re_reading_config_space_at_runtime.patch
+module:deal_with_alignment_issues_in_built_in_parameters.patch
+module-alignment-fix.patch
+$ cd ../next
+$ git fetch -f ../quilt-tmp master:quilt/rr
+From ../quilt-tmp
+ + b3e402b...ea6162f master     -> quilt/rr  (forced update)
+Importing device-mapper based on v2.6.37-7185-g52cfd50
+Unchanged quilt series device-mapper

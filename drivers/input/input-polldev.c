@@ -13,6 +13,7 @@
 #include <linux/jiffies.h>
 #include <linux/slab.h>
 #include <linux/mutex.h>
+#include <linux/workqueue.h>
 #include <linux/input-polldev.h>
 
 MODULE_AUTHOR("Dmitry Torokhov <dtor@mail.ru>");
@@ -20,43 +21,7 @@ MODULE_DESCRIPTION("Generic implementation of a polled input device");
 MODULE_LICENSE("GPL v2");
 MODULE_VERSION("0.1");
 
-static DEFINE_MUTEX(polldev_mutex);
-static int polldev_users;
 static struct workqueue_struct *polldev_wq;
-
-static int input_polldev_start_workqueue(void)
-{
-	int retval;
-
-	retval = mutex_lock_interruptible(&polldev_mutex);
-	if (retval)
-		return retval;
-
-	if (!polldev_users) {
-		polldev_wq = create_singlethread_workqueue("ipolldevd");
-		if (!polldev_wq) {
-			pr_err("failed to create ipolldevd workqueue\n");
-			retval = -ENOMEM;
-			goto out;
-		}
-	}
-
-	polldev_users++;
-
- out:
-	mutex_unlock(&polldev_mutex);
-	return retval;
-}
-
-static void input_polldev_stop_workqueue(void)
-{
-	mutex_lock(&polldev_mutex);
-
-	if (!--polldev_users)
-		destroy_workqueue(polldev_wq);
-
-	mutex_unlock(&polldev_mutex);
-}
 
 static void input_polldev_queue_work(struct input_polled_dev *dev)
 {
@@ -81,11 +46,6 @@ static void input_polled_device_work(struct work_struct *work)
 static int input_open_polled_device(struct input_dev *input)
 {
 	struct input_polled_dev *dev = input_get_drvdata(input);
-	int error;
-
-	error = input_polldev_start_workqueue();
-	if (error)
-		return error;
 
 	if (dev->open)
 		dev->open(dev);
@@ -102,13 +62,6 @@ static void input_close_polled_device(struct input_dev *input)
 	struct input_polled_dev *dev = input_get_drvdata(input);
 
 	cancel_delayed_work_sync(&dev->work);
-	/*
-	 * Clean up work struct to remove references to the workqueue.
-	 * It may be destroyed by the next call. This causes problems
-	 * at next device open-close in case of poll_interval == 0.
-	 */
-	INIT_DELAYED_WORK(&dev->work, dev->work.work.func);
-	input_polldev_stop_workqueue();
 
 	if (dev->close)
 		dev->close(dev);
@@ -192,7 +145,7 @@ static struct attribute_group input_polldev_attribute_group = {
 };
 
 /**
- * input_allocate_polled_device - allocated memory polled device
+ * input_allocate_polled_device - allocate memory for polled device
  *
  * The function allocates memory for a polled device and also
  * for an input device associated with this polled device.
@@ -239,7 +192,7 @@ EXPORT_SYMBOL(input_free_polled_device);
  * with input layer. The device should be allocated with call to
  * input_allocate_polled_device(). Callers should also set up poll()
  * method and set up capabilities (id, name, phys, bits) of the
- * corresponing input_dev structure.
+ * corresponding input_dev structure.
  */
 int input_register_polled_device(struct input_polled_dev *dev)
 {
@@ -296,3 +249,26 @@ void input_unregister_polled_device(struct input_polled_dev *dev)
 }
 EXPORT_SYMBOL(input_unregister_polled_device);
 
+static int __init input_polldev_init(void)
+{
+	/*
+	 * We are using a dedicated workqueue because we want it to
+	 * be freezable. This ensures that we stop polling when
+	 * system goes into sleep mode.
+	 */
+	polldev_wq = alloc_workqueue("ipolldev_wq",
+				     WQ_FREEZEABLE | WQ_UNBOUND, 0);
+	if (!polldev_wq) {
+		pr_err("failed to create ipolldev_wq workqueue\n");
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+module_init(input_polldev_init);
+
+static void __exit input_polldev_exit(void)
+{
+	destroy_workqueue(polldev_wq);
+}
+module_exit(input_polldev_exit);

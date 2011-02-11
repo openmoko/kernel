@@ -17,21 +17,27 @@
 #include <linux/gpio.h>
 #include <linux/amba/bus.h>
 #include <linux/amba/pl022.h>
+#include <linux/amba/serial.h>
 #include <linux/spi/spi.h>
 #include <linux/mfd/ab8500.h>
 #include <linux/mfd/tc3589x.h>
+#include <linux/leds-lp5521.h>
+#include <linux/input.h>
+#include <linux/gpio_keys.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 
 #include <plat/pincfg.h>
 #include <plat/i2c.h>
+#include <plat/ste_dma40.h>
 
 #include <mach/hardware.h>
 #include <mach/setup.h>
 #include <mach/devices.h>
 #include <mach/irqs.h>
 
+#include "ste-dma40-db8500.h"
 #include "devices-db8500.h"
 #include "pins-db8500.h"
 #include "board-mop500.h"
@@ -77,6 +83,23 @@ static pin_cfg_t mop500_pins[] = {
 
 	/* STMPE1601 IRQ */
 	GPIO218_GPIO    | PIN_INPUT_PULLUP,
+
+	/* touch screen */
+	GPIO84_GPIO	| PIN_INPUT_PULLUP,
+
+	/* USB OTG */
+	GPIO256_USB_NXT		| PIN_PULL_DOWN,
+	GPIO257_USB_STP		| PIN_PULL_UP,
+	GPIO258_USB_XCLK	| PIN_PULL_DOWN,
+	GPIO259_USB_DIR		| PIN_PULL_DOWN,
+	GPIO260_USB_DAT7	| PIN_PULL_DOWN,
+	GPIO261_USB_DAT6	| PIN_PULL_DOWN,
+	GPIO262_USB_DAT5	| PIN_PULL_DOWN,
+	GPIO263_USB_DAT4	| PIN_PULL_DOWN,
+	GPIO264_USB_DAT3	| PIN_PULL_DOWN,
+	GPIO265_USB_DAT2	| PIN_PULL_DOWN,
+	GPIO266_USB_DAT1	| PIN_PULL_DOWN,
+	GPIO267_USB_DAT0	| PIN_PULL_DOWN,
 };
 
 static struct ab8500_platform_data ab8500_platdata = {
@@ -103,16 +126,6 @@ struct platform_device ab8500_device = {
 	.resource = ab8500_resources,
 };
 
-static struct pl022_ssp_controller ssp0_platform_data = {
-	.bus_id = 0,
-	/* pl022 not yet supports dma */
-	.enable_dma = 0,
-	/* on this platform, gpio 31,142,144,214 &
-	 * 224 are connected as chip selects
-	 */
-	.num_chipselect = 5,
-};
-
 /*
  * TC35892
  */
@@ -133,11 +146,78 @@ static struct tc3589x_platform_data mop500_tc35892_data = {
 	.irq_base	= MOP500_EGPIO_IRQ_BASE,
 };
 
+static struct lp5521_led_config lp5521_pri_led[] = {
+       [0] = {
+	       .chan_nr = 0,
+	       .led_current = 0x2f,
+	       .max_current = 0x5f,
+       },
+       [1] = {
+	       .chan_nr = 1,
+	       .led_current = 0x2f,
+	       .max_current = 0x5f,
+       },
+       [2] = {
+	       .chan_nr = 2,
+	       .led_current = 0x2f,
+	       .max_current = 0x5f,
+       },
+};
+
+static struct lp5521_platform_data __initdata lp5521_pri_data = {
+       .label = "lp5521_pri",
+       .led_config     = &lp5521_pri_led[0],
+       .num_channels   = 3,
+       .clock_mode     = LP5521_CLOCK_EXT,
+};
+
+static struct lp5521_led_config lp5521_sec_led[] = {
+       [0] = {
+	       .chan_nr = 0,
+	       .led_current = 0x2f,
+	       .max_current = 0x5f,
+       },
+       [1] = {
+	       .chan_nr = 1,
+	       .led_current = 0x2f,
+	       .max_current = 0x5f,
+       },
+       [2] = {
+	       .chan_nr = 2,
+	       .led_current = 0x2f,
+	       .max_current = 0x5f,
+       },
+};
+
+static struct lp5521_platform_data __initdata lp5521_sec_data = {
+       .label = "lp5521_sec",
+       .led_config     = &lp5521_sec_led[0],
+       .num_channels   = 3,
+       .clock_mode     = LP5521_CLOCK_EXT,
+};
+
 static struct i2c_board_info mop500_i2c0_devices[] = {
 	{
 		I2C_BOARD_INFO("tc3589x", 0x42),
-		.irq            = NOMADIK_GPIO_TO_IRQ(217),
+		.irq		= NOMADIK_GPIO_TO_IRQ(217),
 		.platform_data  = &mop500_tc35892_data,
+	},
+};
+
+static struct i2c_board_info __initdata mop500_i2c2_devices[] = {
+	{
+		/* lp5521 LED driver, 1st device */
+		I2C_BOARD_INFO("lp5521", 0x33),
+		.platform_data = &lp5521_pri_data,
+	},
+	{
+		/* lp5521 LED driver, 2st device */
+		I2C_BOARD_INFO("lp5521", 0x34),
+		.platform_data = &lp5521_sec_data,
+	},
+	{
+		/* Light sensor Rohm BH1780GLI */
+		I2C_BOARD_INFO("bh1780", 0x29),
 	},
 };
 
@@ -178,8 +258,94 @@ static void __init mop500_i2c_init(void)
 	db8500_add_i2c3(&u8500_i2c3_data);
 }
 
+static struct gpio_keys_button mop500_gpio_keys[] = {
+	{
+		.desc			= "SFH7741 Proximity Sensor",
+		.type			= EV_SW,
+		.code			= SW_FRONT_PROXIMITY,
+		.gpio			= GPIO_PROX_SENSOR,
+		.active_low		= 0,
+		.can_disable		= 1,
+	}
+};
+
+static struct regulator *prox_regulator;
+static int mop500_prox_activate(struct device *dev);
+static void mop500_prox_deactivate(struct device *dev);
+
+static struct gpio_keys_platform_data mop500_gpio_keys_data = {
+	.buttons	= mop500_gpio_keys,
+	.nbuttons	= ARRAY_SIZE(mop500_gpio_keys),
+	.enable		= mop500_prox_activate,
+	.disable	= mop500_prox_deactivate,
+};
+
+static struct platform_device mop500_gpio_keys_device = {
+	.name	= "gpio-keys",
+	.id	= 0,
+	.dev	= {
+		.platform_data	= &mop500_gpio_keys_data,
+	},
+};
+
+static int mop500_prox_activate(struct device *dev)
+{
+	prox_regulator = regulator_get(&mop500_gpio_keys_device.dev,
+						"vcc");
+	if (IS_ERR(prox_regulator)) {
+		dev_err(&mop500_gpio_keys_device.dev,
+			"no regulator\n");
+		return PTR_ERR(prox_regulator);
+	}
+	regulator_enable(prox_regulator);
+	return 0;
+}
+
+static void mop500_prox_deactivate(struct device *dev)
+{
+	regulator_disable(prox_regulator);
+	regulator_put(prox_regulator);
+}
+
 /* add any platform devices here - TODO */
 static struct platform_device *platform_devs[] __initdata = {
+	&mop500_gpio_keys_device,
+};
+
+#ifdef CONFIG_STE_DMA40
+static struct stedma40_chan_cfg ssp0_dma_cfg_rx = {
+	.mode = STEDMA40_MODE_LOGICAL,
+	.dir = STEDMA40_PERIPH_TO_MEM,
+	.src_dev_type =  DB8500_DMA_DEV8_SSP0_RX,
+	.dst_dev_type = STEDMA40_DEV_DST_MEMORY,
+	.src_info.data_width = STEDMA40_BYTE_WIDTH,
+	.dst_info.data_width = STEDMA40_BYTE_WIDTH,
+};
+
+static struct stedma40_chan_cfg ssp0_dma_cfg_tx = {
+	.mode = STEDMA40_MODE_LOGICAL,
+	.dir = STEDMA40_MEM_TO_PERIPH,
+	.src_dev_type = STEDMA40_DEV_SRC_MEMORY,
+	.dst_dev_type = DB8500_DMA_DEV8_SSP0_TX,
+	.src_info.data_width = STEDMA40_BYTE_WIDTH,
+	.dst_info.data_width = STEDMA40_BYTE_WIDTH,
+};
+#endif
+
+static struct pl022_ssp_controller ssp0_platform_data = {
+	.bus_id = 0,
+#ifdef CONFIG_STE_DMA40
+	.enable_dma = 1,
+	.dma_filter = stedma40_filter,
+	.dma_rx_param = &ssp0_dma_cfg_rx,
+	.dma_tx_param = &ssp0_dma_cfg_tx,
+#else
+	.enable_dma = 0,
+#endif
+	/* on this platform, gpio 31,142,144,214 &
+	 * 224 are connected as chip selects
+	 */
+	.num_chipselect = 5,
 };
 
 static void __init mop500_spi_init(void)
@@ -187,11 +353,91 @@ static void __init mop500_spi_init(void)
 	db8500_add_ssp0(&ssp0_platform_data);
 }
 
+#ifdef CONFIG_STE_DMA40
+static struct stedma40_chan_cfg uart0_dma_cfg_rx = {
+	.mode = STEDMA40_MODE_LOGICAL,
+	.dir = STEDMA40_PERIPH_TO_MEM,
+	.src_dev_type =  DB8500_DMA_DEV13_UART0_RX,
+	.dst_dev_type = STEDMA40_DEV_DST_MEMORY,
+	.src_info.data_width = STEDMA40_BYTE_WIDTH,
+	.dst_info.data_width = STEDMA40_BYTE_WIDTH,
+};
+
+static struct stedma40_chan_cfg uart0_dma_cfg_tx = {
+	.mode = STEDMA40_MODE_LOGICAL,
+	.dir = STEDMA40_MEM_TO_PERIPH,
+	.src_dev_type = STEDMA40_DEV_SRC_MEMORY,
+	.dst_dev_type = DB8500_DMA_DEV13_UART0_TX,
+	.src_info.data_width = STEDMA40_BYTE_WIDTH,
+	.dst_info.data_width = STEDMA40_BYTE_WIDTH,
+};
+
+static struct stedma40_chan_cfg uart1_dma_cfg_rx = {
+	.mode = STEDMA40_MODE_LOGICAL,
+	.dir = STEDMA40_PERIPH_TO_MEM,
+	.src_dev_type =  DB8500_DMA_DEV12_UART1_RX,
+	.dst_dev_type = STEDMA40_DEV_DST_MEMORY,
+	.src_info.data_width = STEDMA40_BYTE_WIDTH,
+	.dst_info.data_width = STEDMA40_BYTE_WIDTH,
+};
+
+static struct stedma40_chan_cfg uart1_dma_cfg_tx = {
+	.mode = STEDMA40_MODE_LOGICAL,
+	.dir = STEDMA40_MEM_TO_PERIPH,
+	.src_dev_type = STEDMA40_DEV_SRC_MEMORY,
+	.dst_dev_type = DB8500_DMA_DEV12_UART1_TX,
+	.src_info.data_width = STEDMA40_BYTE_WIDTH,
+	.dst_info.data_width = STEDMA40_BYTE_WIDTH,
+};
+
+static struct stedma40_chan_cfg uart2_dma_cfg_rx = {
+	.mode = STEDMA40_MODE_LOGICAL,
+	.dir = STEDMA40_PERIPH_TO_MEM,
+	.src_dev_type =  DB8500_DMA_DEV11_UART2_RX,
+	.dst_dev_type = STEDMA40_DEV_DST_MEMORY,
+	.src_info.data_width = STEDMA40_BYTE_WIDTH,
+	.dst_info.data_width = STEDMA40_BYTE_WIDTH,
+};
+
+static struct stedma40_chan_cfg uart2_dma_cfg_tx = {
+	.mode = STEDMA40_MODE_LOGICAL,
+	.dir = STEDMA40_MEM_TO_PERIPH,
+	.src_dev_type = STEDMA40_DEV_SRC_MEMORY,
+	.dst_dev_type = DB8500_DMA_DEV11_UART2_TX,
+	.src_info.data_width = STEDMA40_BYTE_WIDTH,
+	.dst_info.data_width = STEDMA40_BYTE_WIDTH,
+};
+#endif
+
+static struct amba_pl011_data uart0_plat = {
+#ifdef CONFIG_STE_DMA40
+	.dma_filter = stedma40_filter,
+	.dma_rx_param = &uart0_dma_cfg_rx,
+	.dma_tx_param = &uart0_dma_cfg_tx,
+#endif
+};
+
+static struct amba_pl011_data uart1_plat = {
+#ifdef CONFIG_STE_DMA40
+	.dma_filter = stedma40_filter,
+	.dma_rx_param = &uart1_dma_cfg_rx,
+	.dma_tx_param = &uart1_dma_cfg_tx,
+#endif
+};
+
+static struct amba_pl011_data uart2_plat = {
+#ifdef CONFIG_STE_DMA40
+	.dma_filter = stedma40_filter,
+	.dma_rx_param = &uart2_dma_cfg_rx,
+	.dma_tx_param = &uart2_dma_cfg_tx,
+#endif
+};
+
 static void __init mop500_uart_init(void)
 {
-	db8500_add_uart0();
-	db8500_add_uart1();
-	db8500_add_uart2();
+	db8500_add_uart0(&uart0_plat);
+	db8500_add_uart1(&uart1_plat);
+	db8500_add_uart2(&uart2_plat);
 }
 
 static void __init u8500_init_machine(void)
@@ -207,12 +453,12 @@ static void __init u8500_init_machine(void)
 	mop500_spi_init();
 	mop500_uart_init();
 
-	mop500_keypad_init();
-
 	platform_device_register(&ab8500_device);
 
 	i2c_register_board_info(0, mop500_i2c0_devices,
 				ARRAY_SIZE(mop500_i2c0_devices));
+	i2c_register_board_info(2, mop500_i2c2_devices,
+				ARRAY_SIZE(mop500_i2c2_devices));
 }
 
 MACHINE_START(U8500, "ST-Ericsson MOP500 platform")

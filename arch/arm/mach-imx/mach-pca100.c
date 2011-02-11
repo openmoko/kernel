@@ -187,7 +187,6 @@ static struct i2c_board_info pca100_i2c_devices[] = {
 	}
 };
 
-#if defined(CONFIG_SPI_IMX) || defined(CONFIG_SPI_IMX_MODULE)
 static struct spi_eeprom at25320 = {
 	.name		= "at25320an",
 	.byte_len	= 4096,
@@ -211,7 +210,6 @@ static const struct spi_imx_master pca100_spi0_data __initconst = {
 	.chipselect	= pca100_spi_cs,
 	.num_chipselect = ARRAY_SIZE(pca100_spi_cs),
 };
-#endif
 
 static void pca100_ac97_warm_reset(struct snd_ac97 *ac97)
 {
@@ -389,13 +387,11 @@ static void __init pca100_init(void)
 
 	imx27_add_imx_i2c(1, &pca100_i2c1_data);
 
-#if defined(CONFIG_SPI_IMX) || defined(CONFIG_SPI_IMX_MODULE)
 	mxc_gpio_mode(GPIO_PORTD | 28 | GPIO_GPIO | GPIO_IN);
 	mxc_gpio_mode(GPIO_PORTD | 27 | GPIO_GPIO | GPIO_IN);
 	spi_register_board_info(pca100_spi_board_info,
 				ARRAY_SIZE(pca100_spi_board_info));
 	imx27_add_spi_imx0(&pca100_spi0_data);
-#endif
 
 	gpio_request(OTG_PHY_CS_GPIO, "usb-otg-cs");
 	gpio_direction_output(OTG_PHY_CS_GPIO, 1);
@@ -437,10 +433,10 @@ static struct sys_timer pca100_timer = {
 };
 
 MACHINE_START(PCA100, "phyCARD-i.MX27")
-	.boot_params    = MX27_PHYS_OFFSET + 0x100,
-	.map_io         = mx27_map_io,
-	.init_irq       = mx27_init_irq,
-	.init_machine   = pca100_init,
-	.timer          = &pca100_timer,
+	.boot_params = MX27_PHYS_OFFSET + 0x100,
+	.map_io = mx27_map_io,
+	.init_early = imx27_init_early,
+	.init_irq = mx27_init_irq,
+	.init_machine = pca100_init,
+	.timer = &pca100_timer,
 MACHINE_END
-

@@ -138,7 +138,7 @@ static struct regulator_init_data gpo_init = {
 	}
 };
 
-static struct mc13783_regulator_init_data mx31_3ds_regulators[] = {
+static struct mc13xxx_regulator_init_data mx31_3ds_regulators[] = {
 	{
 		.id = MC13783_REG_PWGT1SPI, /* Power Gate for ARM core. */
 		.init_data = &pwgtx_init,
@@ -156,10 +156,10 @@ static struct mc13783_regulator_init_data mx31_3ds_regulators[] = {
 };
 
 /* MC13783 */
-static struct mc13783_platform_data mc13783_pdata __initdata = {
+static struct mc13xxx_platform_data mc13783_pdata __initdata = {
 	.regulators = mx31_3ds_regulators,
 	.num_regulators = ARRAY_SIZE(mx31_3ds_regulators),
-	.flags  = MC13783_USE_REGULATOR | MC13783_USE_TOUCHSCREEN,
+	.flags  = MC13XXX_USE_REGULATOR | MC13XXX_USE_TOUCHSCREEN
 };
 
 /* SPI */
@@ -245,7 +245,7 @@ usbotg_free_reset:
 	return err;
 }
 
-static int mx31_3ds_host2_init(struct platform_device *pdev)
+static int __maybe_unused mx31_3ds_host2_init(struct platform_device *pdev)
 {
 	int err;
 
@@ -320,14 +320,6 @@ static const struct imxuart_platform_data uart_pdata __initconst = {
 	.flags = IMXUART_HAVE_RTSCTS,
 };
 
-/*
- * Set up static virtual mappings.
- */
-static void __init mx31_3ds_map_io(void)
-{
-	mx31_map_io();
-}
-
 /*!
  * Board specific initialization.
  */
@@ -381,9 +373,10 @@ static struct sys_timer mx31_3ds_timer = {
  */
 MACHINE_START(MX31_3DS, "Freescale MX31PDK (3DS)")
 	/* Maintainer: Freescale Semiconductor, Inc. */
-	.boot_params    = MX3x_PHYS_OFFSET + 0x100,
-	.map_io         = mx31_3ds_map_io,
-	.init_irq       = mx31_init_irq,
-	.init_machine   = mxc_board_init,
-	.timer          = &mx31_3ds_timer,
+	.boot_params = MX3x_PHYS_OFFSET + 0x100,
+	.map_io = mx31_map_io,
+	.init_early = imx31_init_early,
+	.init_irq = mx31_init_irq,
+	.timer = &mx31_3ds_timer,
+	.init_machine = mxc_board_init,
 MACHINE_END

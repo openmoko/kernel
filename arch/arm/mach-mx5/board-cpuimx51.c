@@ -60,7 +60,6 @@
 #define	MX51_USB_PLL_DIV_19_2_MHZ	0x01
 #define	MX51_USB_PLL_DIV_24_MHZ		0x02
 
-#if defined(CONFIG_SERIAL_8250) || defined(CONFIG_SERIAL_8250_MODULE)
 static struct plat_serial8250_port serial_platform_data[] = {
 	{
 		.mapbase = (unsigned long)(MX51_CS1_BASE_ADDR + 0x400000),
@@ -105,12 +104,9 @@ static struct platform_device serial_device = {
 		.platform_data = serial_platform_data,
 	},
 };
-#endif
 
 static struct platform_device *devices[] __initdata = {
-#if defined(CONFIG_SERIAL_8250) || defined(CONFIG_SERIAL_8250_MODULE)
 	&serial_device,
-#endif
 };
 
 static iomux_v3_cfg_t eukrea_cpuimx51_pads[] = {
@@ -298,7 +294,8 @@ MACHINE_START(EUKREA_CPUIMX51, "Eukrea CPUIMX51 Module")
 	/* Maintainer: Eric Bénard <eric@eukrea.com> */
 	.boot_params = MX51_PHYS_OFFSET + 0x100,
 	.map_io = mx51_map_io,
+	.init_early = imx51_init_early,
 	.init_irq = mx51_init_irq,
-	.init_machine = eukrea_cpuimx51_init,
 	.timer = &mxc_timer,
+	.init_machine = eukrea_cpuimx51_init,
 MACHINE_END

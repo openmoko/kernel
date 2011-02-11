@@ -216,7 +216,7 @@ static struct regulator_init_data vgen_init = {
 	.consumer_supplies = vgen_consumers,
 };
 
-static struct mc13783_regulator_init_data mx27_3ds_regulators[] = {
+static struct mc13xxx_regulator_init_data mx27_3ds_regulators[] = {
 	{
 		.id = MC13783_REG_VMMC1,
 		.init_data = &vmmc1_init,
@@ -227,10 +227,10 @@ static struct mc13783_regulator_init_data mx27_3ds_regulators[] = {
 };
 
 /* MC13783 */
-static struct mc13783_platform_data mc13783_pdata __initdata = {
+static struct mc13xxx_platform_data mc13783_pdata __initdata = {
 	.regulators = mx27_3ds_regulators,
 	.num_regulators = ARRAY_SIZE(mx27_3ds_regulators),
-	.flags  = MC13783_USE_REGULATOR,
+	.flags  = MC13XXX_USE_REGULATOR,
 };
 
 /* SPI */
@@ -295,9 +295,10 @@ static struct sys_timer mx27pdk_timer = {
 
 MACHINE_START(MX27_3DS, "Freescale MX27PDK")
 	/* maintainer: Freescale Semiconductor, Inc. */
-	.boot_params    = MX27_PHYS_OFFSET + 0x100,
-	.map_io         = mx27_map_io,
-	.init_irq       = mx27_init_irq,
-	.init_machine   = mx27pdk_init,
-	.timer          = &mx27pdk_timer,
+	.boot_params = MX27_PHYS_OFFSET + 0x100,
+	.map_io = mx27_map_io,
+	.init_early = imx27_init_early,
+	.init_irq = mx27_init_irq,
+	.timer = &mx27pdk_timer,
+	.init_machine = mx27pdk_init,
 MACHINE_END

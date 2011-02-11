@@ -117,7 +117,6 @@ void __ecryptfs_printk(const char *fmt, ...)
  */
 int ecryptfs_init_persistent_file(struct dentry *ecryptfs_dentry)
 {
-	const struct cred *cred = current_cred();
 	struct ecryptfs_inode_info *inode_info =
 		ecryptfs_inode_to_private(ecryptfs_dentry->d_inode);
 	int rc = 0;
@@ -130,7 +129,7 @@ int ecryptfs_init_persistent_file(struct dentry *ecryptfs_dentry)
 
 		lower_dentry = ecryptfs_dentry_to_lower(ecryptfs_dentry);
 		rc = ecryptfs_privileged_open(&inode_info->lower_file,
-					      lower_dentry, lower_mnt, cred);
+					      lower_dentry, lower_mnt);
 		if (rc) {
 			printk(KERN_ERR "Error opening lower persistent file "
 			       "for lower_dentry [0x%p] and lower_mnt [0x%p]; "

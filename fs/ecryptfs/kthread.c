@@ -38,6 +38,7 @@ static struct ecryptfs_kthread_ctl {
 } ecryptfs_kthread_ctl;
 
 static struct task_struct *ecryptfs_kthread;
+static struct cred *ecryptfs_kthread_cred;
 
 /**
  * ecryptfs_threadfn
@@ -74,7 +75,8 @@ static int ecryptfs_threadfn(void *ignored)
 				mntget(req->lower_mnt);
 				(*req->lower_file) = dentry_open(
 					req->lower_dentry, req->lower_mnt,
-					(O_RDWR | O_LARGEFILE), current_cred());
+					(O_RDWR | O_LARGEFILE),
+					ecryptfs_kthread_cred);
 				req->flags |= ECRYPTFS_REQ_PROCESSED;
 			}
 			wake_up(&req->wait);
@@ -99,7 +101,15 @@ int __init ecryptfs_init_kthread(void)
 		rc = PTR_ERR(ecryptfs_kthread);
 		printk(KERN_ERR "%s: Failed to create kernel thread; rc = [%d]"
 		       "\n", __func__, rc);
+		goto out;
 	}
+	ecryptfs_kthread_cred = prepare_kernel_cred(ecryptfs_kthread);
+	if (IS_ERR(ecryptfs_kthread_cred)) {
+		rc = PTR_ERR(ecryptfs_kthread_cred);
+		printk(KERN_ERR "%s: Failed to obtain the credential struct; "
+				"rc = [%d]\n", __func__, rc);
+	}
+out:
 	return rc;
 }
 
@@ -119,6 +129,7 @@ void ecryptfs_destroy_kthread(void)
 	mutex_unlock(&ecryptfs_kthread_ctl.mux);
 	kthread_stop(ecryptfs_kthread);
 	wake_up(&ecryptfs_kthread_ctl.wait);
+	put_cred(ecryptfs_kthread_cred);
 }
 
 /**
@@ -133,8 +144,7 @@ void ecryptfs_destroy_kthread(void)
  */
 int ecryptfs_privileged_open(struct file **lower_file,
 			     struct dentry *lower_dentry,
-			     struct vfsmount *lower_mnt,
-			     const struct cred *cred)
+			     struct vfsmount *lower_mnt)
 {
 	struct ecryptfs_open_req *req;
 	int flags = O_LARGEFILE;
@@ -146,7 +156,8 @@ int ecryptfs_privileged_open(struct file **lower_file,
 	dget(lower_dentry);
 	mntget(lower_mnt);
 	flags |= IS_RDONLY(lower_dentry->d_inode) ? O_RDONLY : O_RDWR;
-	(*lower_file) = dentry_open(lower_dentry, lower_mnt, flags, cred);
+	(*lower_file) = dentry_open(lower_dentry, lower_mnt, flags,
+				    ecryptfs_kthread_cred);
 	if (!IS_ERR(*lower_file))
 		goto out;
 	if (flags & O_RDONLY) {

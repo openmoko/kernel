@@ -147,15 +147,17 @@ struct kparam_array
 	BUILD_BUG_ON_ZERO((perm) < 0 || (perm) > 0777 || ((perm) & 2))	\
 	+ BUILD_BUG_ON_ZERO(sizeof(""prefix) > MAX_PARAM_PREFIX_LEN);	\
 	static const char __param_str_##name[] = prefix #name;		\
-	static struct kernel_param __moduleparam_const __param_##name	\
-	__used								\
-    __attribute__ ((unused,__section__ ("__param"),aligned(sizeof(void *)))) \
-	= { __param_str_##name, ops, perm, isbool ? KPARAM_ISBOOL : 0,	\
-	    { arg } }
+	static const struct kernel_param ___param_##name = {		\
+	    __param_str_##name, ops, perm, isbool ? KPARAM_ISBOOL : 0,	\
+	    { arg }							\
+	};								\
+	static const struct kernel_param				\
+	__used __attribute__ ((__section__ ("__param")))		\
+	* __moduleparam_const __param_##name = &___param_##name
 
 /* Obsolete - use module_param_cb() */
 #define module_param_call(name, set, get, arg, perm)			\
-	static struct kernel_param_ops __param_ops_##name =		\
+	static const struct kernel_param_ops __param_ops_##name =	\
 		 { (void *)set, (void *)get };				\
 	__module_param_call(MODULE_PARAM_PREFIX,			\
 			    name, &__param_ops_##name, arg,		\
@@ -177,7 +179,7 @@ __check_old_set_param(int (*oldset)(const char *, struct kernel_param *))
  */
 #define kparam_block_sysfs_write(name)			\
 	do {						\
-		BUG_ON(!(__param_##name.perm & 0222));	\
+		BUG_ON(!(___param_##name.perm & 0222));	\
 		__kernel_param_lock();			\
 	} while (0)
 
@@ -187,7 +189,7 @@ __check_old_set_param(int (*oldset)(const char *, struct kernel_param *))
  */
 #define kparam_unblock_sysfs_write(name)		\
 	do {						\
-		BUG_ON(!(__param_##name.perm & 0222));	\
+		BUG_ON(!(___param_##name.perm & 0222));	\
 		__kernel_param_unlock();		\
 	} while (0)
 
@@ -199,7 +201,7 @@ __check_old_set_param(int (*oldset)(const char *, struct kernel_param *))
  */
 #define kparam_block_sysfs_read(name)			\
 	do {						\
-		BUG_ON(!(__param_##name.perm & 0444));	\
+		BUG_ON(!(___param_##name.perm & 0444));	\
 		__kernel_param_lock();			\
 	} while (0)
 
@@ -209,7 +211,7 @@ __check_old_set_param(int (*oldset)(const char *, struct kernel_param *))
  */
 #define kparam_unblock_sysfs_read(name)			\
 	do {						\
-		BUG_ON(!(__param_##name.perm & 0444));	\
+		BUG_ON(!(___param_##name.perm & 0444));	\
 		__kernel_param_unlock();		\
 	} while (0)
 

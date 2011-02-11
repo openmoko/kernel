@@ -1,0 +1,125 @@
+#
+# PKUnity v3 Kconfig
+#
+
+if ARCH_PUV3
+
+menu "PKUnity v3 SoC Features"
+
+config PUV3_I2C
+	bool "PKUnity v3 I2C bus support"
+#	default y
+	select I2C
+	select I2C_CHARDEV
+	select I2C_ALGOBIT
+
+config PUV3_UMAL
+	tristate "PKUnity v3 UMAL Gigabit Network Adapter support"
+	select MII
+	select PHYLIB
+
+config PUV3_UNIGFX
+	tristate "PKUnity v3 Unigfx display support"
+	select FB
+	select FB_SYS_FILLRECT
+	select FB_SYS_COPYAREA
+	select FB_SYS_IMAGEBLIT
+	select FB_SYS_FOPS
+	help
+	  Choose this option if you want to use the Unigfx device as a
+	  framebuffer device. Without the support of PCI & AGP.
+
+config PUV3_UNIGFX_HWACCEL
+	bool "PKUnity v3 Unigfx hardware accelerator support"
+	depends on PUV3_UNIGFX
+
+config PUV3_AC97
+	tristate "PKUnity v3 AC97 driver support"
+	select SND_PCM
+	select SND_AC97_CODEC
+	help
+	  Say Y or M if you want to support any AC97 codec attached to
+	  the PKUnity AC97 interface.
+
+#config PUV3_MUSB
+#	bool "PKUnity v3 USB MUSBMHDRC Support"
+#	select USB_MUSB_HDRC_HCD
+#	select USB_MUSB_HOST
+#	select MUSB_PIO_ONLY
+#	select USB_INVENTRA_DMA
+
+#config PUV3_MMC
+#	tristate "PKUnity v3 MMC/SD Card support"
+#	select MMC
+
+#config PUV3_NAND
+#	tristate "PKUnity v3 NAND Flash support"
+#	select MTD
+#	select MTD_PARTITIONS
+#	select MTD_NAND
+#	select MTD_CHAR
+#	select MTD_BLOCK
+
+#config PUV3_NAND_CHIPNR
+#	int "PKUnity v3 NAND Flash Chip number (1-4)"
+#	range 1 4
+#	depends on PUV3_NAND
+#	default "1"
+
+#config PUV3_UART
+#	bool "PKUnity v3 serial port support"
+#	select SERIAL_CORE
+
+#config PUV3_UART_CONSOLE
+#	bool "Console on PKUnity serial port"
+#	depends on PUV3_UART
+#	select SERIAL_CORE_CONSOLE
+#	help
+#	  Even if you say Y here, the currently visible virtual console
+#	  (/dev/tty0) will still be used as the system console by default, but
+#	  you can alter that using a kernel command line option such as
+#	  "console=ttySA0". (Try "man bootparam" or see the documentation of
+#	  your boot loader (lilo or loadlin) about how to pass options to the
+#	  kernel at boot time.)
+
+#config PUV3_SPI
+#	bool "PKUnity v3 SPI controller support"
+#	select SPI
+#	select SPI_MASTER
+
+endmenu
+
+if PUV3_NB0916
+
+menu "PKUnity NetBook-0916 Features"
+
+config I2C_BATTERY_BQ27200
+	tristate "I2C Battery BQ27200 Support"
+	select PUV3_I2C
+	select POWER_SUPPLY
+	select BATTERY_BQ27x00
+
+config I2C_EEPROM_AT24
+	tristate "I2C EEPROMs AT24 support"
+	select PUV3_I2C
+	select MISC_DEVICES
+	select EEPROM_AT24
+
+config LCD_BACKLIGHT
+	tristate "LCD Backlight support"
+	select BACKLIGHT_LCD_SUPPORT
+	select BACKLIGHT_PWM
+
+#config USB_WLAN_HED_AQ3
+#	tristate "HED Wireless Interface Card"
+#	select WIRELESS_EXT
+#	select WIRELESS_EXT_SYSFS
+
+#config USB_CMMB_INNOFIDEI
+#	tristate "Innofidei cmmb dongle"
+
+endmenu
+
+endif
+
+endif

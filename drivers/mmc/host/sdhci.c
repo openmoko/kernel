@@ -20,6 +20,7 @@
 #include <linux/slab.h>
 #include <linux/scatterlist.h>
 #include <linux/regulator/consumer.h>
+#include <linux/pm_runtime.h>
 
 #include <linux/leds.h>
 
@@ -1161,6 +1162,7 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 {
 	struct sdhci_host *host;
 	unsigned long flags;
+	unsigned int lastclock;
 	u8 ctrl;
 
 	host = mmc_priv(mmc);
@@ -1168,6 +1170,27 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	spin_lock_irqsave(&host->lock, flags);
 
 	if (host->flags & SDHCI_DEVICE_DEAD)
+		goto out;
+
+	/*
+	 * get/put runtime_pm usage counter at ios->clock transitions
+	 * We need to do it before any other chip access, as sdhci could
+	 * be power gated
+	 */
+	lastclock = host->iosclock;
+	host->iosclock = ios->clock;
+	if (lastclock == 0 && ios->clock != 0) {
+		spin_unlock_irqrestore(&host->lock, flags);
+		pm_runtime_get_sync(host->mmc->parent);
+		spin_lock_irqsave(&host->lock, flags);
+	} else if (lastclock != 0 && ios->clock == 0) {
+		spin_unlock_irqrestore(&host->lock, flags);
+		pm_runtime_mark_last_busy(host->mmc->parent);
+		pm_runtime_put_autosuspend(host->mmc->parent);
+		spin_lock_irqsave(&host->lock, flags);
+	}
+	/* no need to configure the rest.. */
+	if (host->iosclock == 0)
 		goto out;
 
 	/*
@@ -1244,6 +1267,8 @@ static int sdhci_get_ro(struct mmc_host *mmc)
 	int is_readonly;
 
 	host = mmc_priv(mmc);
+	/* this function is called before set_ios... */
+	pm_runtime_get_sync(mmc->parent);
 
 	spin_lock_irqsave(&host->lock, flags);
 
@@ -1257,6 +1282,7 @@ static int sdhci_get_ro(struct mmc_host *mmc)
 
 	spin_unlock_irqrestore(&host->lock, flags);
 
+	pm_runtime_put_autosuspend(mmc->parent);
 	/* This quirk needs to be replaced by a callback-function later */
 	return host->quirks & SDHCI_QUIRK_INVERTED_WRITE_PROTECT ?
 		!is_readonly : is_readonly;
@@ -1268,6 +1294,7 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	unsigned long flags;
 
 	host = mmc_priv(mmc);
+	pm_runtime_get_sync(mmc->parent);
 
 	spin_lock_irqsave(&host->lock, flags);
 
@@ -1282,6 +1309,7 @@ out:
 	mmiowb();
 
 	spin_unlock_irqrestore(&host->lock, flags);
+	pm_runtime_put_autosuspend(mmc->parent);
 }
 
 static const struct mmc_host_ops sdhci_ops = {
@@ -1715,6 +1743,37 @@ EXPORT_SYMBOL_GPL(sdhci_enable_irq_wakeups);
 
 #endif /* CONFIG_PM */
 
+#ifdef CONFIG_PM_RUNTIME
+
+int sdhci_runtime_suspend(struct sdhci_host *host)
+{
+	/* Nothing to do yet. Still leave the placeholder */
+	return 0;
+}
+
+EXPORT_SYMBOL_GPL(sdhci_runtime_suspend);
+
+int sdhci_runtime_resume(struct sdhci_host *host)
+{
+	int ret = 0;
+
+	if (host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA)) {
+		if (host->ops->enable_dma)
+			host->ops->enable_dma(host);
+	}
+
+	sdhci_init(host, (host->mmc->pm_flags & MMC_PM_KEEP_POWER));
+	host->pwr = 0; /* force power reprogram */
+	host->clock = 0; /* force clock reprogram */
+	sdhci_set_ios(host->mmc, &host->mmc->ios);
+	mmiowb();
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(sdhci_runtime_resume);
+
+#endif /* CONFIG_PM_RUNTIME */
+
 /*****************************************************************************\
  *                                                                           *
  * Device allocation/registration                                            *
@@ -1735,6 +1794,7 @@ struct sdhci_host *sdhci_alloc_host(struct device *dev,
 
 	host = mmc_priv(mmc);
 	host->mmc = mmc;
+	host->iosclock = 0;
 
 	return host;
 }

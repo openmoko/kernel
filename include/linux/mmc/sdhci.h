@@ -116,6 +116,7 @@ struct sdhci_host {
 	unsigned int timeout_clk;	/* Timeout freq (KHz) */
 
 	unsigned int clock;	/* Current clock (MHz) */
+	unsigned int iosclock;	/* Last clock asked via set_ios  */
 	u8 pwr;			/* Current voltage */
 
 	struct mmc_request *mrq;	/* Current request */

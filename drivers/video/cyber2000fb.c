@@ -48,7 +48,6 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/i2c.h>
-#include <linux/i2c-id.h>
 #include <linux/i2c-algo-bit.h>
 
 #include <asm/pgtable.h>

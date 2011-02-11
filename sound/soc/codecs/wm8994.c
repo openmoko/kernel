@@ -109,7 +109,7 @@ struct wm8994_priv {
 	struct wm8994_pdata *pdata;
 };
 
-static int wm8994_readable(unsigned int reg)
+static int wm8994_readable(struct snd_soc_codec *codec, unsigned int reg)
 {
 	switch (reg) {
 	case WM8994_GPIO_1:
@@ -136,7 +136,7 @@ static int wm8994_readable(unsigned int reg)
 	return wm8994_access_masks[reg].readable != 0;
 }
 
-static int wm8994_volatile(unsigned int reg)
+static int wm8994_volatile(struct snd_soc_codec *codec, unsigned int reg)
 {
 	if (reg >= WM8994_CACHE_SIZE)
 		return 1;
@@ -164,7 +164,7 @@ static int wm8994_write(struct snd_soc_codec *codec, unsigned int reg,
 
 	BUG_ON(reg > WM8994_MAX_REGISTER);
 
-	if (!wm8994_volatile(reg)) {
+	if (!wm8994_volatile(codec, reg)) {
 		ret = snd_soc_cache_write(codec, reg, value);
 		if (ret != 0)
 			dev_err(codec->dev, "Cache write to %x failed: %d\n",
@@ -182,7 +182,7 @@ static unsigned int wm8994_read(struct snd_soc_codec *codec,
 
 	BUG_ON(reg > WM8994_MAX_REGISTER);
 
-	if (!wm8994_volatile(reg) && wm8994_readable(reg) &&
+	if (!wm8994_volatile(codec, reg) && wm8994_readable(codec, reg) &&
 	    reg < codec->driver->reg_cache_size) {
 		ret = snd_soc_cache_read(codec, reg, &val);
 		if (ret >= 0)
@@ -1287,9 +1287,9 @@ SND_SOC_DAPM_SUPPLY("DSPINTCLK", WM8994_CLOCKING_1, 1, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("AIF1CLK", WM8994_AIF1_CLOCKING_1, 0, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("AIF2CLK", WM8994_AIF2_CLOCKING_1, 0, 0, NULL, 0),
 
-SND_SOC_DAPM_AIF_OUT("AIF1ADC1L", "AIF1 Capture",
+SND_SOC_DAPM_AIF_OUT("AIF1ADC1L", NULL,
 		     0, WM8994_POWER_MANAGEMENT_4, 9, 0),
-SND_SOC_DAPM_AIF_OUT("AIF1ADC1R", "AIF1 Capture",
+SND_SOC_DAPM_AIF_OUT("AIF1ADC1R", NULL,
 		     0, WM8994_POWER_MANAGEMENT_4, 8, 0),
 SND_SOC_DAPM_AIF_IN_E("AIF1DAC1L", NULL, 0,
 		      WM8994_POWER_MANAGEMENT_5, 9, 0, wm8958_aif_ev,
@@ -1298,9 +1298,9 @@ SND_SOC_DAPM_AIF_IN_E("AIF1DAC1R", NULL, 0,
 		      WM8994_POWER_MANAGEMENT_5, 8, 0, wm8958_aif_ev,
 		      SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
 
-SND_SOC_DAPM_AIF_OUT("AIF1ADC2L", "AIF1 Capture",
+SND_SOC_DAPM_AIF_OUT("AIF1ADC2L", NULL,
 		     0, WM8994_POWER_MANAGEMENT_4, 11, 0),
-SND_SOC_DAPM_AIF_OUT("AIF1ADC2R", "AIF1 Capture",
+SND_SOC_DAPM_AIF_OUT("AIF1ADC2R", NULL,
 		     0, WM8994_POWER_MANAGEMENT_4, 10, 0),
 SND_SOC_DAPM_AIF_IN_E("AIF1DAC2L", NULL, 0,
 		      WM8994_POWER_MANAGEMENT_5, 11, 0, wm8958_aif_ev,
@@ -1345,6 +1345,7 @@ SND_SOC_DAPM_AIF_IN_E("AIF2DACR", NULL, 0,
 
 SND_SOC_DAPM_AIF_IN("AIF1DACDAT", "AIF1 Playback", 0, SND_SOC_NOPM, 0, 0),
 SND_SOC_DAPM_AIF_IN("AIF2DACDAT", "AIF2 Playback", 0, SND_SOC_NOPM, 0, 0),
+SND_SOC_DAPM_AIF_OUT("AIF1ADCDAT", "AIF1 Capture", 0, SND_SOC_NOPM, 0, 0),
 SND_SOC_DAPM_AIF_OUT("AIF2ADCDAT", "AIF2 Capture", 0, SND_SOC_NOPM, 0, 0),
 
 SND_SOC_DAPM_MUX("AIF1DAC Mux", SND_SOC_NOPM, 0, 0, &aif1dac_mux),
@@ -1546,6 +1547,11 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{ "AIF2DAC2R Mixer", "Left Sidetone Switch", "Left Sidetone" },
 	{ "AIF2DAC2R Mixer", "Right Sidetone Switch", "Right Sidetone" },
 
+	{ "AIF1ADCDAT", NULL, "AIF1ADC1L" },
+	{ "AIF1ADCDAT", NULL, "AIF1ADC1R" },
+	{ "AIF1ADCDAT", NULL, "AIF1ADC2L" },
+	{ "AIF1ADCDAT", NULL, "AIF1ADC2R" },
+
 	{ "AIF2ADCDAT", NULL, "AIF2ADC Mux" },
 
 	/* AIF3 output */
@@ -1576,6 +1582,13 @@ static const struct snd_soc_dapm_route intercon[] = {
 
 	{ "Left Headphone Mux", "DAC", "DAC1L" },
 	{ "Right Headphone Mux", "DAC", "DAC1R" },
+};
+
+static const struct snd_soc_dapm_route wm8994_revd_intercon[] = {
+	{ "AIF1DACDAT", NULL, "AIF2DACDAT" },
+	{ "AIF2DACDAT", NULL, "AIF1DACDAT" },
+	{ "AIF1ADCDAT", NULL, "AIF2ADCDAT" },
+	{ "AIF2ADCDAT", NULL, "AIF1ADCDAT" },
 };
 
 static const struct snd_soc_dapm_route wm8994_intercon[] = {
@@ -2943,7 +2956,7 @@ static int wm8994_codec_probe(struct snd_soc_codec *codec)
 	/* Read our current status back from the chip - we don't want to
 	 * reset as this may interfere with the GPIO or LDO operation. */
 	for (i = 0; i < WM8994_CACHE_SIZE; i++) {
-		if (!wm8994_readable(i) || wm8994_volatile(i))
+		if (!wm8994_readable(codec, i) || wm8994_volatile(codec, i))
 			continue;
 
 		ret = wm8994_reg_read(codec->control_data, i);
@@ -3129,6 +3142,11 @@ static int wm8994_codec_probe(struct snd_soc_codec *codec)
 	case WM8994:
 		snd_soc_dapm_add_routes(dapm, wm8994_intercon,
 					ARRAY_SIZE(wm8994_intercon));
+
+		if (wm8994->revision < 4)
+			snd_soc_dapm_add_routes(dapm, wm8994_revd_intercon,
+						ARRAY_SIZE(wm8994_revd_intercon));
+			
 		break;
 	case WM8958:
 		snd_soc_dapm_add_routes(dapm, wm8958_intercon,

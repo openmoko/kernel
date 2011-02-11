@@ -257,9 +257,7 @@ struct i2c_board_info {
 	unsigned short	addr;
 	void		*platform_data;
 	struct dev_archdata	*archdata;
-#ifdef CONFIG_OF
 	struct device_node *of_node;
-#endif
 	int		irq;
 };
 

@@ -711,7 +711,7 @@ static int io_init(struct ubi_device *ubi)
 	}
 
 	/* Similar for the data offset */
-	ubi->leb_start = ubi->vid_hdr_offset + UBI_EC_HDR_SIZE;
+	ubi->leb_start = ubi->vid_hdr_offset + UBI_VID_HDR_SIZE;
 	ubi->leb_start = ALIGN(ubi->leb_start, ubi->min_io_size);
 
 	dbg_msg("vid_hdr_offset   %d", ubi->vid_hdr_offset);
@@ -923,6 +923,8 @@ int ubi_attach_mtd_dev(struct mtd_info *mtd, int ubi_num, int vid_hdr_offset)
 	spin_lock_init(&ubi->volumes_lock);
 
 	ubi_msg("attaching mtd%d to ubi%d", mtd->index, ubi_num);
+	dbg_msg("sizeof(struct ubi_scan_leb) %zu", sizeof(struct ubi_scan_leb));
+	dbg_msg("sizeof(struct ubi_wl_entry) %zu", sizeof(struct ubi_wl_entry));
 
 	err = io_init(ubi);
 	if (err)

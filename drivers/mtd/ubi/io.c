@@ -146,6 +146,28 @@ int ubi_io_read(const struct ubi_device *ubi, void *buf, int pnum, int offset,
 	if (err)
 		return err;
 
+	/*
+	 * Deliberately corrupt the buffer to improve robustness. Indeed, if we
+	 * do not do this, the following may happen:
+	 * 1. The buffer contains data from previous operation, e.g., read from
+	 *    another PEB previously. The data looks like expected, e.g., if we
+	 *    just do not read anything and return - the caller would not
+	 *    notice this. E.g., if we are reading a VID header, the buffer may
+	 *    contain a valid VID header from another PEB.
+	 * 2. The driver is buggy and returns us success or -EBADMSG or
+	 *    -EUCLEAN, but it does not actually put any data to the buffer.
+	 *
+	 * This may confuse UBI or upper layers - they may think the buffer
+	 * contains valid data while in fact it is just old data. This is
+	 * especially possible because UBI (and UBIFS) relies on CRC, and
+	 * treats data as correct even in case of ECC errors if the CRC is
+	 * correct.
+	 *
+	 * Try to prevent this situation by changing the first byte of the
+	 * buffer.
+	 */
+	*((uint8_t *)buf) ^= 0xFF;
+
 	addr = (loff_t)pnum * ubi->peb_size + offset;
 retry:
 	err = ubi->mtd->read(ubi->mtd, addr, len, &read, buf);
@@ -166,7 +188,7 @@ retry:
 			return UBI_IO_BITFLIPS;
 		}
 
-		if (read != len && retries++ < UBI_IO_RETRIES) {
+		if (retries++ < UBI_IO_RETRIES) {
 			dbg_io("error %d%s while reading %d bytes from PEB %d:%d,"
 			       " read only %zd bytes, retry",
 			       err, errstr, len, pnum, offset, read);
@@ -480,6 +502,13 @@ static int nor_erase_prepare(struct ubi_device *ubi, int pnum)
 	size_t written;
 	loff_t addr;
 	uint32_t data = 0;
+	/*
+	 * Note, we cannot generally define VID header buffers on stack,
+	 * because of the way we deal with these buffers (see the header
+	 * comment in this file). But we know this is a NOR-specific piece of
+	 * code, so we can do this. But yes, this is error-prone and we should
+	 * (pre-)allocate VID header buffer instead.
+	 */
 	struct ubi_vid_hdr vid_hdr;
 
 	/*
@@ -507,11 +536,13 @@ static int nor_erase_prepare(struct ubi_device *ubi, int pnum)
 	 * PEB.
 	 */
 	err1 = ubi_io_read_vid_hdr(ubi, pnum, &vid_hdr, 0);
-	if (err1 == UBI_IO_BAD_HDR_EBADMSG || err1 == UBI_IO_BAD_HDR) {
+	if (err1 == UBI_IO_BAD_HDR_EBADMSG || err1 == UBI_IO_BAD_HDR ||
+	    err1 == UBI_IO_FF) {
 		struct ubi_ec_hdr ec_hdr;
 
 		err1 = ubi_io_read_ec_hdr(ubi, pnum, &ec_hdr, 0);
-		if (err1 == UBI_IO_BAD_HDR_EBADMSG || err1 == UBI_IO_BAD_HDR)
+		if (err1 == UBI_IO_BAD_HDR_EBADMSG || err1 == UBI_IO_BAD_HDR ||
+		    err1 == UBI_IO_FF)
 			/*
 			 * Both VID and EC headers are corrupted, so we can
 			 * safely erase this PEB and not afraid that it will be
@@ -1294,10 +1325,12 @@ int ubi_dbg_check_write(struct ubi_device *ubi, const void *buf, int pnum,
 			int offset, int len)
 {
 	int err, i;
+	size_t read;
+	loff_t addr = (loff_t)pnum * ubi->peb_size + offset;
 
 	mutex_lock(&ubi->dbg_buf_mutex);
-	err = ubi_io_read(ubi, ubi->dbg_peb_buf, pnum, offset, len);
-	if (err)
+	err = ubi->mtd->read(ubi->mtd, addr, len, &read, ubi->dbg_peb_buf);
+	if (err && err != -EUCLEAN)
 		goto out_unlock;
 
 	for (i = 0; i < len; i++) {

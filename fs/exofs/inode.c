@@ -43,6 +43,17 @@ enum { BIO_MAX_PAGES_KMALLOC =
 		PAGE_SIZE / sizeof(struct page *),
 };
 
+unsigned exofs_max_io_pages(struct exofs_layout *layout,
+			    unsigned expected_pages)
+{
+	unsigned pages = min_t(unsigned, expected_pages, MAX_PAGES_KMALLOC);
+
+	/* TODO: easily support bio chaining */
+	pages =  min_t(unsigned, pages,
+		       layout->group_width * BIO_MAX_PAGES_KMALLOC);
+	return pages;
+}
+
 struct page_collect {
 	struct exofs_sb_info *sbi;
 	struct inode *inode;
@@ -97,8 +108,7 @@ static void _pcol_reset(struct page_collect *pcol)
 
 static int pcol_try_alloc(struct page_collect *pcol)
 {
-	unsigned pages = min_t(unsigned, pcol->expected_pages,
-			  MAX_PAGES_KMALLOC);
+	unsigned pages;
 
 	if (!pcol->ios) { /* First time allocate io_state */
 		int ret = exofs_get_io_state(&pcol->sbi->layout, &pcol->ios);
@@ -108,8 +118,7 @@ static int pcol_try_alloc(struct page_collect *pcol)
 	}
 
 	/* TODO: easily support bio chaining */
-	pages =  min_t(unsigned, pages,
-		       pcol->sbi->layout.group_width * BIO_MAX_PAGES_KMALLOC);
+	pages =  exofs_max_io_pages(&pcol->sbi->layout, pcol->expected_pages);
 
 	for (; pages; pages >>= 1) {
 		pcol->pages = kmalloc(pages * sizeof(struct page *),
@@ -350,8 +359,8 @@ static int readpage_strip(void *data, struct page *page)
 
 		if (!pcol->read_4_write)
 			unlock_page(page);
-		EXOFS_DBGMSG("readpage_strip(0x%lx, 0x%lx) empty page,"
-			     " splitting\n", inode->i_ino, page->index);
+		EXOFS_DBGMSG("readpage_strip(0x%lx) empty page len=%zx read_4_write=%d index=0x%lx end_index=0x%lx"
+			     " splitting\n", inode->i_ino, len, pcol->read_4_write, page->index, end_index);
 
 		return read_exec(pcol);
 	}
@@ -722,11 +731,28 @@ int exofs_write_begin(struct file *file, struct address_space *mapping,
 
 	 /* read modify write */
 	if (!PageUptodate(page) && (len != PAGE_CACHE_SIZE)) {
+		loff_t i_size = i_size_read(mapping->host);
+		pgoff_t end_index = i_size >> PAGE_CACHE_SHIFT;
+		size_t rlen;
+
+		if (page->index < end_index)
+			rlen = PAGE_CACHE_SIZE;
+		else if (page->index == end_index)
+			rlen = i_size & ~PAGE_CACHE_MASK;
+		else
+			rlen = 0;
+
+		if (!rlen) {
+			clear_highpage(page);
+			SetPageUptodate(page);
+			goto out;
+		}
+
 		ret = _readpage(page, true);
 		if (ret) {
 			/*SetPageError was done by _readpage. Is it ok?*/
 			unlock_page(page);
-			EXOFS_DBGMSG("__readpage_filler failed\n");
+			EXOFS_DBGMSG("__readpage failed\n");
 		}
 	}
 out:
@@ -1030,6 +1056,7 @@ struct inode *exofs_iget(struct super_block *sb, unsigned long ino)
 		memcpy(oi->i_data, fcb.i_data, sizeof(fcb.i_data));
 	}
 
+	inode->i_mapping->backing_dev_info = sb->s_bdi;
 	if (S_ISREG(inode->i_mode)) {
 		inode->i_op = &exofs_file_inode_operations;
 		inode->i_fop = &exofs_file_operations;
@@ -1130,6 +1157,7 @@ struct inode *exofs_new_inode(struct inode *dir, int mode)
 
 	sbi = sb->s_fs_info;
 
+	inode->i_mapping->backing_dev_info = sb->s_bdi;
 	sb->s_dirt = 1;
 	inode_init_owner(inode, dir, mode);
 	inode->i_ino = sbi->s_nextid++;
@@ -1271,7 +1299,8 @@ out:
 
 int exofs_write_inode(struct inode *inode, struct writeback_control *wbc)
 {
-	return exofs_update_inode(inode, wbc->sync_mode == WB_SYNC_ALL);
+	/* FIXME: fix fsync and use wbc->sync_mode == WB_SYNC_ALL */
+	return exofs_update_inode(inode, 1);
 }
 
 /*

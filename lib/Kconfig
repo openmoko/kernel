@@ -223,4 +223,25 @@ config LRU_CACHE
 config AVERAGE
 	bool
 
+config SHM_SIGNAL
+	tristate "SHM Signal - Generic shared-memory signaling mechanism"
+	default n
+	help
+	 Provides a shared-memory based signaling mechanism to indicate
+         memory-dirty notifications between two end-points.
+
+	 If unsure, say N
+
+config IOQ
+	tristate "IO-Queue library - Generic shared-memory queue"
+	select SHM_SIGNAL
+	default n
+	help
+	 IOQ is a generic shared-memory-queue mechanism that happens to be
+	 friendly to virtualization boundaries. It can be used in a variety
+	 of ways, though its intended purpose is to become a low-level
+	 communication path for paravirtualized drivers.
+
+	 If unsure, say N
+
 endmenu

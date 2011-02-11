@@ -3370,6 +3370,12 @@ L:	linux-serial@vger.kernel.org
 S:	Maintained
 F:	drivers/tty/serial/ioc3_serial.c
 
+IOQ LIBRARY
+M:	Gregory Haskins <ghaskins@novell.com>
+S:	Maintained
+F:	include/linux/ioq.h
+F:	lib/ioq.c
+
 IP MASQUERADING
 M:	Juanjo Ciarlante <jjciarla@raiz.uncu.edu.ar>
 S:	Maintained
@@ -5617,6 +5623,12 @@ F:	drivers/tty/serial/serial_lh7a40x.c
 F:	drivers/usb/gadget/lh7a40*
 F:	drivers/usb/host/ohci-lh7a40*
 
+SHM-SIGNAL LIBRARY
+M:	Gregory Haskins <ghaskins@novell.com>
+S:	Maintained
+F:	include/linux/shm_signal.h
+F:	lib/shm_signal.c
+
 SIMPLE FIRMWARE INTERFACE (SFI)
 M:	Len Brown <lenb@kernel.org>
 L:	sfi-devel@simplefirmware.org
@@ -6610,6 +6622,19 @@ W:	http://dev.gentoo.org/~spock/projects/uvesafb/
 S:	Maintained
 F:	Documentation/fb/uvesafb.txt
 F:	drivers/video/uvesafb.*
+
+VBUS
+M:	Gregory Haskins <ghaskins@novell.com>
+S:	Maintained
+F:	include/linux/vbus*
+F:	drivers/vbus/*
+
+VBUS ETHERNET DRIVER
+M:	Gregory Haskins <ghaskins@novell.com>
+S:	Maintained
+W:	http://developer.novell.com/wiki/index.php/AlacrityVM
+F:	include/linux/venet.h
+F:	drivers/net/vbus-enet.c
 
 VFAT/FAT/MSDOS FILESYSTEM
 M:	OGAWA Hirofumi <hirofumi@mail.parknet.co.jp>

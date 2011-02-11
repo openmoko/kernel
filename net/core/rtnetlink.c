@@ -868,6 +868,7 @@ static int rtnl_fill_ifinfo(struct sk_buff *skb, struct net_device *dev,
 		   netif_running(dev) ? dev->operstate : IF_OPER_DOWN);
 	NLA_PUT_U8(skb, IFLA_LINKMODE, dev->link_mode);
 	NLA_PUT_U32(skb, IFLA_MTU, dev->mtu);
+	NLA_PUT_U32(skb, IFLA_GROUP, dev->group);
 
 	if (dev->ifindex != dev->iflink)
 		NLA_PUT_U32(skb, IFLA_LINK, dev->iflink);
@@ -1264,6 +1265,11 @@ static int do_setlink(struct net_device *dev, struct ifinfomsg *ifm,
 		modified = 1;
 	}
 
+	if (tb[IFLA_GROUP]) {
+		dev_set_group(dev, nla_get_u32(tb[IFLA_GROUP]));
+		modified = 1;
+	}
+
 	/*
 	 * Interface selected by interface index but interface
 	 * name provided implies that a name change has been
@@ -1541,6 +1547,8 @@ struct net_device *rtnl_create_link(struct net *src_net, struct net *net,
 		set_operstate(dev, nla_get_u8(tb[IFLA_OPERSTATE]));
 	if (tb[IFLA_LINKMODE])
 		dev->link_mode = nla_get_u8(tb[IFLA_LINKMODE]);
+	if (tb[IFLA_GROUP])
+		dev_set_group(dev, nla_get_u32(tb[IFLA_GROUP]));
 
 	return dev;
 
@@ -1550,6 +1558,24 @@ err:
 	return ERR_PTR(err);
 }
 EXPORT_SYMBOL(rtnl_create_link);
+
+static int rtnl_group_changelink(struct net *net, int group,
+		struct ifinfomsg *ifm,
+		struct nlattr **tb)
+{
+	struct net_device *dev;
+	int err;
+
+	for_each_netdev(net, dev) {
+		if (dev->group == group) {
+			err = do_setlink(dev, ifm, tb, NULL, 0);
+			if (err < 0)
+				return err;
+		}
+	}
+
+	return 0;
+}
 
 static int rtnl_newlink(struct sk_buff *skb, struct nlmsghdr *nlh, void *arg)
 {
@@ -1578,10 +1604,12 @@ replay:
 	ifm = nlmsg_data(nlh);
 	if (ifm->ifi_index > 0)
 		dev = __dev_get_by_index(net, ifm->ifi_index);
-	else if (ifname[0])
-		dev = __dev_get_by_name(net, ifname);
-	else
-		dev = NULL;
+	else {
+		if (ifname[0])
+			dev = __dev_get_by_name(net, ifname);
+		else
+			dev = NULL;
+	}
 
 	err = validate_linkmsg(dev, tb);
 	if (err < 0)
@@ -1645,8 +1673,13 @@ replay:
 			return do_setlink(dev, ifm, tb, ifname, modified);
 		}
 
-		if (!(nlh->nlmsg_flags & NLM_F_CREATE))
+		if (!(nlh->nlmsg_flags & NLM_F_CREATE)) {
+			if (ifm->ifi_index == 0 && tb[IFLA_GROUP])
+				return rtnl_group_changelink(net,
+						nla_get_u32(tb[IFLA_GROUP]),
+						ifm, tb);
 			return -ENODEV;
+		}
 
 		if (ifm->ifi_index)
 			return -EOPNOTSUPP;

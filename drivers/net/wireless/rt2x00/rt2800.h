@@ -372,8 +372,12 @@
 
 /*
  * US_CYC_CNT
+ * BT_MODE_EN: Bluetooth mode enable
+ * CLOCK CYCLE: Clock cycle count in 1us.
+ * PCI:0x21, PCIE:0x7d, USB:0x1e
  */
 #define US_CYC_CNT			0x02a4
+#define US_CYC_CNT_BT_MODE_EN		FIELD32(0x00000100)
 #define US_CYC_CNT_CLOCK_CYCLE		FIELD32(0x000000ff)
 
 /*
@@ -1803,6 +1807,12 @@ struct mac_iveiv_entry {
  * RFCSR 30:
  */
 #define RFCSR30_RF_CALIBRATION		FIELD8(0x80)
+
+/*
+ * RFCSR 31:
+ */
+#define RFCSR31_RX_AGC_FC		FIELD8(0x1f)
+#define RFCSR31_RX_H20M			FIELD8(0x20)
 
 /*
  * RF registers

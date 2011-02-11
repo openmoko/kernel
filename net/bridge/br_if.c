@@ -365,7 +365,7 @@ int br_min_mtu(const struct net_bridge *br)
 void br_features_recompute(struct net_bridge *br)
 {
 	struct net_bridge_port *p;
-	unsigned long features, mask;
+	u32 features, mask;
 
 	features = mask = br->feature_mask;
 	if (list_empty(&br->port_list))
@@ -379,7 +379,7 @@ void br_features_recompute(struct net_bridge *br)
 	}
 
 done:
-	br->dev->features = netdev_fix_features(features, NULL);
+	br->dev->features = netdev_fix_features(br->dev, features);
 }
 
 /* called with RTNL */

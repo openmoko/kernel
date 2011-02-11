@@ -4,7 +4,7 @@
  * Copyright (C) 2001, 2002, 2003, 2004 David S. Miller (davem@redhat.com)
  * Copyright (C) 2001, 2002, 2003 Jeff Garzik (jgarzik@pobox.com)
  * Copyright (C) 2004 Sun Microsystems Inc.
- * Copyright (C) 2005-2010 Broadcom Corporation.
+ * Copyright (C) 2005-2011 Broadcom Corporation.
  *
  * Firmware is:
  *	Derived from proprietary unpublished source code,
@@ -64,10 +64,10 @@
 
 #define DRV_MODULE_NAME		"tg3"
 #define TG3_MAJ_NUM			3
-#define TG3_MIN_NUM			116
+#define TG3_MIN_NUM			117
 #define DRV_MODULE_VERSION	\
 	__stringify(TG3_MAJ_NUM) "." __stringify(TG3_MIN_NUM)
-#define DRV_MODULE_RELDATE	"December 3, 2010"
+#define DRV_MODULE_RELDATE	"January 25, 2011"
 
 #define TG3_DEF_MAC_MODE	0
 #define TG3_DEF_RX_MODE		0
@@ -1776,9 +1776,29 @@ static void tg3_phy_eee_adjust(struct tg3 *tp, u32 current_link_up)
 		tg3_phy_cl45_read(tp, MDIO_MMD_AN,
 				  TG3_CL45_D7_EEERES_STAT, &val);
 
-		if (val == TG3_CL45_D7_EEERES_STAT_LP_1000T ||
-		    val == TG3_CL45_D7_EEERES_STAT_LP_100TX)
+		switch (val) {
+		case TG3_CL45_D7_EEERES_STAT_LP_1000T:
+			switch (GET_ASIC_REV(tp->pci_chip_rev_id)) {
+			case ASIC_REV_5717:
+			case ASIC_REV_5719:
+			case ASIC_REV_57765:
+				/* Enable SM_DSP clock and tx 6dB coding. */
+				val = MII_TG3_AUXCTL_SHDWSEL_AUXCTL |
+				      MII_TG3_AUXCTL_ACTL_SMDSP_ENA |
+				      MII_TG3_AUXCTL_ACTL_TX_6DB;
+				tg3_writephy(tp, MII_TG3_AUX_CTRL, val);
+
+				tg3_phydsp_write(tp, MII_TG3_DSP_TAP26, 0x0000);
+
+				/* Turn off SM_DSP clock. */
+				val = MII_TG3_AUXCTL_SHDWSEL_AUXCTL |
+				      MII_TG3_AUXCTL_ACTL_TX_6DB;
+				tg3_writephy(tp, MII_TG3_AUX_CTRL, val);
+			}
+			/* Fallthrough */
+		case TG3_CL45_D7_EEERES_STAT_LP_100TX:
 			tp->setlpicnt = 2;
+		}
 	}
 
 	if (!tp->setlpicnt) {
@@ -2968,11 +2988,19 @@ static void tg3_phy_copper_begin(struct tg3 *tp)
 		      MII_TG3_AUXCTL_ACTL_TX_6DB;
 		tg3_writephy(tp, MII_TG3_AUX_CTRL, val);
 
-		if ((GET_ASIC_REV(tp->pci_chip_rev_id) == ASIC_REV_5717 ||
-		     GET_ASIC_REV(tp->pci_chip_rev_id) == ASIC_REV_57765) &&
-		    !tg3_phydsp_read(tp, MII_TG3_DSP_CH34TP2, &val))
-			tg3_phydsp_write(tp, MII_TG3_DSP_CH34TP2,
-					 val | MII_TG3_DSP_CH34TP2_HIBW01);
+		switch (GET_ASIC_REV(tp->pci_chip_rev_id)) {
+		case ASIC_REV_5717:
+		case ASIC_REV_57765:
+			if (!tg3_phydsp_read(tp, MII_TG3_DSP_CH34TP2, &val))
+				tg3_phydsp_write(tp, MII_TG3_DSP_CH34TP2, val |
+						 MII_TG3_DSP_CH34TP2_HIBW01);
+			/* Fall through */
+		case ASIC_REV_5719:
+			val = MII_TG3_DSP_TAP26_ALNOKO |
+			      MII_TG3_DSP_TAP26_RMRXSTO |
+			      MII_TG3_DSP_TAP26_OPCSINPT;
+			tg3_phydsp_write(tp, MII_TG3_DSP_TAP26, val);
+		}
 
 		val = 0;
 		if (tp->link_config.autoneg == AUTONEG_ENABLE) {
@@ -7801,7 +7829,7 @@ static int tg3_reset_hw(struct tg3 *tp, int reset_phy)
 		       TG3_CPMU_DBTMR1_LNKIDLE_2047US);
 
 		tw32_f(TG3_CPMU_EEE_DBTMR2,
-		       TG3_CPMU_DBTMR1_APE_TX_2047US |
+		       TG3_CPMU_DBTMR2_APE_TX_2047US |
 		       TG3_CPMU_DBTMR2_TXIDXEQ_2047US);
 	}
 
@@ -8075,8 +8103,9 @@ static int tg3_reset_hw(struct tg3 *tp, int reset_phy)
 	/* Program the jumbo buffer descriptor ring control
 	 * blocks on those devices that have them.
 	 */
-	if ((tp->tg3_flags & TG3_FLAG_JUMBO_CAPABLE) &&
-	    !(tp->tg3_flags2 & TG3_FLG2_5780_CLASS)) {
+	if (tp->pci_chip_rev_id == CHIPREV_ID_5719_A0 ||
+	    ((tp->tg3_flags & TG3_FLAG_JUMBO_CAPABLE) &&
+	    !(tp->tg3_flags2 & TG3_FLG2_5780_CLASS))) {
 		/* Setup replenish threshold. */
 		tw32(RCVBDI_JUMBO_THRESH, tp->rx_jumbo_pending / 8);
 
@@ -8194,8 +8223,12 @@ static int tg3_reset_hw(struct tg3 *tp, int reset_phy)
 	    (tp->tg3_flags3 & TG3_FLG3_5717_PLUS)) {
 		val = tr32(TG3_RDMA_RSRVCTRL_REG);
 		if (GET_ASIC_REV(tp->pci_chip_rev_id) == ASIC_REV_5719) {
-			val &= ~TG3_RDMA_RSRVCTRL_TXMRGN_MASK;
-			val |= TG3_RDMA_RSRVCTRL_TXMRGN_320B;
+			val &= ~(TG3_RDMA_RSRVCTRL_TXMRGN_MASK |
+				 TG3_RDMA_RSRVCTRL_FIFO_LWM_MASK |
+				 TG3_RDMA_RSRVCTRL_FIFO_HWM_MASK);
+			val |= TG3_RDMA_RSRVCTRL_TXMRGN_320B |
+			       TG3_RDMA_RSRVCTRL_FIFO_LWM_1_5K |
+			       TG3_RDMA_RSRVCTRL_FIFO_HWM_1_5K;
 		}
 		tw32(TG3_RDMA_RSRVCTRL_REG,
 		     val | TG3_RDMA_RSRVCTRL_FIFO_OFLW_FIX);
@@ -8317,7 +8350,8 @@ static int tg3_reset_hw(struct tg3 *tp, int reset_phy)
 	tw32_f(GRC_LOCAL_CTRL, tp->grc_local_ctrl);
 	udelay(100);
 
-	if (tp->tg3_flags2 & TG3_FLG2_USING_MSIX) {
+	if ((tp->tg3_flags2 & TG3_FLG2_USING_MSIX) &&
+		tp->irq_cnt > 1) {
 		val = tr32(MSGINT_MODE);
 		val |= MSGINT_MODE_MULTIVEC_EN | MSGINT_MODE_ENABLE;
 		tw32(MSGINT_MODE, val);
@@ -9057,7 +9091,8 @@ static void tg3_ints_init(struct tg3 *tp)
 
 	if (tp->tg3_flags2 & TG3_FLG2_USING_MSI_OR_MSIX) {
 		u32 msi_mode = tr32(MSGINT_MODE);
-		if (tp->tg3_flags2 & TG3_FLG2_USING_MSIX)
+		if ((tp->tg3_flags2 & TG3_FLG2_USING_MSIX) &&
+		    tp->irq_cnt > 1)
 			msi_mode |= MSGINT_MODE_MULTIVEC_EN;
 		tw32(MSGINT_MODE, msi_mode | MSGINT_MODE_ENABLE);
 	}
@@ -10833,13 +10868,16 @@ static int tg3_run_loopback(struct tg3 *tp, int loopback_mode)
 	if (loopback_mode == TG3_MAC_LOOPBACK) {
 		/* HW errata - mac loopback fails in some cases on 5780.
 		 * Normal traffic and PHY loopback are not affected by
-		 * errata.
+		 * errata.  Also, the MAC loopback test is deprecated for
+		 * all newer ASIC revisions.
 		 */
-		if (GET_ASIC_REV(tp->pci_chip_rev_id) == ASIC_REV_5780)
+		if (GET_ASIC_REV(tp->pci_chip_rev_id) == ASIC_REV_5780 ||
+		    (tp->tg3_flags & TG3_FLAG_CPMU_PRESENT))
 			return 0;
 
-		mac_mode = (tp->mac_mode & ~MAC_MODE_PORT_MODE_MASK) |
-			   MAC_MODE_PORT_INT_LPBACK;
+		mac_mode = tp->mac_mode &
+			   ~(MAC_MODE_PORT_MODE_MASK | MAC_MODE_HALF_DUPLEX);
+		mac_mode |= MAC_MODE_PORT_INT_LPBACK;
 		if (!(tp->tg3_flags2 & TG3_FLG2_5705_PLUS))
 			mac_mode |= MAC_MODE_LINK_POLARITY;
 		if (tp->phy_flags & TG3_PHYFLG_10_100_ONLY)
@@ -10861,7 +10899,8 @@ static int tg3_run_loopback(struct tg3 *tp, int loopback_mode)
 		tg3_writephy(tp, MII_BMCR, val);
 		udelay(40);
 
-		mac_mode = tp->mac_mode & ~MAC_MODE_PORT_MODE_MASK;
+		mac_mode = tp->mac_mode &
+			   ~(MAC_MODE_PORT_MODE_MASK | MAC_MODE_HALF_DUPLEX);
 		if (tp->phy_flags & TG3_PHYFLG_IS_FET) {
 			tg3_writephy(tp, MII_TG3_FET_PTEST,
 				     MII_TG3_FET_PTEST_FRC_TX_LINK |
@@ -10889,6 +10928,13 @@ static int tg3_run_loopback(struct tg3 *tp, int loopback_mode)
 				     MII_TG3_EXT_CTRL_LNK3_LED_MODE);
 		}
 		tw32(MAC_MODE, mac_mode);
+
+		/* Wait for link */
+		for (i = 0; i < 100; i++) {
+			if (tr32(MAC_TX_STATUS) & TX_STATUS_LINK_UP)
+				break;
+			mdelay(1);
+		}
 	} else {
 		return -EINVAL;
 	}
@@ -10995,14 +11041,19 @@ out:
 static int tg3_test_loopback(struct tg3 *tp)
 {
 	int err = 0;
-	u32 cpmuctrl = 0;
+	u32 eee_cap, cpmuctrl = 0;
 
 	if (!netif_running(tp->dev))
 		return TG3_LOOPBACK_FAILED;
 
+	eee_cap = tp->phy_flags & TG3_PHYFLG_EEE_CAP;
+	tp->phy_flags &= ~TG3_PHYFLG_EEE_CAP;
+
 	err = tg3_reset_hw(tp, 1);
-	if (err)
-		return TG3_LOOPBACK_FAILED;
+	if (err) {
+		err = TG3_LOOPBACK_FAILED;
+		goto done;
+	}
 
 	/* Turn off gphy autopowerdown. */
 	if (tp->phy_flags & TG3_PHYFLG_ENABLE_APD)
@@ -11022,8 +11073,10 @@ static int tg3_test_loopback(struct tg3 *tp)
 			udelay(10);
 		}
 
-		if (status != CPMU_MUTEX_GNT_DRIVER)
-			return TG3_LOOPBACK_FAILED;
+		if (status != CPMU_MUTEX_GNT_DRIVER) {
+			err = TG3_LOOPBACK_FAILED;
+			goto done;
+		}
 
 		/* Turn off link-based power management. */
 		cpmuctrl = tr32(TG3_CPMU_CTRL);
@@ -11051,6 +11104,9 @@ static int tg3_test_loopback(struct tg3 *tp)
 	/* Re-enable gphy autopowerdown. */
 	if (tp->phy_flags & TG3_PHYFLG_ENABLE_APD)
 		tg3_phy_toggle_apd(tp, true);
+
+done:
+	tp->phy_flags |= eee_cap;
 
 	return err;
 }
@@ -11158,7 +11214,9 @@ static int tg3_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		if (tp->phy_flags & TG3_PHYFLG_PHY_SERDES)
 			break;			/* We have no PHY */
 
-		if (tp->phy_flags & TG3_PHYFLG_IS_LOW_POWER)
+		if ((tp->phy_flags & TG3_PHYFLG_IS_LOW_POWER) ||
+		    ((tp->tg3_flags & TG3_FLAG_ENABLE_ASF) &&
+		     !netif_running(dev)))
 			return -EAGAIN;
 
 		spin_lock_bh(&tp->lock);
@@ -11174,7 +11232,9 @@ static int tg3_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 		if (tp->phy_flags & TG3_PHYFLG_PHY_SERDES)
 			break;			/* We have no PHY */
 
-		if (tp->phy_flags & TG3_PHYFLG_IS_LOW_POWER)
+		if ((tp->phy_flags & TG3_PHYFLG_IS_LOW_POWER) ||
+		    ((tp->tg3_flags & TG3_FLAG_ENABLE_ASF) &&
+		     !netif_running(dev)))
 			return -EAGAIN;
 
 		spin_lock_bh(&tp->lock);
@@ -13258,7 +13318,9 @@ static int __devinit tg3_get_invariants(struct tg3 *tp)
 	}
 
 	/* Determine TSO capabilities */
-	if (tp->tg3_flags3 & TG3_FLG3_5717_PLUS)
+	if (tp->pci_chip_rev_id == CHIPREV_ID_5719_A0)
+		; /* Do nothing. HW bug. */
+	else if (tp->tg3_flags3 & TG3_FLG3_5717_PLUS)
 		tp->tg3_flags2 |= TG3_FLG2_HW_TSO_3;
 	else if ((tp->tg3_flags3 & TG3_FLG3_5755_PLUS) ||
 		 GET_ASIC_REV(tp->pci_chip_rev_id) == ASIC_REV_5906)
@@ -13309,7 +13371,8 @@ static int __devinit tg3_get_invariants(struct tg3 *tp)
 		tp->tg3_flags3 |= TG3_FLG3_40BIT_DMA_LIMIT_BUG;
 	}
 
-	if (tp->tg3_flags3 & TG3_FLG3_5717_PLUS)
+	if ((tp->tg3_flags3 & TG3_FLG3_5717_PLUS) &&
+	    tp->pci_chip_rev_id != CHIPREV_ID_5719_A0)
 		tp->tg3_flags3 |= TG3_FLG3_USE_JUMBO_BDFLAG;
 
 	if (!(tp->tg3_flags2 & TG3_FLG2_5705_PLUS) ||
@@ -13327,42 +13390,8 @@ static int __devinit tg3_get_invariants(struct tg3 *tp)
 		tp->tg3_flags2 |= TG3_FLG2_PCI_EXPRESS;
 
 		tp->pcie_readrq = 4096;
-		if (GET_ASIC_REV(tp->pci_chip_rev_id) == ASIC_REV_5719) {
-			u16 word;
-
-			pci_read_config_word(tp->pdev,
-					     tp->pcie_cap + PCI_EXP_LNKSTA,
-					     &word);
-			switch (word & PCI_EXP_LNKSTA_CLS) {
-			case PCI_EXP_LNKSTA_CLS_2_5GB:
-				word &= PCI_EXP_LNKSTA_NLW;
-				word >>= PCI_EXP_LNKSTA_NLW_SHIFT;
-				switch (word) {
-				case 2:
-					tp->pcie_readrq = 2048;
-					break;
-				case 4:
-					tp->pcie_readrq = 1024;
-					break;
-				}
-				break;
-
-			case PCI_EXP_LNKSTA_CLS_5_0GB:
-				word &= PCI_EXP_LNKSTA_NLW;
-				word >>= PCI_EXP_LNKSTA_NLW_SHIFT;
-				switch (word) {
-				case 1:
-					tp->pcie_readrq = 2048;
-					break;
-				case 2:
-					tp->pcie_readrq = 1024;
-					break;
-				case 4:
-					tp->pcie_readrq = 512;
-					break;
-				}
-			}
-		}
+		if (GET_ASIC_REV(tp->pci_chip_rev_id) == ASIC_REV_5719)
+			tp->pcie_readrq = 2048;
 
 		pcie_set_readrq(tp->pdev, tp->pcie_readrq);
 

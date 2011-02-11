@@ -366,7 +366,7 @@ struct ath9k_htc_priv {
 	u16 seq_no;
 	u32 bmiss_cnt;
 
-	struct ath9k_hw_cal_data caldata[ATH9K_NUM_CHANNELS];
+	struct ath9k_hw_cal_data caldata;
 
 	spinlock_t beacon_lock;
 
@@ -460,7 +460,6 @@ void ath9k_htc_ps_restore(struct ath9k_htc_priv *priv);
 void ath9k_ps_work(struct work_struct *work);
 bool ath9k_htc_setpower(struct ath9k_htc_priv *priv,
 			enum ath9k_power_mode mode);
-void ath_update_txpow(struct ath9k_htc_priv *priv);
 
 void ath9k_start_rfkill_poll(struct ath9k_htc_priv *priv);
 void ath9k_htc_rfkill_poll_state(struct ieee80211_hw *hw);

@@ -594,10 +594,11 @@ static void iwl3945_rx_reply_rx(struct iwl_priv *priv,
 
 	rx_status.flag = 0;
 	rx_status.mactime = le64_to_cpu(rx_end->timestamp);
-	rx_status.freq =
-		ieee80211_channel_to_frequency(le16_to_cpu(rx_hdr->channel));
 	rx_status.band = (rx_hdr->phy_flags & RX_RES_PHY_FLAGS_BAND_24_MSK) ?
 				IEEE80211_BAND_2GHZ : IEEE80211_BAND_5GHZ;
+	rx_status.freq =
+		ieee80211_channel_to_frequency(le16_to_cpu(rx_hdr->channel),
+					       rx_status.band);
 
 	rx_status.rate_idx = iwl3945_hwrate_to_plcp_idx(rx_hdr->rate);
 	if (rx_status.band == IEEE80211_BAND_5GHZ)
@@ -761,8 +762,7 @@ void iwl3945_hw_build_tx_cmd_rate(struct iwl_priv *priv,
 
 	/* We need to figure out how to get the sta->supp_rates while
 	 * in this running context */
-	rate_mask = IWL_RATES_MASK;
-
+	rate_mask = IWL_RATES_MASK_3945;
 
 	/* Set retry limit on DATA packets and Probe Responses*/
 	if (ieee80211_is_probe_resp(fc))
@@ -1649,7 +1649,7 @@ static int iwl3945_hw_reg_comp_txpower_temp(struct iwl_priv *priv)
 							      ref_temp);
 
 		/* set tx power value for all rates, OFDM and CCK */
-		for (rate_index = 0; rate_index < IWL_RATE_COUNT;
+		for (rate_index = 0; rate_index < IWL_RATE_COUNT_3945;
 		     rate_index++) {
 			int power_idx =
 			    ch_info->power_info[rate_index].base_power_index;
@@ -1889,7 +1889,7 @@ int iwl3945_commit_rxon(struct iwl_priv *priv, struct iwl_rxon_context *ctx)
 
 	/* If we issue a new RXON command which required a tune then we must
 	 * send a new TXPOWER command or we won't be able to Tx any frames */
-	rc = priv->cfg->ops->lib->send_tx_power(priv);
+	rc = iwl_set_tx_power(priv, priv->tx_power_next, true);
 	if (rc) {
 		IWL_ERR(priv, "Error setting Tx power (%d).\n", rc);
 		return rc;

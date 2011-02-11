@@ -34,6 +34,8 @@
 
 #include <linux/pci.h> /* for struct pci_device_id */
 #include <linux/kernel.h>
+#include <linux/wait.h>
+#include <linux/leds.h>
 #include <net/ieee80211_radiotap.h>
 
 #include "iwl-eeprom.h"
@@ -136,7 +138,7 @@ struct iwl_queue {
 				* space more than this */
 	int high_mark;         /* high watermark, stop queue if free
 				* space less than this */
-} __packed;
+};
 
 /* One for each TFD */
 struct iwl_tx_info {
@@ -507,6 +509,7 @@ struct iwl_station_priv {
 	atomic_t pending_frames;
 	bool client;
 	bool asleep;
+	u8 max_agg_bufsize;
 };
 
 /**
@@ -995,7 +998,6 @@ struct reply_agg_tx_error_statistics {
 	u32 unknown;
 };
 
-#ifdef CONFIG_IWLWIFI_DEBUGFS
 /* management statistics */
 enum iwl_mgmt_stats {
 	MANAGEMENT_ASSOC_REQ = 0,
@@ -1026,16 +1028,13 @@ enum iwl_ctrl_stats {
 };
 
 struct traffic_stats {
+#ifdef CONFIG_IWLWIFI_DEBUGFS
 	u32 mgmt[MANAGEMENT_MAX];
 	u32 ctrl[CONTROL_MAX];
 	u32 data_cnt;
 	u64 data_bytes;
-};
-#else
-struct traffic_stats {
-	u64 data_bytes;
-};
 #endif
+};
 
 /*
  * iwl_switch_rxon: "channel switch" structure
@@ -1138,6 +1137,33 @@ struct iwl_force_reset {
  * bits 21:0  - interval
  */
 #define IWLAGN_EXT_BEACON_TIME_POS	22
+
+/**
+ * struct iwl_notification_wait - notification wait entry
+ * @list: list head for global list
+ * @fn: function called with the notification
+ * @cmd: command ID
+ *
+ * This structure is not used directly, to wait for a
+ * notification declare it on the stack, and call
+ * iwlagn_init_notification_wait() with appropriate
+ * parameters. Then do whatever will cause the ucode
+ * to notify the driver, and to wait for that then
+ * call iwlagn_wait_notification().
+ *
+ * Each notification is one-shot. If at some point we
+ * need to support multi-shot notifications (which
+ * can't be allocated on the stack) we need to modify
+ * the code for them.
+ */
+struct iwl_notification_wait {
+	struct list_head list;
+
+	void (*fn)(struct iwl_priv *priv, struct iwl_rx_packet *pkt);
+
+	u8 cmd;
+	bool triggered;
+};
 
 enum iwl_rxon_context_id {
 	IWL_RXON_CTX_BSS,
@@ -1310,11 +1336,6 @@ struct iwl_priv {
 	struct iwl_init_alive_resp card_alive_init;
 	struct iwl_alive_resp card_alive;
 
-	unsigned long last_blink_time;
-	u8 last_blink_rate;
-	u8 allow_blinking;
-	u64 led_tpt;
-
 	u16 active_rate;
 
 	u8 start_calib;
@@ -1463,6 +1484,17 @@ struct iwl_priv {
 			struct iwl_bt_notif_statistics delta_statistics_bt;
 			struct iwl_bt_notif_statistics max_delta_bt;
 #endif
+
+			/* notification wait support */
+			struct list_head notif_waits;
+			spinlock_t notif_wait_lock;
+			wait_queue_head_t notif_waitq;
+
+			/* remain-on-channel offload support */
+			struct ieee80211_channel *hw_roc_channel;
+			struct delayed_work hw_roc_work;
+			enum nl80211_channel_type hw_roc_chantype;
+			int hw_roc_duration;
 		} _agn;
 #endif
 	};
@@ -1472,7 +1504,6 @@ struct iwl_priv {
 	u8 bt_status;
 	u8 bt_traffic_load, last_bt_traffic_load;
 	bool bt_ch_announce;
-	bool bt_sco_active;
 	bool bt_full_concurrent;
 	bool bt_ant_couple_ok;
 	__le32 kill_ack_mask;
@@ -1547,6 +1578,10 @@ struct iwl_priv {
 	bool hw_ready;
 
 	struct iwl_event_log event_log;
+
+	struct led_classdev led;
+	unsigned long blink_on, blink_off;
+	bool led_registered;
 }; /*iwl_priv */
 
 static inline void iwl_txq_ctx_activate(struct iwl_priv *priv, int txq_id)

@@ -24,17 +24,6 @@ static struct dentry *ath9k_debugfs_root;
 /* Utilities */
 /*************/
 
-void ath_update_txpow(struct ath9k_htc_priv *priv)
-{
-	struct ath_hw *ah = priv->ah;
-
-	if (priv->curtxpow != priv->txpowlimit) {
-		ath9k_hw_set_txpowerlimit(ah, priv->txpowlimit, false);
-		/* read back in case value is clamped */
-		priv->curtxpow = ath9k_hw_regulatory(ah)->power_limit;
-	}
-}
-
 /* HACK Alert: Use 11NG for 2.4, use 11NA for 5 */
 static enum htc_phymode ath9k_htc_get_curmode(struct ath9k_htc_priv *priv,
 					      struct ath9k_channel *ichan)
@@ -121,7 +110,7 @@ void ath9k_htc_reset(struct ath9k_htc_priv *priv)
 	struct ath_hw *ah = priv->ah;
 	struct ath_common *common = ath9k_hw_common(ah);
 	struct ieee80211_channel *channel = priv->hw->conf.channel;
-	struct ath9k_hw_cal_data *caldata;
+	struct ath9k_hw_cal_data *caldata = NULL;
 	enum htc_phymode mode;
 	__be16 htc_mode;
 	u8 cmd_rsp;
@@ -139,7 +128,7 @@ void ath9k_htc_reset(struct ath9k_htc_priv *priv)
 	WMI_CMD(WMI_DRAIN_TXQ_ALL_CMDID);
 	WMI_CMD(WMI_STOP_RECV_CMDID);
 
-	caldata = &priv->caldata[channel->hw_value];
+	caldata = &priv->caldata;
 	ret = ath9k_hw_reset(ah, ah->curchan, caldata, false);
 	if (ret) {
 		ath_err(common,
@@ -147,7 +136,8 @@ void ath9k_htc_reset(struct ath9k_htc_priv *priv)
 			channel->center_freq, ret);
 	}
 
-	ath_update_txpow(priv);
+	ath9k_cmn_update_txpow(ah, priv->curtxpow, priv->txpowlimit,
+			       &priv->curtxpow);
 
 	WMI_CMD(WMI_START_RECV_CMDID);
 	ath9k_host_rx_init(priv);
@@ -202,7 +192,8 @@ static int ath9k_htc_set_channel(struct ath9k_htc_priv *priv,
 		channel->center_freq, conf_is_ht(conf), conf_is_ht40(conf),
 		fastcc);
 
-	caldata = &priv->caldata[channel->hw_value];
+	if (!fastcc)
+		caldata = &priv->caldata;
 	ret = ath9k_hw_reset(ah, hchan, caldata, fastcc);
 	if (ret) {
 		ath_err(common,
@@ -211,7 +202,8 @@ static int ath9k_htc_set_channel(struct ath9k_htc_priv *priv,
 		goto err;
 	}
 
-	ath_update_txpow(priv);
+	ath9k_cmn_update_txpow(ah, priv->curtxpow, priv->txpowlimit,
+			       &priv->curtxpow);
 
 	WMI_CMD(WMI_START_RECV_CMDID);
 	if (ret)
@@ -987,7 +979,8 @@ static int ath9k_htc_start(struct ieee80211_hw *hw)
 		return ret;
 	}
 
-	ath_update_txpow(priv);
+	ath9k_cmn_update_txpow(ah, priv->curtxpow, priv->txpowlimit,
+			       &priv->curtxpow);
 
 	mode = ath9k_htc_get_curmode(priv, init_channel);
 	htc_mode = cpu_to_be16(mode);
@@ -1051,6 +1044,7 @@ static void ath9k_htc_stop(struct ieee80211_hw *hw)
 	cancel_work_sync(&priv->fatal_work);
 	cancel_work_sync(&priv->ps_work);
 	cancel_delayed_work_sync(&priv->ath9k_led_blink_work);
+	cancel_delayed_work_sync(&priv->ath9k_ani_work);
 	ath9k_led_stop_brightness(priv);
 
 	mutex_lock(&priv->mutex);
@@ -1252,7 +1246,8 @@ static int ath9k_htc_config(struct ieee80211_hw *hw, u32 changed)
 
 	if (changed & IEEE80211_CONF_CHANGE_POWER) {
 		priv->txpowlimit = 2 * conf->power_level;
-		ath_update_txpow(priv);
+		ath9k_cmn_update_txpow(priv->ah, priv->curtxpow,
+				       priv->txpowlimit, &priv->curtxpow);
 	}
 
 	if (changed & IEEE80211_CONF_CHANGE_IDLE) {
@@ -1557,7 +1552,7 @@ static int ath9k_htc_ampdu_action(struct ieee80211_hw *hw,
 				  struct ieee80211_vif *vif,
 				  enum ieee80211_ampdu_mlme_action action,
 				  struct ieee80211_sta *sta,
-				  u16 tid, u16 *ssn)
+				  u16 tid, u16 *ssn, u8 buf_size)
 {
 	struct ath9k_htc_priv *priv = hw->priv;
 	struct ath9k_htc_sta *ista;

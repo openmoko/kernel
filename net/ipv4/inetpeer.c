@@ -167,9 +167,9 @@ static int addr_compare(const struct inetpeer_addr *a,
 	int i, n = (a->family == AF_INET ? 1 : 4);
 
 	for (i = 0; i < n; i++) {
-		if (a->a6[i] == b->a6[i])
+		if (a->addr.a6[i] == b->addr.a6[i])
 			continue;
-		if (a->a6[i] < b->a6[i])
+		if (a->addr.a6[i] < b->addr.a6[i])
 			return -1;
 		return 1;
 	}
@@ -510,8 +510,13 @@ struct inet_peer *inet_getpeer(struct inetpeer_addr *daddr, int create)
 		p->daddr = *daddr;
 		atomic_set(&p->refcnt, 1);
 		atomic_set(&p->rid, 0);
-		atomic_set(&p->ip_id_count, secure_ip_id(daddr->a4));
+		atomic_set(&p->ip_id_count, secure_ip_id(daddr->addr.a4));
 		p->tcp_ts_stamp = 0;
+		p->metrics[RTAX_LOCK-1] = INETPEER_METRICS_NEW;
+		p->rate_tokens = 0;
+		p->rate_last = 0;
+		p->pmtu_expires = 0;
+		memset(&p->redirect_learned, 0, sizeof(p->redirect_learned));
 		INIT_LIST_HEAD(&p->unused);
 
 
@@ -579,3 +584,44 @@ void inet_putpeer(struct inet_peer *p)
 	local_bh_enable();
 }
 EXPORT_SYMBOL_GPL(inet_putpeer);
+
+/*
+ *	Check transmit rate limitation for given message.
+ *	The rate information is held in the inet_peer entries now.
+ *	This function is generic and could be used for other purposes
+ *	too. It uses a Token bucket filter as suggested by Alexey Kuznetsov.
+ *
+ *	Note that the same inet_peer fields are modified by functions in
+ *	route.c too, but these work for packet destinations while xrlim_allow
+ *	works for icmp destinations. This means the rate limiting information
+ *	for one "ip object" is shared - and these ICMPs are twice limited:
+ *	by source and by destination.
+ *
+ *	RFC 1812: 4.3.2.8 SHOULD be able to limit error message rate
+ *			  SHOULD allow setting of rate limits
+ *
+ * 	Shared between ICMPv4 and ICMPv6.
+ */
+#define XRLIM_BURST_FACTOR 6
+bool inet_peer_xrlim_allow(struct inet_peer *peer, int timeout)
+{
+	unsigned long now, token;
+	bool rc = false;
+
+	if (!peer)
+		return true;
+
+	token = peer->rate_tokens;
+	now = jiffies;
+	token += now - peer->rate_last;
+	peer->rate_last = now;
+	if (token > XRLIM_BURST_FACTOR * timeout)
+		token = XRLIM_BURST_FACTOR * timeout;
+	if (token >= timeout) {
+		token -= timeout;
+		rc = true;
+	}
+	peer->rate_tokens = token;
+	return rc;
+}
+EXPORT_SYMBOL(inet_peer_xrlim_allow);

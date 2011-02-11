@@ -112,8 +112,7 @@ static void ath_beacon_setup(struct ath_softc *sc, struct ath_vif *avp,
 
 static void ath_tx_cabq(struct ieee80211_hw *hw, struct sk_buff *skb)
 {
-	struct ath_wiphy *aphy = hw->priv;
-	struct ath_softc *sc = aphy->sc;
+	struct ath_softc *sc = hw->priv;
 	struct ath_common *common = ath9k_hw_common(sc->sc_ah);
 	struct ath_tx_control txctl;
 
@@ -132,8 +131,7 @@ static void ath_tx_cabq(struct ieee80211_hw *hw, struct sk_buff *skb)
 static struct ath_buf *ath_beacon_generate(struct ieee80211_hw *hw,
 					   struct ieee80211_vif *vif)
 {
-	struct ath_wiphy *aphy = hw->priv;
-	struct ath_softc *sc = aphy->sc;
+	struct ath_softc *sc = hw->priv;
 	struct ath_common *common = ath9k_hw_common(sc->sc_ah);
 	struct ath_buf *bf;
 	struct ath_vif *avp;
@@ -141,9 +139,6 @@ static struct ath_buf *ath_beacon_generate(struct ieee80211_hw *hw,
 	struct ath_txq *cabq;
 	struct ieee80211_tx_info *info;
 	int cabq_depth;
-
-	if (aphy->state != ATH_WIPHY_ACTIVE)
-		return NULL;
 
 	avp = (void *)vif->drv_priv;
 	cabq = sc->beacon.cabq;
@@ -225,9 +220,8 @@ static struct ath_buf *ath_beacon_generate(struct ieee80211_hw *hw,
 	return bf;
 }
 
-int ath_beacon_alloc(struct ath_wiphy *aphy, struct ieee80211_vif *vif)
+int ath_beacon_alloc(struct ath_softc *sc, struct ieee80211_vif *vif)
 {
-	struct ath_softc *sc = aphy->sc;
 	struct ath_common *common = ath9k_hw_common(sc->sc_ah);
 	struct ath_vif *avp;
 	struct ath_buf *bf;
@@ -244,9 +238,7 @@ int ath_beacon_alloc(struct ath_wiphy *aphy, struct ieee80211_vif *vif)
 						 struct ath_buf, list);
 		list_del(&avp->av_bcbuf->list);
 
-		if (sc->sc_ah->opmode == NL80211_IFTYPE_AP ||
-		    sc->sc_ah->opmode == NL80211_IFTYPE_ADHOC ||
-		    sc->sc_ah->opmode == NL80211_IFTYPE_MESH_POINT) {
+		if (ath9k_uses_beacons(vif->type)) {
 			int slot;
 			/*
 			 * Assign the vif to a beacon xmit slot. As
@@ -263,7 +255,6 @@ int ath_beacon_alloc(struct ath_wiphy *aphy, struct ieee80211_vif *vif)
 				}
 			BUG_ON(sc->beacon.bslot[avp->av_bslot] != NULL);
 			sc->beacon.bslot[avp->av_bslot] = vif;
-			sc->beacon.bslot_aphy[avp->av_bslot] = aphy;
 			sc->nbcnvifs++;
 		}
 	}
@@ -281,10 +272,8 @@ int ath_beacon_alloc(struct ath_wiphy *aphy, struct ieee80211_vif *vif)
 
 	/* NB: the beacon data buffer must be 32-bit aligned. */
 	skb = ieee80211_beacon_get(sc->hw, vif);
-	if (skb == NULL) {
-		ath_dbg(common, ATH_DBG_BEACON, "cannot get skb\n");
+	if (skb == NULL)
 		return -ENOMEM;
-	}
 
 	tstamp = ((struct ieee80211_mgmt *)skb->data)->u.beacon.timestamp;
 	sc->beacon.bc_tstamp = le64_to_cpu(tstamp);
@@ -336,7 +325,6 @@ void ath_beacon_return(struct ath_softc *sc, struct ath_vif *avp)
 
 		if (avp->av_bslot != -1) {
 			sc->beacon.bslot[avp->av_bslot] = NULL;
-			sc->beacon.bslot_aphy[avp->av_bslot] = NULL;
 			sc->nbcnvifs--;
 		}
 
@@ -362,7 +350,6 @@ void ath_beacon_tasklet(unsigned long data)
 	struct ath_common *common = ath9k_hw_common(ah);
 	struct ath_buf *bf = NULL;
 	struct ieee80211_vif *vif;
-	struct ath_wiphy *aphy;
 	int slot;
 	u32 bfaddr, bc = 0, tsftu;
 	u64 tsf;
@@ -420,7 +407,6 @@ void ath_beacon_tasklet(unsigned long data)
 	 */
 	slot = ATH_BCBUF - slot - 1;
 	vif = sc->beacon.bslot[slot];
-	aphy = sc->beacon.bslot_aphy[slot];
 
 	ath_dbg(common, ATH_DBG_BEACON,
 		"slot %d [tsf %llu tsftu %u intval %u] vif %p\n",
@@ -428,7 +414,7 @@ void ath_beacon_tasklet(unsigned long data)
 
 	bfaddr = 0;
 	if (vif) {
-		bf = ath_beacon_generate(aphy->hw, vif);
+		bf = ath_beacon_generate(sc->hw, vif);
 		if (bf != NULL) {
 			bfaddr = bf->bf_daddr;
 			bc = 1;
@@ -720,10 +706,10 @@ void ath_beacon_config(struct ath_softc *sc, struct ieee80211_vif *vif)
 		iftype = sc->sc_ah->opmode;
 	}
 
-		cur_conf->listen_interval = 1;
-		cur_conf->dtim_count = 1;
-		cur_conf->bmiss_timeout =
-			ATH_DEFAULT_BMISS_LIMIT * cur_conf->beacon_interval;
+	cur_conf->listen_interval = 1;
+	cur_conf->dtim_count = 1;
+	cur_conf->bmiss_timeout =
+		ATH_DEFAULT_BMISS_LIMIT * cur_conf->beacon_interval;
 
 	/*
 	 * It looks like mac80211 may end up using beacon interval of zero in
@@ -735,8 +721,9 @@ void ath_beacon_config(struct ath_softc *sc, struct ieee80211_vif *vif)
 		cur_conf->beacon_interval = 100;
 
 	/*
-	 * Some times we dont parse dtim period from mac80211, in that case
-	 * use a default value
+	 * We don't parse dtim period from mac80211 during the driver
+	 * initialization as it breaks association with hidden-ssid
+	 * AP and it causes latency in roaming
 	 */
 	if (cur_conf->dtim_period == 0)
 		cur_conf->dtim_period = 1;

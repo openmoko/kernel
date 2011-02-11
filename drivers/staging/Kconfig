@@ -41,6 +41,17 @@ config STAGING_EXCLUDE_BUILD
 
 if !STAGING_EXCLUDE_BUILD
 
+config BKL
+	bool "Include drivers that depend on the Big Kernel Lock" if (SMP || PREEMPT)
+	default !(SMP || PREEMPT)
+	help
+	  This is the traditional lock that is used in old code instead
+	  of proper locking. All drivers that use the BKL should depend
+	  on this symbol.
+	  A small number of drivers still require this. All drivers that
+	  use the BKL should be changed to a better serialisation method
+	  or they will be removed in 2.6.39.
+
 source "drivers/staging/et131x/Kconfig"
 
 source "drivers/staging/slicoss/Kconfig"

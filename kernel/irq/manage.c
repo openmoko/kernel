@@ -179,7 +179,7 @@ static void irq_affinity_notify(struct work_struct *work)
 		cpumask_copy(cpumask, desc->pending_mask);
 	else
 #endif
-		cpumask_copy(cpumask, desc->affinity);
+		cpumask_copy(cpumask, desc->irq_data.affinity);
 	raw_spin_unlock_irqrestore(&desc->lock, flags);
 
 	notify->notify(notify, cpumask);
@@ -359,8 +359,17 @@ EXPORT_SYMBOL(disable_irq);
 
 void __enable_irq(struct irq_desc *desc, unsigned int irq, bool resume)
 {
-	if (resume)
+	if (resume) {
+		if (!(desc->status & IRQ_SUSPENDED)) {
+			if (!desc->action)
+				return;
+			if (!(desc->action->flags & IRQF_FORCE_RESUME))
+				return;
+			/* Pretend that it got disabled ! */
+			desc->depth++;
+		}
 		desc->status &= ~IRQ_SUSPENDED;
+	}
 
 	switch (desc->depth) {
 	case 0:

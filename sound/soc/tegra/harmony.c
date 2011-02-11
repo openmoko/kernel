@@ -38,6 +38,7 @@
 #include <mach/harmony_audio.h>
 
 #include <sound/core.h>
+#include <sound/jack.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
@@ -123,6 +124,24 @@ static struct snd_soc_ops harmony_asoc_ops = {
 	.hw_params = harmony_asoc_hw_params,
 };
 
+static struct snd_soc_jack harmony_hp_jack;
+
+static struct snd_soc_jack_pin harmony_hp_jack_pins[] = {
+	{
+		.pin = "Headphone Jack",
+		.mask = SND_JACK_HEADPHONE,
+	},
+};
+
+static struct snd_soc_jack_gpio harmony_hp_jack_gpios[] = {
+	{
+		.name = "headphone detect",
+		.report = SND_JACK_HEADPHONE,
+		.debounce_time = 150,
+		.invert = 1,
+	}
+};
+
 static int harmony_event_int_spk(struct snd_soc_dapm_widget *w,
 					struct snd_kcontrol *k, int event)
 {
@@ -154,6 +173,10 @@ static const struct snd_soc_dapm_route harmony_audio_map[] = {
 	{"IN1L", NULL, "Mic Bias"},
 };
 
+static const struct snd_kcontrol_new harmony_controls[] = {
+	SOC_DAPM_PIN_SWITCH("Int Spk"),
+};
+
 static int harmony_asoc_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
@@ -172,16 +195,29 @@ static int harmony_asoc_init(struct snd_soc_pcm_runtime *rtd)
 
 	gpio_direction_output(pdata->gpio_spkr_en, 0);
 
+	ret = snd_soc_add_controls(codec, harmony_controls,
+				   ARRAY_SIZE(harmony_controls));
+	if (ret < 0)
+		return ret;
+
 	snd_soc_dapm_new_controls(dapm, harmony_dapm_widgets,
 					ARRAY_SIZE(harmony_dapm_widgets));
 
 	snd_soc_dapm_add_routes(dapm, harmony_audio_map,
 				ARRAY_SIZE(harmony_audio_map));
 
-	snd_soc_dapm_enable_pin(dapm, "Headphone Jack");
-	snd_soc_dapm_enable_pin(dapm, "Int Spk");
 	snd_soc_dapm_enable_pin(dapm, "Mic Jack");
 	snd_soc_dapm_sync(dapm);
+
+	harmony_hp_jack_gpios[0].gpio = pdata->gpio_hp_det;
+	snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
+			 &harmony_hp_jack);
+	snd_soc_jack_add_pins(&harmony_hp_jack,
+			      ARRAY_SIZE(harmony_hp_jack_pins),
+			      harmony_hp_jack_pins);
+	snd_soc_jack_add_gpios(&harmony_hp_jack,
+			       ARRAY_SIZE(harmony_hp_jack_gpios),
+			       harmony_hp_jack_gpios);
 
 	return 0;
 }
@@ -189,7 +225,7 @@ static int harmony_asoc_init(struct snd_soc_pcm_runtime *rtd)
 static struct snd_soc_dai_link harmony_wm8903_dai = {
 	.name = "WM8903",
 	.stream_name = "WM8903 PCM",
-	.codec_name = "wm8903-codec.0-001a",
+	.codec_name = "wm8903.0-001a",
 	.platform_name = "tegra-pcm-audio",
 	.cpu_dai_name = "tegra-i2s.0",
 	.codec_dai_name = "wm8903-hifi",

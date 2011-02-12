@@ -137,7 +137,7 @@ static ssize_t gsm_write(struct device *dev, struct device_attribute *attr,
 			 const char *buf, size_t count)
 {
 	int ret;
-	unsigned long on
+	unsigned long on;
 
 	ret = strict_strtoul(buf, 10, &on);
 	if (ret)

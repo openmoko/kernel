@@ -119,4 +119,5 @@ source "drivers/platform/Kconfig"
 source "drivers/clk/Kconfig"
 
 source "drivers/hwspinlock/Kconfig"
+source "drivers/ar6000/Kconfig"
 endmenu

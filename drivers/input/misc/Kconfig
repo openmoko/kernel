@@ -330,6 +330,13 @@ config INPUT_PWM_BEEPER
 	  To compile this driver as a module, choose M here: the module will be
 	  called pwm-beeper.
 
+config INPUT_PCF50606_PMU
+	tristate "PCF50606 PMU events"
+	depends on MFD_PCF50606
+	help
+	 Say Y to include support for delivering  PMU events via  input
+	 layer on NXP PCF50606.
+
 config INPUT_GPIO_ROTARY_ENCODER
 	tristate "Rotary encoders connected to GPIO pins"
 	depends on GPIOLIB && GENERIC_GPIO

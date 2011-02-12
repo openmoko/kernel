@@ -218,5 +218,10 @@ config CHARGER_GPIO
 
 	  This driver can be build as a module. If so, the module will be
 	  called gpio-charger.
+config BATTERY_PLATFORM
+	tristate "Platform battery driver"
+	help
+	  Say Y here to include support for battery driver that gets all
+	  information from platform functions.
 
 endif # POWER_SUPPLY

@@ -251,7 +251,9 @@ struct mmc_host {
 #endif
 
 	struct dentry		*debugfs_root;
-
+#ifdef CONFIG_FAIL_MMC_REQUEST
+	u8			make_it_fail;
+#endif
 	unsigned long		private[0] ____cacheline_aligned;
 };
 

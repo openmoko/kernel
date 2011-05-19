@@ -75,6 +75,12 @@ config GPIO_BASIC_MMIO
 	help
 	  Say yes here to support basic memory-mapped GPIO controllers.
 
+config GPIO_GLAMO
+	tristate "Glamo GPIO support"
+	depends on MFD_GLAMO
+	help
+	  Say yes here to support GPIO functionality of the Smedia Glamo.
+
 config GPIO_IT8761E
 	tristate "IT8761E GPIO support"
 	depends on GPIOLIB
@@ -293,6 +299,13 @@ config GPIO_ADP5588_IRQ
 	help
 	  Say yes here to enable the adp5588 to be used as an interrupt
 	  controller. It requires the driver to be built in the kernel.
+
+config GPIO_PCF50633
+	tristate "GPIO support for NXP PCF50633"
+	depends on MFD_PCF50633
+	help
+	 Say yes here if you want to include support GPIO for pins on
+	 the PCF50633 chip.
 
 comment "PCI GPIO expanders:"
 

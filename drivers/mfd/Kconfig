@@ -448,6 +448,7 @@ config MFD_WM8994
 
 config MFD_PCF50633
 	tristate "Support for NXP PCF50633"
+	select MFD_CORE
 	depends on I2C
 	help
 	  Say yes here if you have NXP PCF50633 chip on your board.
@@ -476,13 +477,6 @@ config PCF50633_ADC
 	help
 	 Say yes here if you want to include support for ADC in the
 	 NXP PCF50633 chip.
-
-config PCF50633_GPIO
-	tristate "Support for NXP PCF50633 GPIO"
-	depends on MFD_PCF50633
-	help
-	 Say yes here if you want to include support GPIO for pins on
-	 the PCF50633 chip.
 
 config ABX500_CORE
 	bool "ST-Ericsson ABX500 Mixed Signal Circuit register functions"
@@ -601,6 +595,14 @@ config LPC_SCH
 	help
 	  LPC bridge function of the Intel SCH provides support for
 	  System Management Bus and General Purpose I/O.
+
+config MFD_GLAMO
+	bool "Smedia Glamo 336x/337x support"
+	select MFD_CORE
+	help
+	  This enables the core driver for the Smedia Glamo 336x/337x
+	  multi-function device.  It includes irq_chip demultiplex as
+	  well as clock / power management and GPIO support.
 
 config MFD_RDC321X
 	tristate "Support for RDC-R321x southbridge"
